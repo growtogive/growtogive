@@ -13,7 +13,6 @@ function getPseudoHash(id: any): number {
   return Math.abs(hash);
 }
 
-// User-based distance for regular listings, location/address-based distance for commercial listings
 function getListingDistance(item: any): number {
   if (item.type === 'COMMERCIAL') {
     const locKey = item.location || item.city || item.id || 'commercial';
@@ -90,6 +89,78 @@ const fallbackMockListings = [
     churchName: 'General Community',
     city: 'Clearwater',
     location: '123 Business Blvd, Clearwater',
+  },
+  {
+    id: '4',
+    title: 'Homemade Sourdough Bread',
+    description: 'Freshly baked artisan sourdough loaves ready for pickup.',
+    type: 'OFFER',
+    priceInBucks: 3,
+    imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=60',
+    authorId: 'user-2',
+    author: { id: 'user-2', name: 'Sarah Jenkins', churchName: 'Radiant Church - Tampa', city: 'Tampa' },
+    churchName: 'Radiant Church - Tampa',
+    city: 'Tampa',
+  },
+  {
+    id: '5',
+    title: 'Guitar Lessons for Beginners',
+    description: 'Offering free acoustic guitar lessons on Tuesday evenings.',
+    type: 'OFFER',
+    priceInBucks: 0,
+    imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=60',
+    authorId: 'user-2',
+    author: { id: 'user-2', name: 'Sarah Jenkins', churchName: 'Radiant Church - Tampa', city: 'Tampa' },
+    churchName: 'Radiant Church - Tampa',
+    city: 'Tampa',
+  },
+  {
+    id: '6',
+    title: 'Bradenton Handyman & Repair',
+    description: 'Reliable household repairs, fixture replacements, and carpentry.',
+    type: 'COMMERCIAL',
+    priceInBucks: 40,
+    imageUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=60',
+    authorId: 'user-3',
+    author: { id: 'user-3', name: 'David Miller', churchName: 'Bayside Community - Bradenton', city: 'Bradenton' },
+    churchName: 'Bayside Community - Bradenton',
+    city: 'Bradenton',
+  },
+  {
+    id: '7',
+    title: 'Childrens Books Bundle',
+    description: 'Collection of gently used picture books for ages 4-8.',
+    type: 'OFFER',
+    priceInBucks: 0,
+    imageUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=800&auto=format&fit=crop&q=60',
+    authorId: 'user-3',
+    author: { id: 'user-3', name: 'David Miller', churchName: 'Bayside Community - Bradenton', city: 'Bradenton' },
+    churchName: 'Bayside Community - Bradenton',
+    city: 'Bradenton',
+  },
+  {
+    id: '8',
+    title: 'Sarasota Landscape & Lawn Care',
+    description: 'Professional lawn mowing, trimming, and yard cleanup.',
+    type: 'COMMERCIAL',
+    priceInBucks: 45,
+    imageUrl: 'https://images.unsplash.com/photo-1558904541-efa873a87679?w=800&auto=format&fit=crop&q=60',
+    authorId: 'user-4',
+    author: { id: 'user-4', name: 'Elena Rostova', churchName: 'Church of Hope - Sarasota', city: 'Sarasota' },
+    churchName: 'Church of Hope - Sarasota',
+    city: 'Sarasota',
+  },
+  {
+    id: '9',
+    title: 'Need Help Moving Furniture',
+    description: 'Looking for two strong volunteers to help move a sofa this Saturday morning.',
+    type: 'REQUEST',
+    priceInBucks: 15,
+    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&auto=format&fit=crop&q=60',
+    authorId: 'user-4',
+    author: { id: 'user-4', name: 'Elena Rostova', churchName: 'Church of Hope - Sarasota', city: 'Sarasota' },
+    churchName: 'Church of Hope - Sarasota',
+    city: 'Sarasota',
   },
 ];
 
