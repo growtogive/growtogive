@@ -15,8 +15,6 @@ model User {
   city              String?
   state             String?
   searchRadiusMiles Int?
-  latitude          Float?         // Required by app/api/user/me/route.ts
-  longitude         Float?
   listings          Listing[]
   reviewsAuthored   Review[]       @relation("ReviewAuthor")
   reviewsReceived   Review[]       @relation("ReviewTarget")
@@ -29,11 +27,11 @@ model Listing {
   id           String   @id @default(cuid())
   title        String
   description  String
-  category     String
+  category     String   @default("General")
   type         String
   priceInBucks Float    @default(0)
   imageUrl     String?
-  videoUrl     String?  // Required by app/api/listings/create/route.ts
+  websiteUrl   String?  // Added to match app/api/listings/create/route.ts
   churchName   String?
   city         String?
   authorId     String
@@ -44,33 +42,35 @@ model Listing {
 }
 
 model Review {
-  id           String    @id @default(cuid())
-  rating       Int       @default(5)
-  comment      String
-  replyText    String?   // Required by review reply routes
-  parentId     String?   // Required by review create routes
-  parent       Review?   @relation("ReviewReplies", fields: [parentId], references: [id], onDelete: SetNull)
-  replies      Review[]  @relation("ReviewReplies")
+  id             String    @id @default(cuid())
+  rating         Int       @default(5)
+  comment        String
+  replyText      String?
+  replyCreatedAt DateTime? // Added to match app/api/reviews/reply/route.ts
+  parentId       String?
+  parent         Review?   @relation("ReviewReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies        Review[]  @relation("ReviewReplies")
   
-  listingId    String?
-  listing      Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId      String?
+  listing        Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   
-  authorId     String
-  author       User      @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         User      @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   
-  targetUserId String?
-  targetUser   User?     @relation("ReviewTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetUserId   String?
+  targetUser     User?     @relation("ReviewTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
   
-  recipientId  String?   // Required by app/api/reviews/reply/route.ts
+  recipientId    String?
   
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @default(now()) @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
 }
 
 model Notification {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?  // Added to match app/api/reviews/reply/route.ts
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
