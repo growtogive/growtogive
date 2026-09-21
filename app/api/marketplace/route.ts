@@ -23,35 +23,6 @@ function getListingDistance(item: any): number {
   }
 }
 
-function getPseudoRating(id: any, isCommercial: boolean): number {
-  const seed = isCommercial ? getPseudoHash(id) : getPseudoHash(String(id) + 'user');
-  const ratings = [4.2, 4.5, 4.6, 4.8, 4.9, 5.0];
-  return ratings[seed % ratings.length];
-}
-
-function getPseudoExpiration(id: any): string {
-  const seed = getPseudoHash(id);
-  const daysInFuture = (seed % 25) + 3;
-  const date = new Date();
-  date.setDate(date.getDate() + daysInFuture);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function getSampleReviews(isCommercial: boolean, authorName: string, listingTitle: string) {
-  if (isCommercial) {
-    return [
-      { id: 1, author: 'Mark Taylor', rating: 5, date: '2 weeks ago', comment: `Absolute professionals! Outstanding service on ${listingTitle}. Highly recommended to all church members.` },
-      { id: 2, author: 'Rachel Adams', rating: 4, date: '1 month ago', comment: 'Very thorough, punctual, and respectful. Will definitely use their services again.' },
-      { id: 3, author: 'Pastor Dave', rating: 5, date: '2 months ago', comment: 'Great community partner. Did stellar work for our fellowship hall.' },
-    ];
-  } else {
-    return [
-      { id: 1, author: 'Sarah Jenkins', rating: 5, date: '1 week ago', comment: `${authorName} was extremely kind and prompt. Such a blessing to our community!` },
-      { id: 2, author: 'Michael Brown', rating: 5, date: '3 weeks ago', comment: 'Smooth exchange, exactly as described. Wonderful interaction.' },
-    ];
-  }
-}
-
 const fallbackMockListings = [
   {
     id: '1',
@@ -64,6 +35,7 @@ const fallbackMockListings = [
     author: { id: 'user-1', name: 'John Doe', churchName: 'Grace Family Church - Tampa', city: 'Tampa' },
     churchName: 'Grace Family Church - Tampa',
     city: 'Tampa',
+    reviews: [],
   },
   {
     id: '2',
@@ -76,6 +48,7 @@ const fallbackMockListings = [
     author: { id: 'user-1', name: 'John Doe', churchName: 'Grace Family Church - Tampa', city: 'Tampa' },
     churchName: 'Grace Family Church - Tampa',
     city: 'Tampa',
+    reviews: [],
   },
   {
     id: '3',
@@ -89,78 +62,7 @@ const fallbackMockListings = [
     churchName: 'General Community',
     city: 'Clearwater',
     location: '123 Business Blvd, Clearwater',
-  },
-  {
-    id: '4',
-    title: 'Homemade Sourdough Bread',
-    description: 'Freshly baked artisan sourdough loaves ready for pickup.',
-    type: 'OFFER',
-    priceInBucks: 3,
-    imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=60',
-    authorId: 'user-2',
-    author: { id: 'user-2', name: 'Sarah Jenkins', churchName: 'Radiant Church - Tampa', city: 'Tampa' },
-    churchName: 'Radiant Church - Tampa',
-    city: 'Tampa',
-  },
-  {
-    id: '5',
-    title: 'Guitar Lessons for Beginners',
-    description: 'Offering free acoustic guitar lessons on Tuesday evenings.',
-    type: 'OFFER',
-    priceInBucks: 0,
-    imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=60',
-    authorId: 'user-2',
-    author: { id: 'user-2', name: 'Sarah Jenkins', churchName: 'Radiant Church - Tampa', city: 'Tampa' },
-    churchName: 'Radiant Church - Tampa',
-    city: 'Tampa',
-  },
-  {
-    id: '6',
-    title: 'Bradenton Handyman & Repair',
-    description: 'Reliable household repairs, fixture replacements, and carpentry.',
-    type: 'COMMERCIAL',
-    priceInBucks: 40,
-    imageUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800&auto=format&fit=crop&q=60',
-    authorId: 'user-3',
-    author: { id: 'user-3', name: 'David Miller', churchName: 'Bayside Community - Bradenton', city: 'Bradenton' },
-    churchName: 'Bayside Community - Bradenton',
-    city: 'Bradenton',
-  },
-  {
-    id: '7',
-    title: 'Childrens Books Bundle',
-    description: 'Collection of gently used picture books for ages 4-8.',
-    type: 'OFFER',
-    priceInBucks: 0,
-    imageUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=800&auto=format&fit=crop&q=60',
-    authorId: 'user-3',
-    author: { id: 'user-3', name: 'David Miller', churchName: 'Bayside Community - Bradenton', city: 'Bradenton' },
-    churchName: 'Bayside Community - Bradenton',
-    city: 'Bradenton',
-  },
-  {
-    id: '8',
-    title: 'Sarasota Landscape & Lawn Care',
-    description: 'Professional lawn mowing, trimming, and yard cleanup.',
-    type: 'COMMERCIAL',
-    priceInBucks: 45,
-    imageUrl: 'https://images.unsplash.com/photo-1558904541-efa873a87679?w=800&auto=format&fit=crop&q=60',
-    authorId: 'user-4',
-    author: { id: 'user-4', name: 'Elena Rostova', churchName: 'Church of Hope - Sarasota', city: 'Sarasota' },
-    churchName: 'Church of Hope - Sarasota',
-    city: 'Sarasota',
-  },
-  {
-    id: '9',
-    title: 'Need Help Moving Furniture',
-    description: 'Looking for two strong volunteers to help move a sofa this Saturday morning.',
-    type: 'REQUEST',
-    priceInBucks: 15,
-    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&auto=format&fit=crop&q=60',
-    authorId: 'user-4',
-    author: { id: 'user-4', name: 'Elena Rostova', churchName: 'Church of Hope - Sarasota', city: 'Sarasota' },
-    churchName: 'Church of Hope - Sarasota',
-    city: 'Sarasota',
+    reviews: [],
   },
 ];
 
@@ -174,7 +76,15 @@ export async function GET(request: Request) {
     let rawListings: any[] = [];
     try {
       rawListings = await prisma.listing.findMany({
-        include: { author: true },
+        include: {
+          author: true,
+          reviews: {
+            include: {
+              author: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
         orderBy: { createdAt: 'desc' },
       });
     } catch (dbErr) {
@@ -185,15 +95,31 @@ export async function GET(request: Request) {
 
     const listings = sourceData
       .map((item) => {
-        const isCommercial = item.type === 'COMMERCIAL';
         const authorId = item.authorId || item.author?.id || 'user-default';
         const fixedDistance = getListingDistance(item);
-        const rating = getPseudoRating(item.id, isCommercial);
-        const expirationDate = getPseudoExpiration(item.id);
         const churchVal = item.churchName || item.author?.churchName || 'Grace Family Church';
         const cityVal = item.city || item.author?.city || 'Tampa';
         const authorName = item.author?.name || 'Community Member';
-        const reviews = getSampleReviews(isCommercial, authorName, item.title);
+
+        // Format real database reviews and include authorId for duplicate checks
+        const finalReviews = (item.reviews || []).map((r: any) => ({
+          id: r.id,
+          authorId: r.authorId || r.author?.id,
+          author: r.author?.name || 'Community Member',
+          rating: r.rating,
+          date: new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          comment: r.comment,
+        }));
+        
+        // Compute average rating from real reviews
+        const totalRating = finalReviews.reduce((acc: number, r: any) => acc + r.rating, 0);
+        const avgRating = finalReviews.length > 0 ? Number((totalRating / finalReviews.length).toFixed(1)) : 5.0;
+
+        const seed = getPseudoHash(item.id);
+        const daysInFuture = (seed % 25) + 3;
+        const expDate = new Date();
+        expDate.setDate(expDate.getDate() + daysInFuture);
+        const expirationDate = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
         return {
           id: item.id,
@@ -205,12 +131,14 @@ export async function GET(request: Request) {
           imageUrl: item.imageUrl || 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=800&auto=format&fit=crop&q=60',
           authorId,
           authorName,
+          authorEmail: item.author?.email || `${authorName.toLowerCase().replace(/\s+/g, '')}@growtogive.org`,
           churchName: churchVal,
           city: cityVal,
           distance: fixedDistance,
-          rating,
+          rating: avgRating,
+          reviewCount: finalReviews.length,
           expirationDate,
-          reviews,
+          reviews: finalReviews,
         };
       })
       .filter((item) => {
@@ -234,7 +162,7 @@ export async function GET(request: Request) {
         return true;
       });
 
-    return NextResponse.json(listings);
+    return NextResponse.json(listings, { status: 200 });
   } catch (error) {
     console.error('Marketplace API Error:', error);
     return NextResponse.json([], { status: 200 });

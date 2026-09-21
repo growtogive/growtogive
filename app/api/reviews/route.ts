@@ -1,15 +1,29 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
-
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    const { rating, comment, authorId, listingId, parentId } = body;
+    const body = await req.json();
+    const { listingId, rating, comment } = body;
 
-    if (!listingId || !comment) {
-      return NextResponse.json({ error: 'Missing required review fields' }, { status: 400 });
+    const currentUserId = 'user_mock_id';
+
+    if (!listingId || !rating || !comment) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Ensure the mock user exists
+    let mockUser = await prisma.user.findUnique({ where: { id: currentUserId } });
+    if (!mockUser) {
+      mockUser = await prisma.user.upsert({
+        where: { email: 'mockuser@growtogive.org' },
+        update: {},
+        create: {
+          id: currentUserId,
+          name: 'Mock Test User',
+          email: 'mockuser@growtogive.org',
+        },
+      });
     }
 
     const listing = await prisma.listing.findUnique({
@@ -20,42 +34,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
 
-    let validAuthorId = authorId;
-    if (validAuthorId) {
-      const userExists = await prisma.user.findUnique({ where: { id: validAuthorId } });
-      if (!userExists) validAuthorId = null;
-    }
-
-    if (!validAuthorId) {
-      const fallbackUser = await prisma.user.findFirst();
-      if (!fallbackUser) {
-        return NextResponse.json({ error: 'No valid user found' }, { status: 400 });
-      }
-      validAuthorId = fallbackUser.id;
-    }
-
-    if (!parentId && listing.authorId === validAuthorId) {
-      return NextResponse.json({ error: 'Authors cannot leave reviews on their own listings.' }, { status: 400 });
-    }
-
-    const reviewData: any = {
-      rating: Number(rating || 5),
-      comment: comment || '',
-      authorId: validAuthorId,
-      listingId,
-    };
-
-    if (parentId) {
-      reviewData.parent = { connect: { id: parentId } };
+    if (listing.authorId === currentUserId) {
+      return NextResponse.json({ error: 'You cannot review your own listing or profile.' }, { status: 403 });
     }
 
     const newReview = await prisma.review.create({
-      data: reviewData,
+      data: {
+        rating: Number(rating),
+        comment: comment.trim(),
+        author: { connect: { id: currentUserId } },
+        listing: { connect: { id: listingId } },
+        targetUser: { connect: { id: listing.authorId } },
+      },
+      include: {
+        author: { select: { name: true } },
+      },
     });
 
     return NextResponse.json(newReview, { status: 201 });
-  } catch (error: any) {
-    console.error('Review Creation Error:', error.message);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  } catch (err: any) {
+    console.error('Error creating review:', err);
+    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -1,93 +1,65 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../prisma';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    const resolvedParams = await params;
-    const listingId = resolvedParams.id;
+    const { id } = params;
 
     const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
+      where: { id },
       include: {
-        author: {
-          select: { id: true, name: true, email: true, churchName: true, city: true, state: true }
-        },
+        author: true,
         reviews: {
-          include: {
-            author: { select: { id: true, name: true } }
-          },
-          orderBy: { createdAt: 'desc' }
-        }
-      }
+          include: { author: { select: { name: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     });
 
     if (!listing) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
 
-    return NextResponse.json(listing);
-  } catch (error: any) {
-    console.error('Fetch Listing Error:', error);
-    return NextResponse.json({ error: 'Failed to fetch listing', details: error.message }, { status: 500 });
-  }
-}
-
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const resolvedParams = await params;
-    const listingId = resolvedParams.id;
-    const body = await request.json();
-    const {
-      title,
-      description,
-      priceInBucks,
-      imageUrl,
-      videoUrl,
-      websiteUrl,
-      address,
-      latitude,
-      longitude,
-      businessHours,
-      userId,
-    } = body;
-
-    const existingListing = await prisma.listing.findUnique({
-      where: { id: listingId },
-    });
-
-    if (!existingListing) {
-      return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
+    // If it's an offer/request, also fetch reviews tied to the author's user profile targetUserId
+    let profileReviews: any[] = [];
+    if (listing.type !== 'COMMERCIAL') {
+      profileReviews = await prisma.review.findMany({
+        where: { targetUserId: listing.authorId },
+        include: { author: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
     }
 
-    if (existingListing.authorId !== userId) {
-      return NextResponse.json({ error: 'Unauthorized to edit this listing' }, { status: 403 });
-    }
-
-    const updatedListing = await prisma.listing.update({
-      where: { id: listingId },
-      data: {
-        title,
-        description,
-        priceInBucks: priceInBucks !== undefined ? parseFloat(priceInBucks) : undefined,
-        imageUrl: imageUrl !== undefined ? imageUrl : existingListing.imageUrl,
-        videoUrl: existingListing.type === 'COMMERCIAL' ? videoUrl : null,
-        websiteUrl: existingListing.type === 'COMMERCIAL' ? websiteUrl : null,
-        address: existingListing.type === 'COMMERCIAL' ? address : null,
-        latitude: existingListing.type === 'COMMERCIAL' && latitude ? parseFloat(latitude) : null,
-        longitude: existingListing.type === 'COMMERCIAL' && longitude ? parseFloat(longitude) : null,
-        businessHours: existingListing.type === 'COMMERCIAL' ? businessHours : null,
-      },
+    // Combine and deduplicate reviews
+    const allReviewsMap = new Map();
+    [...listing.reviews, ...profileReviews].forEach((rev) => {
+      allReviewsMap.set(rev.id, {
+        id: rev.id,
+        author: rev.author?.name || 'Community Member',
+        rating: rev.rating,
+        date: new Date(rev.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        comment: rev.comment,
+      });
     });
 
-    return NextResponse.json(updatedListing);
-  } catch (error: any) {
-    console.error('Update Listing Error:', error);
-    return NextResponse.json({ error: 'Failed to update listing', details: error.message }, { status: 500 });
+    const reviewsList = Array.from(allReviewsMap.values());
+    const totalRating = reviewsList.reduce((acc, r) => acc + r.rating, 0);
+    const avgRating = reviewsList.length > 0 ? Number((totalRating / reviewsList.length).toFixed(1)) : 4.9;
+
+    const formattedListing = {
+      ...listing,
+      authorName: listing.author?.name || 'Community Member',
+      authorEmail: listing.author?.email || 'member@growtogive.org',
+      churchName: listing.churchName || listing.author?.churchName || 'Grace Family Church',
+      city: listing.city || listing.author?.city || 'Tampa',
+      rating: avgRating,
+      reviewCount: reviewsList.length,
+      reviews: reviewsList, // Real reviews from DB!
+    };
+
+    return NextResponse.json(formattedListing, { status: 200 });
+  } catch (err) {
+    console.error('Error fetching listing detail:', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

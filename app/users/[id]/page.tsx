@@ -29,16 +29,28 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       const authorName = firstItem ? firstItem.authorName : id.replace(/-/g, ' ');
       const churchName = firstItem ? firstItem.churchName : 'Grace Family Church - Tampa';
       
-      const avgRating = userListings.length > 0 
-        ? (userListings.reduce((acc, item) => acc + (item.rating || 4.8), 0) / userListings.length).toFixed(1)
-        : '4.8';
+      // Collect all real reviews from all listings belonging to this user
+      const collectedReviews: any[] = [];
+      userListings.forEach((item: any) => {
+        if (item.reviews && Array.isArray(item.reviews)) {
+          item.reviews.forEach((r: any) => {
+            // Avoid duplicate entries if multiple listings share reviews
+            if (!collectedReviews.some((existing) => existing.id === r.id)) {
+              collectedReviews.push({
+                id: r.id,
+                author: r.author?.name || r.author || 'Community Member',
+                rating: r.rating,
+                date: r.date || new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                comment: r.comment,
+              });
+            }
+          });
+        }
+      });
 
-      // Gather or generate reviews for this user
-      const userReviews = [
-        { id: 1, author: 'Sarah Jenkins', rating: 5, date: '1 week ago', comment: `${authorName} was extremely kind and prompt. Such a blessing to our community!` },
-        { id: 2, author: 'Michael Brown', rating: 5, date: '3 weeks ago', comment: 'Smooth exchange, exactly as described. Wonderful interaction.' },
-        { id: 3, author: 'Pastor Dave', rating: 4, date: '1 month ago', comment: 'Very reliable and courteous community member.' },
-      ];
+      const avgRating = collectedReviews.length > 0 
+        ? (collectedReviews.reduce((acc, r) => acc + r.rating, 0) / collectedReviews.length).toFixed(1)
+        : 'New';
 
       setUserProfile({
         name: authorName,
@@ -47,7 +59,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         rating: avgRating,
         memberSince: 'March 2026',
         listings: userListings,
-        reviews: userReviews,
+        reviews: collectedReviews,
       });
     } catch (err) {
       console.error(err);
@@ -107,7 +119,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             <span className="text-amber-500 font-black text-xl group-hover:scale-110 transition-transform">★</span>
             <div className="text-left">
               <div className="text-lg font-black text-slate-900 group-hover:text-emerald-700 transition-colors flex items-center gap-1.5">
-                {userProfile.rating} / 5.0 <span className="text-xs font-bold text-emerald-700 underline">({userProfile.reviews.length} reviews)</span>
+                {userProfile.rating} <span className="text-xs font-bold text-emerald-700 underline">({userProfile.reviews.length} reviews)</span>
               </div>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">View User Feedback</div>
             </div>
@@ -179,23 +191,27 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <p className="text-xs text-slate-500 mt-0.5">Community feedback tied to this user profile</p>
               </div>
               <div className="ml-auto bg-amber-50 border border-amber-200 text-amber-800 px-3.5 py-1.5 rounded-xl font-black text-sm shrink-0">
-                ★ {userProfile.rating} / 5.0
+                ★ {userProfile.rating}
               </div>
             </div>
 
             <div className="space-y-4">
-              {userProfile.reviews.map((rev: any) => (
-                <div key={rev.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-slate-900 text-sm">{rev.author}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-amber-500 font-bold text-xs">{'★'.repeat(rev.rating)}</span>
-                      <span className="text-slate-400 text-xs">{rev.date}</span>
+              {userProfile.reviews.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-6">No reviews submitted for this user yet.</p>
+              ) : (
+                userProfile.reviews.map((rev: any) => (
+                  <div key={rev.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-bold text-slate-900 text-sm">{rev.author}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-500 font-bold text-xs">{'★'.repeat(rev.rating)}</span>
+                        <span className="text-slate-400 text-xs">{rev.date}</span>
+                      </div>
                     </div>
+                    <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
                   </div>
-                  <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             <div className="mt-8 pt-4 border-t border-slate-200 text-center">

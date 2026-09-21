@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+@theme {
+  --color-commercial-bg: #f3e8ff; /* purple-100 equivalent */
+  --color-commercial-text: #6b21a8; /* purple-800 equivalent */
+}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import ReviewForm from '@/components/ReviewForm';
 
 export default function ListingDetailPage() {
   const params = useParams();
@@ -12,6 +13,10 @@ export default function ListingDetailPage() {
   const [activeReviewsItem, setActiveReviewsItem] = useState<any>(null);
   const [showContactModal, setShowContactModal] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Set to a test reviewer ID (e.g., matching another seeded user or session). 
+  // To test the self-review block, you can temporarily match listing.authorId here.
+  const currentUserId = 'user_mock_id';
 
   useEffect(() => {
     if (id) {
@@ -64,19 +69,22 @@ export default function ListingDetailPage() {
     );
   }
 
-  const ratingVal = listing.rating || 4.9;
-  const reviewCount = listing.reviewCount || 14;
-  const authorSlug = listing.authorId || listing.authorName?.toLowerCase().replace(/\s+/g, '-') || 'user';
-  const authorEmail = listing.authorEmail || `${(listing.authorName || 'member').toLowerCase().replace(/\s+/g, '')}@growtogive.org`;
+  const realReviews = listing.reviews || [];
+  const reviewCount = realReviews.length;
+  const ratingVal = reviewCount > 0 
+    ? (realReviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewCount).toFixed(1) 
+    : 'New';
+
+  const authorSlug = listing.authorId || listing.author?.name?.toLowerCase().replace(/\s+/g, '-') || 'user';
+  const authorEmail = listing.author?.email || `${(listing.author?.name || 'member').toLowerCase().replace(/\s+/g, '')}@growtogive.org`;
   const subject = encodeURIComponent(`Regarding your GrowToGive listing: ${listing.title}`);
-  const body = encodeURIComponent(`Hi ${listing.authorName || 'Neighbor'},\n\nI saw your listing "${listing.title}" on GrowToGive and am interested in connecting.\n\nBlessings!`);
+  const body = encodeURIComponent(`Hi ${listing.author?.name || 'Neighbor'},\n\nI saw your listing "${listing.title}" on GrowToGive and am interested in connecting.\n\nBlessings!`);
 
   const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${authorEmail}&su=${subject}&body=${body}`;
   const outlookUrl = `https://outlook.live.com/owa/?path=/mail/action/compose&to=${authorEmail}&subject=${subject}&body=${body}`;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      {/* Header */}
       <header className="w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div className="w-full max-w-7xl mx-auto px-6 py-3.5 flex justify-between items-center gap-4">
           <Link href="/marketplace" className="flex items-center gap-2.5">
@@ -92,8 +100,7 @@ export default function ListingDetailPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="w-full max-w-4xl mx-auto px-6 pt-10">
+      <main className="w-full max-w-4xl mx-auto px-6 pt-10 space-y-8">
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
           {listing.imageUrl && (
             <div className="h-80 w-full bg-slate-100 relative">
@@ -123,7 +130,6 @@ export default function ListingDetailPage() {
                 </h1>
               </div>
 
-              {/* Clickable Star Rating Badge */}
               <button
                 onClick={() => setActiveReviewsItem(listing)}
                 className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-2 rounded-2xl transition-colors cursor-pointer group shadow-xs shrink-0"
@@ -138,7 +144,7 @@ export default function ListingDetailPage() {
             <div className="flex items-center gap-2 py-4 border-y border-slate-100 my-6 text-sm font-bold text-slate-600">
               <span>⛪</span>
               <span className="text-slate-800 font-bold">
-                {listing.churchName || 'Grace Family Church'}
+                {listing.author?.churchName || listing.churchName || 'Grace Family Church'}
               </span>
               <span className="ml-4 font-normal text-slate-400">📍 {listing.distance || '1.2'} miles away</span>
             </div>
@@ -159,7 +165,6 @@ export default function ListingDetailPage() {
               </div>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                {/* Contact Member Button */}
                 <button
                   onClick={() => setShowContactModal(true)}
                   className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm text-center transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
@@ -177,24 +182,35 @@ export default function ListingDetailPage() {
             </div>
           </div>
         </div>
+
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+          <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
+          <ReviewForm
+            listingId={listing.id}
+            listingType={listing.type}
+            authorId={listing.authorId}
+            currentUserId={currentUserId}
+            existingReviews={realReviews}
+            onReviewSubmitted={() => {
+              fetchListingDetail();
+            }}
+          />
+        </div>
       </main>
 
-      {/* Contact Options Modal */}
+      {/* Contact Modal */}
       {showContactModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative">
             <button
               onClick={() => { setShowContactModal(false); setCopied(false); }}
               className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
             >
               ×
             </button>
-
-            <h3 className="text-xl font-black text-slate-900 mb-1">Contact {listing.authorName || 'Member'}</h3>
+            <h3 className="text-xl font-black text-slate-900 mb-1">Contact {listing.author?.name || 'Member'}</h3>
             <p className="text-xs text-slate-500 mb-6">Choose how you would like to reach out regarding <span className="font-bold text-slate-700">{listing.title}</span>.</p>
-
             <div className="space-y-3">
-              {/* Copy Email Button */}
               <button
                 onClick={() => handleCopyEmail(authorEmail)}
                 className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left transition-all flex items-center justify-between group cursor-pointer"
@@ -210,8 +226,6 @@ export default function ListingDetailPage() {
                   {copied ? '✓ Copied!' : 'Copy'}
                 </span>
               </button>
-
-              {/* Gmail Button */}
               <a
                 href={gmailUrl}
                 target="_blank"
@@ -227,8 +241,6 @@ export default function ListingDetailPage() {
                 </div>
                 <span className="text-xs font-bold text-slate-400 group-hover:text-red-600">↗</span>
               </a>
-
-              {/* Outlook Button */}
               <a
                 href={outlookUrl}
                 target="_blank"
@@ -245,7 +257,6 @@ export default function ListingDetailPage() {
                 <span className="text-xs font-bold text-slate-400 group-hover:text-blue-600">↗</span>
               </a>
             </div>
-
             <div className="mt-8 pt-4 border-t border-slate-200 flex justify-end">
               <button
                 onClick={() => { setShowContactModal(false); setCopied(false); }}
@@ -271,36 +282,36 @@ export default function ListingDetailPage() {
 
             <div className="flex items-center gap-3 mb-6">
               <div>
-                <h3 className="text-xl font-black text-slate-900">Feedback for {activeReviewsItem.authorName || 'Member'}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Listing: {activeReviewsItem.title}</p>
+                <h3 className="text-xl font-black text-slate-900">Feedback for {listing.author?.name || 'Member'}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Listing: {listing.title}</p>
               </div>
               <div className="ml-auto bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-xl font-black text-sm shrink-0">
-                ★ {activeReviewsItem.rating || 4.9} / 5.0
+                ★ {ratingVal} / 5.0
               </div>
             </div>
 
             <div className="space-y-4">
-              {[
-                { id: 1, author: 'Sarah Jenkins', rating: 5, date: '1 week ago', comment: `Wonderful experience dealing with ${activeReviewsItem.authorName || 'this member'}. Prompt and courteous!` },
-                { id: 2, author: 'Michael Brown', rating: 5, date: '2 weeks ago', comment: 'Item was exactly as described. A real blessing to our fellowship.' },
-                { id: 3, author: 'Pastor Dave', rating: 4, date: '1 month ago', comment: 'Very reliable community member.' }
-              ].map((rev) => (
-                <div key={rev.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="font-bold text-slate-900 text-sm">{rev.author}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-amber-500 font-bold text-xs">{'★'.repeat(rev.rating)}</span>
-                      <span className="text-slate-400 text-xs">{rev.date}</span>
+              {realReviews.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-6">No reviews submitted for this listing yet. Be the first!</p>
+              ) : (
+                realReviews.map((rev: any) => (
+                  <div key={rev.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="font-bold text-slate-900 text-sm">{rev.author?.name || rev.author || 'Community Member'}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-amber-500 font-bold text-xs">{'★'.repeat(rev.rating)}</span>
+                        <span className="text-slate-400 text-xs">{rev.date || new Date(rev.createdAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
+                    <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
                   </div>
-                  <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             <div className="mt-8 pt-4 border-t border-slate-200 flex gap-3">
               <Link
-                href={`/users/${activeReviewsItem.authorId || activeReviewsItem.authorName?.toLowerCase().replace(/\s+/g, '-')}`}
+                href={`/users/${authorSlug}`}
                 className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl text-center transition-colors shadow-md"
               >
                 View Full User Profile

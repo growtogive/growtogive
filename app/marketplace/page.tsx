@@ -40,7 +40,6 @@ export default function MarketplacePage() {
     setMaxRadius('25');
   };
 
-  // Build hierarchical options: Group Churches by City dynamically from fetched listings
   const hierarchyMap: { [city: string]: Set<string> } = {};
   listings.forEach(item => {
     const city = (item.city || '').trim() || 'General City';
@@ -70,7 +69,6 @@ export default function MarketplacePage() {
       matchesType = item.type === 'SERVICE' || item.type === 'COMMERCIAL';
     }
 
-    // City > Church Hierarchy Filtering
     let matchesHierarchy = true;
     if (selectedHierarchy !== 'ALL') {
       const itemCity = (item.city || '').trim() || 'General City';
@@ -84,7 +82,6 @@ export default function MarketplacePage() {
       }
     }
 
-    // Radius distance check
     let matchesRadius = true;
     if (item.distance && maxRadius !== 'ALL') {
       const distNum = parseFloat(item.distance);
@@ -99,7 +96,6 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      {/* Header with Integrated Search, City>Church, Radius & Clear Button */}
       <header className="w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div className="w-full max-w-7xl mx-auto px-6 py-3.5 flex flex-col lg:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
@@ -109,9 +105,7 @@ export default function MarketplacePage() {
             </Link>
           </div>
 
-          {/* Header Row: Search, City > Church, Radius & Clear Button */}
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto flex-1 max-w-4xl justify-center">
-            {/* Search Input */}
             <div className="relative flex-1 min-w-[180px]">
               <input
                 type="text"
@@ -123,7 +117,6 @@ export default function MarketplacePage() {
               <span className="absolute right-2.5 top-2.5 text-slate-400 text-xs font-bold">🔍</span>
             </div>
 
-            {/* City > Church Parent>Child Dropdown */}
             <select
               value={selectedHierarchy}
               onChange={(e) => setSelectedHierarchy(e.target.value)}
@@ -142,7 +135,6 @@ export default function MarketplacePage() {
               ))}
             </select>
 
-            {/* Radius Dropdown */}
             <select
               value={maxRadius}
               onChange={(e) => setMaxRadius(e.target.value)}
@@ -155,7 +147,6 @@ export default function MarketplacePage() {
               <option value="100">Radius: 100 mi</option>
             </select>
 
-            {/* Clear All Filters Button */}
             <button
               onClick={handleResetAll}
               className="px-3 py-2 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-medium text-xs transition-all border border-slate-200 flex items-center gap-1 shrink-0 shadow-xs"
@@ -176,9 +167,7 @@ export default function MarketplacePage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="w-full max-w-7xl mx-auto px-6 pt-8">
-        {/* Streamlined Filter Bar (Types, Category & Listing Count) */}
         <div className="bg-white p-5 border border-slate-200 shadow-sm mb-8 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
             {[
@@ -217,14 +206,12 @@ export default function MarketplacePage() {
               </select>
             </div>
 
-            {/* Live Listing Count */}
             <div className="text-xs font-medium text-slate-600 bg-white border border-slate-200 px-3.5 py-2">
               Showing <span className="text-emerald-600 font-semibold">{filteredListings.length}</span> listings
             </div>
           </div>
         </div>
 
-        {/* Listings Grid */}
         {loading ? (
           <div className="text-center py-20 text-slate-500 font-medium text-lg">Loading marketplace listings...</div>
         ) : filteredListings.length === 0 ? (
@@ -241,8 +228,11 @@ export default function MarketplacePage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredListings.map((item: any) => {
-              const ratingVal = item.rating || 4.9;
-              const reviewCount = item.reviewCount || 14;
+              const reviews = item.reviews || [];
+              const reviewCount = reviews.length;
+              const ratingVal = reviewCount > 0 
+                ? (reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewCount).toFixed(1) 
+                : 'New';
 
               const displayChurch = (item.churchName || '').trim() || 'Grace Family Church';
 
@@ -260,27 +250,27 @@ export default function MarketplacePage() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           onError={(e: any) => { e.target.style.display = 'none'; }}
                         />
-                        {/* Type Badge as Overlay in Upper Right */}
-                        <span className="absolute top-3 right-3 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-slate-200 text-slate-800 border border-slate-300 shadow-sm">
+                        <span className={`absolute top-3 right-3 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide border shadow-sm ${
+                          item.type === 'COMMERCIAL'
+                            ? 'bg-sky-200 text-sky-800 border-sky-300'
+                            : 'bg-slate-200 text-slate-800 border-slate-300'
+                        }`}>
                           {item.type}
                         </span>
                       </div>
                     )}
 
-                    {/* Title below image (dark green color) */}
                     <div className="p-6 pb-2">
-                      <h3 className="text-lg font-semibold text-emerald-800 group-hover:text-emerald-900 leading-snug transition-colors">
+                      <h3 className="text-lg font-semibold text-black group-hover:text-slate-900 leading-snug transition-colors">
                         {item.title}
                       </h3>
                     </div>
 
                     <div className="p-6 pt-2">
-                      {/* Description directly under title */}
                       <p className="text-slate-600 text-sm line-clamp-2 leading-relaxed font-normal mb-4">
                         {item.description}
                       </p>
 
-                      {/* Metadata Row: Church on left, GB Price on far right */}
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 truncate">
                           ⛪ {displayChurch}
@@ -292,14 +282,12 @@ export default function MarketplacePage() {
                     </div>
                   </Link>
 
-                  {/* Footer / Author Bar with Rating */}
                   <div className="px-6 py-3.5 bg-white border-t border-slate-200 flex justify-between items-center text-xs font-medium text-slate-500">
                     <div className="flex items-center gap-2 truncate max-w-[55%]">
                       <span className="truncate text-xs">👤 {item.authorName || 'Member'}</span>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Clickable Star Rating Badge */}
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -341,27 +329,27 @@ export default function MarketplacePage() {
                 <p className="text-xs text-slate-500 mt-0.5">Listing: {activeReviewsItem.title}</p>
               </div>
               <div className="ml-auto bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 font-semibold text-sm shrink-0">
-                ★ {activeReviewsItem.rating || 4.9} / 5.0
+                ★ {activeReviewsItem.reviews?.length > 0 ? (activeReviewsItem.reviews.reduce((a:number, b:any) => a + b.rating, 0) / activeReviewsItem.reviews.length).toFixed(1) : 'New'}
               </div>
             </div>
 
             <div className="space-y-4">
-              {[
-                { id: 1, author: 'Sarah Jenkins', rating: 5, date: '1 week ago', comment: `Wonderful experience dealing with ${activeReviewsItem.authorName || 'this member'}. Prompt and courteous!` },
-                { id: 2, author: 'Michael Brown', rating: 5, date: '2 weeks ago', comment: 'Item was exactly as described. A real blessing to our fellowship.' },
-                { id: 3, author: 'Pastor Dave', rating: 4, date: '1 month ago', comment: 'Very reliable community member.' }
-              ].map((rev) => (
-                <div key={rev.id} className="bg-white border border-slate-200 p-4">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="font-semibold text-slate-900 text-sm">{rev.author}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-amber-500 font-semibold text-xs">{'★'.repeat(rev.rating)}</span>
-                      <span className="text-slate-400 text-xs">{rev.date}</span>
+              {(!activeReviewsItem.reviews || activeReviewsItem.reviews.length === 0) ? (
+                <p className="text-xs text-slate-500 text-center py-6">No reviews submitted for this listing yet. Be the first!</p>
+              ) : (
+                activeReviewsItem.reviews.map((rev: any) => (
+                  <div key={rev.id} className="bg-white border border-slate-200 p-4">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="font-semibold text-slate-900 text-sm">{rev.author}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-amber-500 font-semibold text-xs">{'★'.repeat(rev.rating)}</span>
+                        <span className="text-slate-400 text-xs">{rev.date}</span>
+                      </div>
                     </div>
+                    <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
                   </div>
-                  <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             <div className="mt-8 pt-4 border-t border-slate-200 flex gap-3">
