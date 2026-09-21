@@ -15,9 +15,12 @@ model User {
   city              String?
   state             String?
   searchRadiusMiles Int?
+  latitude          Float?         // Required by app/api/user/me/route.ts
+  longitude         Float?
   listings          Listing[]
   reviewsAuthored   Review[]       @relation("ReviewAuthor")
   reviewsReceived   Review[]       @relation("ReviewTarget")
+  notifications     Notification[]
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @default(now()) @updatedAt
 }
@@ -30,6 +33,7 @@ model Listing {
   type         String
   priceInBucks Float    @default(0)
   imageUrl     String?
+  videoUrl     String?  // Required by app/api/listings/create/route.ts
   churchName   String?
   city         String?
   authorId     String
@@ -43,6 +47,10 @@ model Review {
   id           String    @id @default(cuid())
   rating       Int       @default(5)
   comment      String
+  replyText    String?   // Required by review reply routes
+  parentId     String?   // Required by review create routes
+  parent       Review?   @relation("ReviewReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies      Review[]  @relation("ReviewReplies")
   
   listingId    String?
   listing      Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -53,6 +61,17 @@ model Review {
   targetUserId String?
   targetUser   User?     @relation("ReviewTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
   
+  recipientId  String?   // Required by app/api/reviews/reply/route.ts
+  
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @default(now()) @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
