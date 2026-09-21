@@ -26,22 +26,23 @@ model User {
 }
 
 model Listing {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   title        String
   description  String
-  category     String   @default("General")
+  category     String    @default("General")
   type         String
-  priceInBucks Float    @default(0)
+  priceInBucks Float     @default(0)
   imageUrl     String?
   videoUrl     String?
-  websiteUrl   String?  // Restored to match app/api/listings/create/route.ts
+  websiteUrl   String?
+  expiresAt    DateTime? // Added to match app/api/listings/create/route.ts
   churchName   String?
   city         String?
   authorId     String
-  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author       User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   reviews      Review[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
 }
 
 model Review {
@@ -55,7 +56,7 @@ model Review {
   replies        Review[]  @relation("ReviewReplies")
   
   listingId      String?
-  listing        Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing      Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   
   authorId       String
   author         User      @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
