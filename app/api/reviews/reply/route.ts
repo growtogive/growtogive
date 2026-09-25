@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../../prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
@@ -19,10 +19,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Review not found' }, { status: 404 });
     }
 
-    // Verify user owns the listing or profile receiving the review
     const isOwner = review.listingId
       ? review.listing?.authorId === userId
-      : review.recipientId === userId;
+      : review.targetUserId === userId;
 
     if (!isOwner) {
       return NextResponse.json(
@@ -34,18 +33,7 @@ export async function POST(request: Request) {
     const updatedReview = await prisma.review.update({
       where: { id: reviewId },
       data: {
-        replyText,
-        replyCreatedAt: new Date(),
-      },
-    });
-
-    // Notify reviewer that owner replied
-    await prisma.notification.create({
-      data: {
-        userId: review.authorId,
-        title: '💬 Response to Your Review',
-        message: `The owner replied to your review: "${replyText.substring(0, 60)}..."`,
-        link: review.listingId ? `/listings/${review.listingId}` : `/profile/${review.recipientId}`,
+        reply: replyText,
       },
     });
 
