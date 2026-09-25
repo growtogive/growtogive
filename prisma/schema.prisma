@@ -8,25 +8,26 @@ generator client {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  password     String?
-  name         String?
-  role         String    @default("USER")
-  city         String?   @default("Bradenton")
-  state        String?   @default("FL")
-  churchName   String?   @default("Grace Family Church")
-  address      String?
-  latitude     Float?
-  longitude    Float?
-  bio          String?
-  avatar       String?
-  growbucks    Float     @default(10.00)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  listings     Listing[]
-  reviews      Review[]  @relation("TargetUserReviews")
-  authReviews  Review[]  @relation("AuthorReviews")
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String?
+  name          String?
+  role          String    @default("USER")
+  city          String?   @default("Bradenton")
+  state         String?   @default("FL")
+  churchName    String?   @default("Grace Family Church")
+  address       String?
+  latitude      Float?
+  longitude     Float?
+  bio           String?
+  avatar        String?
+  growbucks     Float     @default(10.00)
+  emailVerified Boolean   @default(false) // 🎯 Required for email confirmation check
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  listings      Listing[]
+  reviews       Review[]  @relation("TargetUserReviews")
+  authReviews   Review[]  @relation("AuthorReviews")
 }
 
 model Listing {
@@ -57,18 +58,18 @@ model Listing {
 }
 
 model Review {
-  id           String   @id @default(cuid())
-  rating       Int      @default(5)
-  comment      String
-  reply        String?
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  rating        Int      @default(5)
+  comment       String
+  reply         String?
+  createdAt     DateTime @default(now())
   
-  authorId     String
-  author       User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
   
-  targetUserId String
-  targetUser   User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetUserId  String
+  targetUser    User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
   
-  listingId    String?
-  listing      Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  listingId     String?
+  listing       Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
 }

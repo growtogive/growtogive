@@ -1,11 +1,9 @@
-import NextAuth from 'next-auth';
+import NextAuth, { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
-
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -15,21 +13,30 @@ export const authOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Please enter an email and password');
+          throw new Error('Please enter an email and password.');
         }
 
+        const email = credentials.email.toLowerCase().trim();
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email },
         });
 
-        if (!user || !user.password) {
-          throw new Error('No user found with this email');
+        if (!user) {
+          throw new Error('No user found with this email.');
         }
 
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+        if (!user.password) {
+          throw new Error('This account uses a different login method.');
+        }
 
-        if (!isPasswordValid) {
-          throw new Error('Invalid password');
+        const isValidPassword = await bcrypt.compare(credentials.password, user.password);
+        if (!isValidPassword) {
+          throw new Error('Invalid password.');
+        }
+
+        // 🎯 Block login if email is not verified
+        if (!user.emailVerified) {
+          throw new Error('Please confirm your email address before logging in.');
         }
 
         return {
@@ -42,20 +49,20 @@ export const authOptions = {
     }),
   ],
   session: {
-    strategy: 'jwt' as const,
+    strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user }: { token: any; user?: any }) {
+    async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
         token.id = user.id;
+        token.role = (user as any).role;
       }
       return token;
     },
-    async session({ session, token }: { session: any; token: any }) {
+    async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role;
-        session.user.id = token.id;
+        (session.user as any).id = token.id;
+        (session.user as any).role = token.role;
       }
       return session;
     },
@@ -63,7 +70,7 @@ export const authOptions = {
   pages: {
     signIn: '/login',
   },
-  secret: process.env.NEXTAUTH_SECRET || 'fallback_secret_key_for_dev',
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 const handler = NextAuth(authOptions);
