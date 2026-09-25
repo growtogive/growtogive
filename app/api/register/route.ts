@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import * as bcrypt from 'bcrypt';
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password, city, state, churchName } = await req.json();
+    const body = await req.json();
+    const { 
+      name, 
+      email, 
+      password, 
+      city, 
+      state, 
+      churchName, 
+      latitude, 
+      longitude, 
+      bio, 
+      avatar 
+    } = body;
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -17,7 +27,7 @@ export async function POST(req: Request) {
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase().trim() },
     });
 
     if (existingUser) {
@@ -29,16 +39,20 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with default 'subscriber' role
+    // Create user with all profile attributes and geolocation coordinates
     const newUser = await prisma.user.create({
       data: {
         name,
-        email,
+        email: email.toLowerCase().trim(),
         password: hashedPassword,
         role: 'subscriber',
-        city: city || null,
-        state: state || null,
-        churchName: churchName || null,
+        city: city || 'Bradenton',
+        state: state || 'FL',
+        churchName: churchName || 'Grace Family Church',
+        latitude: latitude ? parseFloat(latitude) : 27.4989,
+        longitude: longitude ? parseFloat(longitude) : -82.5648,
+        bio: bio || null,
+        avatar: avatar || null,
       },
     });
 

@@ -45,7 +45,7 @@ export default function SignupPage() {
     latitude: 27.4989,
     longitude: -82.5648,
     bio: '',
-    avatar: '', // Stores either URL or uploaded file string/base64
+    avatar: '',
   });
 
   const [availableChurches, setAvailableChurches] = useState<string[]>(CHURCH_HIERARCHY['Bradenton']);
@@ -56,7 +56,6 @@ export default function SignupPage() {
   const autocompleteRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load Google Maps script for location autocomplete
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) return;
@@ -129,12 +128,10 @@ export default function SignupPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handle image file upload from device
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Optional: Validate file size (e.g., under 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setError('Image file is too large. Please select an image under 5MB.');
       return;
@@ -146,7 +143,6 @@ export default function SignupPage() {
     try {
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Sets base64 string preview/storage value
         setFormData((prev) => ({ ...prev, avatar: reader.result as string }));
         setUploadingImage(false);
       };
@@ -167,7 +163,8 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/signup', {
+      // 🎯 Aligned endpoint to match app/api/signup/route.ts
+      const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -245,7 +242,6 @@ export default function SignupPage() {
             />
           </div>
 
-          {/* Location with Google Maps Autocomplete */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
               Your Location (Address or City)
@@ -259,14 +255,12 @@ export default function SignupPage() {
               className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
               placeholder="Start typing your address or neighborhood..."
             />
-            <p className="text-[11px] text-slate-400 mt-1">Select from suggestions to lock in exact coordinates for Haversine radius searches.</p>
+            <p className="text-[11px] text-slate-400 mt-1">Select from suggestions to lock in exact coordinates for radius searches.</p>
           </div>
 
-          {/* Hidden Latitude & Longitude */}
           <input type="hidden" name="latitude" value={formData.latitude} />
           <input type="hidden" name="longitude" value={formData.longitude} />
 
-          {/* City -> Church Hierarchy Dropdowns */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">City</label>
@@ -301,7 +295,6 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Device Image Upload for Avatar */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
               Profile Photo (Upload from Device)
