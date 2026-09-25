@@ -136,10 +136,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (listing.authorId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const body = await req.json();
-    const { title, description, type, category, priceInBucks, imageUrl, city, churchName, location, latitude, longitude } = body;
+    const { title, description, type, category, priceInBucks, imageUrl, city, location, latitude, longitude } = body;
 
-    // RULE: If the original listing was NOT commercial, users cannot switch it to commercial.
-    // If it IS commercial, ensure they don't have another commercial listing already.
     if (type === 'COMMERCIAL' && listing.type !== 'COMMERCIAL') {
       return NextResponse.json(
         { error: 'You cannot change an Offer or Request into a Commercial listing once saved.' },
@@ -169,7 +167,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         priceInBucks: type === 'COMMERCIAL' ? 0 : (priceInBucks !== undefined ? parseFloat(priceInBucks) : 0),
         imageUrl,
         city,
-        churchName,
         location,
         latitude: latitude !== undefined && latitude !== null ? parseFloat(latitude) : null,
         longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
