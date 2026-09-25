@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { rating, comment, authorId, listingId, parentId } = body;
+    const { rating, comment, authorId, listingId } = body;
 
     if (!listingId || !comment) {
       return NextResponse.json({ error: 'Missing required review fields' }, { status: 400 });
@@ -20,31 +20,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
 
-    let validAuthorId = authorId;
-    if (validAuthorId) {
-      const userExists = await prisma.user.findUnique({ where: { id: validAuthorId } });
-      if (!userExists) validAuthorId = null;
-    }
+    // Use the provided authorId, or default to 'user_mock_id'
+    const targetAuthorId = authorId || 'user_mock_id';
 
-    if (!validAuthorId) {
-      const fallbackUser = await prisma.user.findFirst();
-      if (!fallbackUser) {
-        return NextResponse.json({ error: 'No valid user found' }, { status: 400 });
-      }
-      validAuthorId = fallbackUser.id;
-    }
+    // Ensure the user actually exists in the database (upsert to prevent foreign key errors)
+    const dbUser = await prisma.user.upsert({
+      where: { id: targetAuthorId },
+      update: {},
+      create: {
+        id: targetAuthorId,
+        name: targetAuthorId === 'user_mock_id' ? 'John Doe' : 'Community Member',
+        email: `${targetAuthorId}@growtogive.org`,
+      },
+    });
 
-    if (!parentId && listing.authorId === validAuthorId) {
+    if (listing.authorId === dbUser.id) {
       return NextResponse.json({ error: 'Authors cannot leave reviews on their own listings.' }, { status: 400 });
     }
 
     const newReview = await prisma.review.create({
       data: {
         rating: Number(rating || 5),
-        comment: comment || '',
-        authorId: validAuthorId,
+        comment: comment.trim(),
+        authorId: dbUser.id,
         listingId,
-        parentId: parentId || null,
+      },
+      include: {
+        author: { select: { id: true, name: true } },
       },
     });
 

@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 
 export default function MarketplacePage() {
+  const { data: session, status } = useSession();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -14,13 +16,17 @@ export default function MarketplacePage() {
   const [activeReviewsItem, setActiveReviewsItem] = useState<any>(null);
 
   useEffect(() => {
-    fetchListings();
-  }, []);
+    if (status === 'authenticated') {
+      fetchListings();
+    } else if (status === 'unauthenticated') {
+      setLoading(false);
+    }
+  }, [status, maxRadius]);
 
   const fetchListings = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/marketplace');
+      const res = await fetch(`/api/marketplace?radius=${maxRadius}`);
       if (!res.ok) throw new Error('Failed to fetch listings');
       const data = await res.json();
       setListings(Array.isArray(data) ? data : []);
@@ -39,6 +45,61 @@ export default function MarketplacePage() {
     setSelectedHierarchy('ALL');
     setMaxRadius('25');
   };
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-sm">
+        Loading marketplace...
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-20 pointer-events-none filter blur-sm p-8 grid grid-cols-3 gap-6 max-w-7xl mx-auto">
+          <div className="h-64 bg-slate-200 rounded-md"></div>
+          <div className="h-64 bg-slate-200 rounded-md"></div>
+          <div className="h-64 bg-slate-200 rounded-md"></div>
+        </div>
+
+        <div className="relative z-50 bg-white border border-slate-200 p-8 sm:p-10 max-w-lg w-full shadow-2xl rounded-xl text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full text-2xl mb-5 shadow-xs border border-emerald-100">
+            🌱
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug mb-3">
+            A Directory & Marketplace for Church Members and Their Friends: Trade With Growbucks Not Your Bucks!
+          </h2>
+
+          <p className="text-slate-600 text-xs sm:text-sm mb-8 leading-relaxed font-normal">
+            Join our trusted community to discover local offerings, services, and neighborhood connections near your church family.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/signup"
+              className="flex-1 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs sm:text-sm rounded-md transition-all shadow-sm"
+            >
+              Sign Up For Free
+            </Link>
+            <Link
+              href="/login"
+              className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs sm:text-sm rounded-md transition-all border border-slate-200"
+            >
+              Sign In
+            </Link>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <Link href="/" className="text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors">
+              ← Return to Home Page
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const hierarchyMap: { [city: string]: Set<string> } = {};
   listings.forEach(item => {
@@ -61,12 +122,13 @@ export default function MarketplacePage() {
     const matchesCategory = selectedCategory === 'ALL' || item.category === selectedCategory;
     
     let matchesType = true;
+    const itemTypeUpper = (item.type || '').toUpperCase();
     if (selectedType === 'OFFERS') {
-      matchesType = item.type === 'OFFER';
+      matchesType = itemTypeUpper === 'OFFER';
     } else if (selectedType === 'REQUESTS') {
-      matchesType = item.type === 'REQUEST';
+      matchesType = itemTypeUpper === 'REQUEST';
     } else if (selectedType === 'COMMERCIAL') {
-      matchesType = item.type === 'SERVICE' || item.type === 'COMMERCIAL';
+      matchesType = itemTypeUpper === 'COMMERCIAL';
     }
 
     let matchesHierarchy = true;
@@ -83,7 +145,9 @@ export default function MarketplacePage() {
     }
 
     let matchesRadius = true;
-    if (item.distance && maxRadius !== 'ALL') {
+    const isOwnListing = item.distance === 0 || item.distance === 0.0;
+
+    if (!isOwnListing && item.distance !== undefined) {
       const distNum = parseFloat(item.distance);
       const radiusNum = parseFloat(maxRadius);
       if (!isNaN(distNum) && !isNaN(radiusNum)) {
@@ -234,7 +298,19 @@ export default function MarketplacePage() {
                 ? (reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewCount).toFixed(1) 
                 : 'New';
 
-              const displayChurch = (item.churchName || '').trim() || 'Grace Family Church';
+              const displayCity = (item.city || item.author?.city || '').trim() || 'General City';
+              const displayChurch = (item.churchName || item.author?.churchName || '').trim() || 'Grace Family Church';
+              
+              const itemTypeUpper = (item.type || '').toUpperCase();
+              const isCommercial = itemTypeUpper === 'COMMERCIAL';
+              
+              const authorProfileHref = `/users/${item.authorId || item.authorName?.toLowerCase().replace(/\s+/g, '-')}`;
+              const cardDistance = item.distance !== undefined && item.distance !== null ? item.distance : '1.2';
+              
+              // 📅 Commercial shows creation date; Offers/Requests show expiration countdown
+              const dateDisplay = isCommercial 
+                ? `Created: ${item.createdAt || 'Recent'}` 
+                : `Expires: ${item.expirationDate || 'In 14 days'}`;
 
               return (
                 <div
@@ -250,10 +326,10 @@ export default function MarketplacePage() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           onError={(e: any) => { e.target.style.display = 'none'; }}
                         />
-                        <span className={`absolute top-3 right-3 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide border shadow-sm ${
-                          item.type === 'COMMERCIAL'
-                            ? 'bg-sky-200 text-sky-800 border-sky-300'
-                            : 'bg-slate-200 text-slate-800 border-slate-300'
+                        <span className={`absolute top-3 right-3 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
+                          isCommercial 
+                            ? 'bg-sky-100 text-blue-800 border-sky-300' 
+                            : 'bg-slate-100 text-black border-slate-200'
                         }`}>
                           {item.type}
                         </span>
@@ -261,6 +337,10 @@ export default function MarketplacePage() {
                     )}
 
                     <div className="p-6 pb-2">
+                      <div className="flex justify-between items-center mb-1 text-[11px] text-slate-400">
+                        <span>📍 {displayCity} &gt; {displayChurch}</span>
+                        <span>{dateDisplay}</span>
+                      </div>
                       <h3 className="text-lg font-semibold text-black group-hover:text-slate-900 leading-snug transition-colors">
                         {item.title}
                       </h3>
@@ -271,23 +351,31 @@ export default function MarketplacePage() {
                         {item.description}
                       </p>
 
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 truncate">
-                          ⛪ {displayChurch}
-                        </span>
-                        <span className="text-sm font-semibold text-black shrink-0">
-                          {Number(item.priceInBucks) > 0 ? `GB ${Number(item.priceInBucks).toFixed(2)}` : 'Free'}
-                        </span>
+                      <div className="flex items-center justify-end">
+                        {!isCommercial ? (
+                          <span className="text-sm font-semibold text-black shrink-0">
+                            {Number(item.priceInBucks) > 0 ? `GB ${Number(item.priceInBucks).toFixed(2)}` : 'Free'}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </Link>
 
                   <div className="px-6 py-3.5 bg-white border-t border-slate-200 flex justify-between items-center text-xs font-medium text-slate-500">
-                    <div className="flex items-center gap-2 truncate max-w-[55%]">
-                      <span className="truncate text-xs">👤 {item.authorName || 'Member'}</span>
+                    <div className="flex items-center gap-1.5 truncate max-w-[40%]">
+                      <Link 
+                        href={authorProfileHref}
+                        className="truncate text-xs hover:text-emerald-600 transition-colors flex items-center gap-1 font-semibold text-slate-800"
+                      >
+                        👤 {item.authorName || item.author?.name || 'Member'}
+                      </Link>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
+                        📍 {cardDistance} mi
+                      </span>
+
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -301,8 +389,6 @@ export default function MarketplacePage() {
                         <span className="text-[11px] font-semibold text-slate-900">{ratingVal}</span>
                         <span className="text-[9px] text-slate-400">({reviewCount})</span>
                       </button>
-
-                      <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-0.5 text-[11px]">{item.distance || '1.2'} mi</span>
                     </div>
                   </div>
                 </div>
@@ -312,7 +398,6 @@ export default function MarketplacePage() {
         )}
       </main>
 
-      {/* Reviews Modal */}
       {activeReviewsItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white border border-slate-200 p-8 max-w-lg w-full shadow-2xl relative max-h-[85vh] overflow-y-auto">
@@ -337,18 +422,22 @@ export default function MarketplacePage() {
               {(!activeReviewsItem.reviews || activeReviewsItem.reviews.length === 0) ? (
                 <p className="text-xs text-slate-500 text-center py-6">No reviews submitted for this listing yet. Be the first!</p>
               ) : (
-                activeReviewsItem.reviews.map((rev: any) => (
-                  <div key={rev.id} className="bg-white border border-slate-200 p-4">
-                    <div className="flex justify-between items-center mb-1.5">
-                      <span className="font-semibold text-slate-900 text-sm">{rev.author}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-amber-500 font-semibold text-xs">{'★'.repeat(rev.rating)}</span>
-                        <span className="text-slate-400 text-xs">{rev.date}</span>
+                activeReviewsItem.reviews.map((rev: any) => {
+                  const authorDisplayName = typeof rev.author === 'object' ? rev.author?.name : (rev.author || 'Community Member');
+
+                  return (
+                    <div key={rev.id} className="bg-white border border-slate-200 p-4">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="font-semibold text-slate-900 text-sm">{authorDisplayName}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-amber-500 font-semibold text-xs">{'★'.repeat(rev.rating)}</span>
+                          <span className="text-slate-400 text-xs">{rev.date}</span>
+                        </div>
                       </div>
+                      <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
                     </div>
-                    <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 

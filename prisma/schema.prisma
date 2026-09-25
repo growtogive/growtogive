@@ -1,6 +1,6 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "sqlite" // or "postgresql" in production
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -8,75 +8,67 @@ generator client {
 }
 
 model User {
-  id                String         @id @default(cuid())
-  email             String         @unique
-  name              String?
-  churchName        String?
-  city              String?
-  state             String?
-  searchRadiusMiles Int?
-  latitude          Float?
-  longitude         Float?
-  listings          Listing[]
-  reviewsAuthored   Review[]       @relation("ReviewAuthor")
-  reviewsReceived   Review[]       @relation("ReviewTarget")
-  notifications     Notification[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @default(now()) @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String?
+  name         String?
+  role         String    @default("USER")
+  city         String?   @default("Bradenton")
+  state        String?   @default("FL")
+  churchName   String?   @default("Grace Family Church")
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  bio          String?
+  avatar       String?
+  growbucks    Float     @default(10.00)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  listings     Listing[]
+  reviews      Review[]  @relation("TargetUserReviews")
+  authReviews  Review[]  @relation("AuthorReviews")
 }
 
 model Listing {
-  id           String    @id @default(cuid())
-  title        String
-  description  String
-  category     String    @default("General")
-  type         String
-  priceInBucks Float     @default(0)
-  imageUrl     String?
-  videoUrl     String?
-  websiteUrl   String?
-  expiresAt    DateTime? // Added to match app/api/listings/create/route.ts
-  churchName   String?
-  city         String?
-  authorId     String
-  author       User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  reviews      Review[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @default(now()) @updatedAt
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
+  category      String   @default("GOODS") // "GOODS", "SERVICES", "SKILLS", "RIDES"
+  priceInBucks  Float    @default(0.00)
+  imageUrl      String?
+  
+  // Location fields (primarily for Commercial storefronts)
+  location      String?
+  city          String?
+  latitude      Float?
+  longitude     Float?
+
+  // Commercial-only field
+  businessHours String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  authorId      String
+  author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  reviews       Review[]
 }
 
 model Review {
-  id             String    @id @default(cuid())
-  rating         Int       @default(5)
-  comment        String
-  replyText      String?
-  replyCreatedAt DateTime?
-  parentId       String?
-  parent         Review?   @relation("ReviewReplies", fields: [parentId], references: [id], onDelete: SetNull)
-  replies        Review[]  @relation("ReviewReplies")
+  id           String   @id @default(cuid())
+  rating       Int      @default(5)
+  comment      String
+  reply        String?
+  createdAt    DateTime @default(now())
   
-  listingId      String?
-  listing      Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
   
-  authorId       String
-  author         User      @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetUserId String
+  targetUser   User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
   
-  targetUserId   String?
-  targetUser     User?     @relation("ReviewTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
-  
-  recipientId    String?
-  
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now()) @updatedAt
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String?
-  message   String
-  link      String?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  listingId    String?
+  listing      Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
 }

@@ -1,59 +1,83 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
 
-export async function POST(req: Request) {
+const prisma = new PrismaClient();
+
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-    const { listingId, rating, comment } = body;
+    // 1. Securely check the session (NextAuth automatically finds your config)
+    const session = await getServerSession();
 
-    const currentUserId = 'user_mock_id';
-
-    if (!listingId || !rating || !comment) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!session || !session.user?.email) {
+      return NextResponse.json(
+        { error: 'You must be logged in to leave a review.' },
+        { status: 401 }
+      );
     }
 
-    // Ensure the mock user exists
-    let mockUser = await prisma.user.findUnique({ where: { id: currentUserId } });
-    if (!mockUser) {
-      mockUser = await prisma.user.upsert({
-        where: { email: 'mockuser@growtogive.org' },
-        update: {},
-        create: {
-          id: currentUserId,
-          name: 'Mock Test User',
-          email: 'mockuser@growtogive.org',
-        },
-      });
+    // 2. Look up the verified user in the database using their session email
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: 'User account not found.' },
+        { status: 404 }
+      );
     }
 
+    // 3. Parse request body
+    const body = await request.json();
+    const { rating, comment, listingId } = body;
+
+    if (!listingId || !comment) {
+      return NextResponse.json(
+        { error: 'Missing required review fields (listingId or comment).' },
+        { status: 400 }
+      );
+    }
+
+    // 4. Verify the listing exists
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
     });
 
     if (!listing) {
-      return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Listing not found.' },
+        { status: 404 }
+      );
     }
 
-    if (listing.authorId === currentUserId) {
-      return NextResponse.json({ error: 'You cannot review your own listing or profile.' }, { status: 403 });
+    // 🛑 5. BULLETPROOF SELF-REVIEW BLOCK
+    if (listing.authorId === dbUser.id) {
+      return NextResponse.json(
+        { error: 'Authors cannot leave reviews on their own listings.' },
+        { status: 400 }
+      );
     }
 
+    // 6. Create the review
     const newReview = await prisma.review.create({
       data: {
-        rating: Number(rating),
+        rating: Number(rating || 5),
         comment: comment.trim(),
-        author: { connect: { id: currentUserId } },
-        listing: { connect: { id: listingId } },
-        targetUser: { connect: { id: listing.authorId } },
+        authorId: dbUser.id,
+        listingId,
       },
       include: {
-        author: { select: { name: true } },
+        author: { select: { id: true, name: true } },
       },
     });
 
     return NextResponse.json(newReview, { status: 201 });
-  } catch (err: any) {
-    console.error('Error creating review:', err);
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Review Creation Error:', error.message);
+    return NextResponse.json(
+      { error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
