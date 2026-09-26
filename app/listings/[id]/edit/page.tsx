@@ -10,13 +10,6 @@ declare global {
   }
 }
 
-const CHURCH_HIERARCHY: { [city: string]: string[] } = {
-  'Bradenton': ['Grace Family Church', 'Bayshore Baptist Church', 'First Baptist Church of Bradenton', 'Woodland Community Church'],
-  'Tampa': ['Idlewild Baptist Church', 'Bayside Community Church - Tampa', 'South Tampa Fellowship', 'Corbett Prep Church Fellowship'],
-  'Sarasota': ['Church of the Palms', 'Sarasota Baptist Church', 'The Tabernacle Church', 'South Shore Community Church'],
-  'Palmetto': ['Palmetto First Baptist Church', 'North River Church', 'Riverside Fellowship']
-};
-
 export default function EditListingPage() {
   const router = useRouter();
   const params = useParams();
@@ -29,14 +22,12 @@ export default function EditListingPage() {
     category: 'GOODS',
     priceInBucks: '0.00',
     imageUrl: '',
-    city: 'Bradenton',
-    churchName: 'Grace Family Church',
-    location: 'Bradenton, FL',
+    location: '',
+    businessHours: '',
     latitude: 27.4989,
     longitude: -82.5648,
   });
 
-  const [availableChurches, setAvailableChurches] = useState<string[]>(CHURCH_HIERARCHY['Bradenton']);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -101,10 +92,6 @@ export default function EditListingPage() {
       const data = await res.json();
       const listing = data.listing || data;
 
-      const listingCity = listing.city || 'Bradenton';
-      const churches = CHURCH_HIERARCHY[listingCity] || ['Grace Family Church'];
-      setAvailableChurches(churches);
-
       setFormData({
         title: listing.title || '',
         description: listing.description || '',
@@ -112,9 +99,8 @@ export default function EditListingPage() {
         category: listing.category || 'GOODS',
         priceInBucks: listing.priceInBucks?.toString() || '0.00',
         imageUrl: listing.imageUrl || '',
-        city: listingCity,
-        churchName: listing.churchName || churches[0],
-        location: listing.location || `${listingCity}, FL`,
+        location: listing.location || '',
+        businessHours: listing.businessHours || '',
         latitude: listing.latitude ?? 27.4989,
         longitude: listing.longitude ?? -82.5648,
       });
@@ -125,20 +111,31 @@ export default function EditListingPage() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  // Immediate check when user selects COMMERCIAL
+  const handleTypeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newType = e.target.value;
+    setFormData((prev) => ({ ...prev, type: newType }));
+    setError('');
+
+    if (newType === 'COMMERCIAL') {
+      try {
+        const res = await fetch('/api/listings');
+        if (res.ok) {
+          const listings = await res.json();
+          // Check if user already has an active commercial listing (excluding this current listing)
+          const hasCommercial = listings.some((l: any) => l.type === 'COMMERCIAL' && l.id !== listingId && l.distance === 0);
+          if (hasCommercial) {
+            setError('⚠️ You are already allowed only one active commercial listing. You cannot select Commercial.');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to verify commercial status', err);
+      }
+    }
   };
 
-  const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedCity = e.target.value;
-    const churches = CHURCH_HIERARCHY[selectedCity] || ['Community Fellowship'];
-    setFormData((prev) => ({
-      ...prev,
-      city: selectedCity,
-      churchName: churches[0],
-      location: `${selectedCity}, FL`
-    }));
-    setAvailableChurches(churches);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,6 +170,18 @@ export default function EditListingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (formData.type === 'COMMERCIAL') {
+      if (!formData.location) {
+        setError('Storefront location address is required for Commercial listings.');
+        return;
+      }
+      if (!formData.businessHours) {
+        setError('Business hours are required for Commercial listings.');
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -181,7 +190,7 @@ export default function EditListingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          priceInBucks: parseFloat(formData.priceInBucks) || 0,
+          priceInBucks: formData.type === 'COMMERCIAL' ? 0 : (parseFloat(formData.priceInBucks) || 0),
         }),
       });
 
@@ -236,18 +245,17 @@ export default function EditListingPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Type</label>
               <select
                 name="type"
                 value={formData.type}
-                onChange={handleChange}
+                onChange={handleTypeChange}
                 className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
               >
                 <option value="OFFER">Offer</option>
                 <option value="REQUEST">Request</option>
-                <option value="SERVICE">Service</option>
                 <option value="COMMERCIAL">Commercial</option>
               </select>
             </div>
@@ -260,79 +268,67 @@ export default function EditListingPage() {
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
               >
-                <option value="GOODS">Goods</option>
-                <option value="SERVICES">Services</option>
-                <option value="SKILLS">Skills</option>
-                <option value="RIDES">Rides</option>
+                <option value="GOODS">Goods & Produce</option>
+                <option value="SKILLS">Skills & Tutoring</option>
+                <option value="RIDES">Transportation</option>
               </select>
             </div>
+          </div>
 
+          {/* Amount field: Hidden completely for Commercial listings */}
+          {formData.type !== 'COMMERCIAL' && (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Price (Growbucks)</label>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Growbucks Amount</label>
               <input
                 type="number"
                 step="0.01"
                 name="priceInBucks"
+                required
                 value={formData.priceInBucks}
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
             </div>
-          </div>
+          )}
 
+          {/* Commercial fields: Location & Business Hours */}
           {formData.type === 'COMMERCIAL' && (
-            <div className="p-4 bg-slate-50 border border-slate-200">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                Storefront / Business Street Address
-              </label>
-              <input
-                ref={inputRef}
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                placeholder="Start typing your business address..."
-              />
+            <div className="space-y-6 p-5 bg-sky-50/50 border border-sky-200 rounded-lg">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                  Storefront Location / Address *
+                </label>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  name="location"
+                  required
+                  value={formData.location}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  placeholder="Start typing business address..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                  Business Hours *
+                </label>
+                <input
+                  type="text"
+                  name="businessHours"
+                  required
+                  value={formData.businessHours}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  placeholder="e.g. Mon-Fri 9am - 5pm, Sat 10am - 2pm"
+                />
+              </div>
             </div>
           )}
 
           <input type="hidden" name="latitude" value={formData.latitude} />
           <input type="hidden" name="longitude" value={formData.longitude} />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">City</label>
-              <select
-                name="city"
-                value={formData.city}
-                onChange={handleCityChange}
-                className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
-              >
-                {Object.keys(CHURCH_HIERARCHY).map((cityName) => (
-                  <option key={cityName} value={cityName}>
-                    {cityName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Church Affiliation</label>
-              <select
-                name="churchName"
-                value={formData.churchName}
-                onChange={handleChange}
-                className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
-              >
-                {availableChurches.map((churchName) => (
-                  <option key={churchName} value={churchName}>
-                    {churchName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
@@ -381,7 +377,7 @@ export default function EditListingPage() {
 
             <button
               type="submit"
-              disabled={submitting || uploadingImage}
+              disabled={submitting || uploadingImage || error.includes('already allowed')}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {submitting ? 'Saving Changes...' : 'Save Listing'}

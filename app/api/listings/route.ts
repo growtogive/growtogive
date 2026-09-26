@@ -24,18 +24,19 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   return { lat: 27.5000, lng: -82.5500 };
 }
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+// 🛒 GET all listings for the marketplace
+export async function GET(req: Request) {
   try {
-    const resolvedParams = await params;
     const session = await getServerSession(authOptions);
+    const { searchParams } = new URL(req.url);
+    const radiusParam = searchParams.get('radius');
+    const maxRadius = radiusParam ? parseFloat(radiusParam) : 25;
 
-    let currentUserId: string | null = null;
-    let currentUserEmail: string | undefined = undefined;
     let currentUserLat: number | null = null;
     let currentUserLng: number | null = null;
+    let currentUserId: string | null = null;
 
     if (session?.user?.email) {
-      currentUserEmail = session.user.email.toLowerCase().trim();
       const loggedUser = await prisma.user.findUnique({
         where: { email: session.user.email },
         select: { id: true, latitude: true, longitude: true, city: true },
@@ -59,95 +60,80 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       currentUserLng = defaultCoords.lng;
     }
 
-    const listing = await prisma.listing.findUnique({
-      where: { id: resolvedParams.id },
+    const listings = await prisma.listing.findMany({
       include: {
         author: {
-          select: { id: true, name: true, email: true, avatar: true, city: true, churchName: true, latitude: true, longitude: true }
+          select: { id: true, name: true, email: true, avatar: true, city: true, churchName: true, latitude: true, longitude: true },
         },
         reviews: {
-          include: { author: { select: { name: true, avatar: true } } }
-        }
-      }
+          include: { author: { select: { name: true, avatar: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
+    const enrichedListings = listings.map((listing) => {
+      const authorId = listing.authorId || listing.author?.id || '';
+      const isAuthor = currentUserId && authorId && currentUserId === authorId;
 
-    let allReviews = listing.reviews;
-    if (listing.type !== 'COMMERCIAL') {
-      const userReviews = await prisma.review.findMany({
-        where: { targetUserId: listing.authorId },
-        include: { author: { select: { name: true, avatar: true } } }
-      });
-      allReviews = userReviews;
-    }
+      let distance = 1.2;
+      if (isAuthor) {
+        distance = 0.0;
+      } else {
+        const isCommercial = listing.type === 'COMMERCIAL';
+        let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
+        let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
 
-    const authorId = listing.authorId || listing.author?.id || '';
-    const authorEmail = listing.author?.email ? listing.author.email.toLowerCase().trim() : '';
+        if (!targetLat || !targetLng || targetLat === 0) {
+          const targetCity = isCommercial ? (listing.city || 'Clearwater') : (listing.author?.city || 'Tampa');
+          const coords = getCoordsForCity(targetCity);
+          targetLat = coords.lat;
+          targetLng = coords.lng;
+        }
 
-    const isAuthor = Boolean(
-      (currentUserId && authorId && currentUserId === authorId) ||
-      (currentUserEmail && authorEmail && currentUserEmail === authorEmail)
-    );
-
-    let distance = 1.2;
-    if (isAuthor) {
-      distance = 0.0;
-    } else {
-      const isCommercial = listing.type === 'COMMERCIAL';
-      let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
-      let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
-
-      if (!targetLat || !targetLng || targetLat === 0) {
-        const targetCity = isCommercial ? (listing.city || 'Clearwater') : (listing.author?.city || 'Tampa');
-        const coords = getCoordsForCity(targetCity);
-        targetLat = coords.lat;
-        targetLng = coords.lng;
+        distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
       }
 
-      distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
-    }
-
-    return NextResponse.json({
-      listing: {
+      return {
         ...listing,
         distance,
-        reviews: allReviews
-      }
+        authorName: listing.author?.name || 'Member',
+      };
     });
+
+    return NextResponse.json(enrichedListings);
   } catch (error: any) {
-    console.error('Fetch listing error:', error);
+    console.error('Fetch marketplace listings error:', error);
     return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
   }
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+// 📝 POST a new listing
+export async function POST(req: Request) {
   try {
-    const resolvedParams = await params;
     const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-
-    const listing = await prisma.listing.findUnique({ where: { id: resolvedParams.id } });
-    if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
-
-    if (listing.authorId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-    const body = await req.json();
-    const { title, description, type, category, priceInBucks, imageUrl, city, location, latitude, longitude } = body;
-
-    if (type === 'COMMERCIAL' && listing.type !== 'COMMERCIAL') {
-      return NextResponse.json(
-        { error: 'You cannot change an Offer or Request into a Commercial listing once saved.' },
-        { status: 400 }
-      );
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const body = await req.json();
+    const { title, description, type, category, priceInBucks, imageUrl, location, city, latitude, longitude, businessHours } = body;
+
+    if (!title || !description) {
+      return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
+    }
+
+    // Enforce 1 commercial listing limit per user
     if (type === 'COMMERCIAL') {
       const existingCommercial = await prisma.listing.findFirst({
-        where: { authorId: user.id, type: 'COMMERCIAL', NOT: { id: resolvedParams.id } },
+        where: { authorId: user.id, type: 'COMMERCIAL' },
       });
       if (existingCommercial) {
         return NextResponse.json(
@@ -157,48 +143,26 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
-    const updatedListing = await prisma.listing.update({
-      where: { id: resolvedParams.id },
+    const newListing = await prisma.listing.create({
       data: {
         title,
         description,
-        type,
-        category,
-        priceInBucks: type === 'COMMERCIAL' ? 0 : (priceInBucks !== undefined ? parseFloat(priceInBucks) : 0),
-        imageUrl,
-        city,
-        location,
-        latitude: latitude !== undefined && latitude !== null ? parseFloat(latitude) : null,
-        longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
+        type: type || 'OFFER',
+        category: category || 'GOODS',
+        priceInBucks: type === 'COMMERCIAL' ? 0 : (priceInBucks ? parseFloat(priceInBucks) : 0.00),
+        imageUrl: imageUrl || null,
+        location: location || null,
+        city: city || user.city || 'Bradenton',
+        latitude: latitude ? parseFloat(latitude) : user.latitude,
+        longitude: longitude ? parseFloat(longitude) : user.longitude,
+        businessHours: businessHours || null,
+        authorId: user.id,
       },
     });
 
-    return NextResponse.json({ success: true, listing: updatedListing });
+    return NextResponse.json({ success: true, listing: newListing }, { status: 201 });
   } catch (error: any) {
-    console.error('Update listing error:', error);
-    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
-  }
-}
-
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const resolvedParams = await params;
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 400 });
-
-    const listing = await prisma.listing.findUnique({ where: { id: resolvedParams.id } });
-    if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
-
-    if (listing.authorId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-    await prisma.listing.delete({ where: { id: resolvedParams.id } });
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Delete listing error:', error);
-    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
+    console.error('Create listing error:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

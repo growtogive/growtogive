@@ -378,33 +378,64 @@ export default function ProfilePage() {
                 const createdDate = new Date(item.createdAt);
                 const expirationDate = new Date(createdDate);
                 expirationDate.setDate(expirationDate.getDate() + 14);
-                const isCommercial = item.type === 'COMMERCIAL';
+                const isCommercial = (item.type || '').toUpperCase() === 'COMMERCIAL';
+                
+                const displayCity = (item.city || profileData?.city || '').trim() || 'General City';
+                const displayChurch = (item.churchName || profileData?.churchName || '').trim() || 'Grace Family Church';
+                const dateDisplay = isCommercial ? `Created: ${createdDate.toLocaleDateString()}` : `Expires: ${expirationDate.toLocaleDateString()}`;
 
                 return (
-                  <div key={item.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all">
-                    <Link href={`/listings/${item.id}`} className="group block">
-                      {item.imageUrl && (
-                        <div className="h-40 w-full bg-slate-100 overflow-hidden">
-                          <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <div key={item.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all group">
+                    <Link href={`/listings/${item.id}`} className="block">
+                      {/* 🖼️ Unified Professional "No Image Available" Fallback Placeholder */}
+                      <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                        <img 
+                          src={item.imageUrl || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+                          alt={item.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                          onError={(e: any) => { 
+                            e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
+                          }}
+                        />
+                        <span className={`absolute top-3 right-3 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
+                          isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
+                        }`}>
+                          {item.type}
+                        </span>
+                      </div>
+
+                      <div className="p-6 pb-2">
+                        <h3 className="text-lg font-semibold text-black group-hover:text-slate-900 leading-snug transition-colors">
+                          {item.title}
+                        </h3>
+                        {/* ✝️ Cross icon & city/church taxonomy */}
+                        <div className="mt-1.5 text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                          <span>✝️</span>
+                          <span>{displayCity} &gt; {displayChurch}</span>
                         </div>
-                      )}
-                      <div className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="inline-block px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 border border-slate-200 text-slate-700">
-                            {item.type}
+                      </div>
+
+                      <div className="p-6 pt-2">
+                        <p className="text-slate-600 text-sm line-clamp-2 leading-relaxed font-normal mb-4">
+                          {item.description}
+                        </p>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-slate-500">
+                            {dateDisplay}
                           </span>
-                          <span className="text-[11px] font-medium text-slate-400">
-                            {isCommercial ? `Created: ${createdDate.toLocaleDateString()}` : `Expires: ${expirationDate.toLocaleDateString()}`}
-                          </span>
+                          {!isCommercial ? (
+                            <span className="text-sm font-semibold text-black shrink-0">
+                              {Number(item.priceInBucks) > 0 ? `GB ${Number(item.priceInBucks).toFixed(2)}` : 'Free'}
+                            </span>
+                          ) : null}
                         </div>
-                        <h3 className="font-semibold text-slate-900 text-sm mb-1 group-hover:text-emerald-600 transition-colors">{item.title}</h3>
-                        <p className="text-slate-500 text-xs line-clamp-2">{item.description}</p>
                       </div>
                     </Link>
 
-                    <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between bg-white">
+                    <div className="px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs font-medium text-slate-500">
                       <span className="text-xs font-semibold text-slate-900">
-                        {Number(item.priceInBucks) > 0 ? `GB ${Number(item.priceInBucks).toFixed(2)}` : 'Free'}
+                        {isCommercial ? 'Commercial Storefront' : (Number(item.priceInBucks) > 0 ? `GB ${Number(item.priceInBucks).toFixed(2)}` : 'Free')}
                       </span>
 
                       <div className="flex items-center gap-2">

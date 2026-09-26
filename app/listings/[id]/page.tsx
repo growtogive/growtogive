@@ -144,10 +144,9 @@ export default function ListingDetailPage() {
 
   const isAuthor = session?.user?.email && listing.author?.email === session.user.email;
   const isCommercial = listing.type === 'COMMERCIAL';
+
   const displayCity = (listing.city || listing.author?.city || '').trim() || 'General City';
-  
-  // Updated to pull purely from the author profile now that listing.churchName is removed:
-  const displayChurch = (listing.author?.churchName || '').trim() || 'Grace Family Church';
+  const displayChurch = (listing.churchName || listing.author?.churchName || listing.author?.church || '').trim() || 'Grace Family Church';
 
   const createdDate = new Date(listing.createdAt || Date.now());
   const memberSinceDate = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -157,6 +156,7 @@ export default function ListingDetailPage() {
   const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const displayDistance = listing.distance !== undefined && listing.distance !== null ? listing.distance : '1.2';
+  const priceDisplay = !isCommercial ? `GB: ${Number(listing.priceInBucks || 0).toFixed(2)}` : null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
@@ -214,33 +214,34 @@ export default function ListingDetailPage() {
           )}
 
           <div className="p-8 space-y-6">
-            {/* 1. Title */}
             <div>
               <h1 className="text-3xl font-black text-slate-900 leading-tight">
                 {listing.title}
               </h1>
             </div>
 
-            {/* 2. City > Church, Category, Expiry/Member Since */}
             <div className="flex flex-wrap items-center justify-between gap-3 py-3 border-y border-slate-100 text-xs font-semibold text-slate-600">
-              <div className="flex items-center gap-2">
-                <span className="bg-slate-100 border border-slate-200 px-3 py-1">
-                  📍 {displayCity} &gt; {displayChurch}
-                </span>
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200 uppercase tracking-wider">
                   {listing.category || 'Goods'}
                 </span>
+                <span className="text-slate-600 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5">
+                  <span>✝️</span>
+                  <span>{displayCity} &gt; {displayChurch}</span>
+                </span>
               </div>
-              <div className="text-slate-500 font-normal">
+              <div className="flex items-center gap-4 text-slate-500 font-normal">
                 {isCommercial ? (
                   <span>Member Since: {memberSinceDate}</span>
                 ) : (
-                  <span>Expires: {expirationDateFormatted}</span>
+                  <>
+                    <span>Expires: {expirationDateFormatted}</span>
+                    <span className="text-slate-900 font-bold">{priceDisplay}</span>
+                  </>
                 )}
               </div>
             </div>
 
-            {/* 3. Description */}
             <div>
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">Description</h2>
               <p className="text-slate-700 text-base leading-relaxed whitespace-pre-line">
@@ -248,26 +249,15 @@ export default function ListingDetailPage() {
               </p>
             </div>
 
-            {/* Business Hours (Commercial Only) */}
             {isCommercial && listing.businessHours && (
-              <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-1">Hours</h2>
+              <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800 mb-1">Business Hours</h2>
                 <p className="text-slate-800 font-medium text-sm whitespace-pre-line">
                   {listing.businessHours}
                 </p>
               </div>
             )}
 
-            {!isCommercial && (
-              <div className="pt-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Amount</span>
-                <div className="text-3xl font-black text-emerald-700">
-                  {Number(listing.priceInBucks) > 0 ? `GB ${Number(listing.priceInBucks).toFixed(2)}` : 'Free'}
-                </div>
-              </div>
-            )}
-
-            {/* 4. Footer: Author, miles away, reviews badge, contact member */}
             <div className="pt-6 border-t border-slate-100 flex flex-wrap justify-between items-center gap-4">
               <div className="flex items-center gap-3">
                 <Link href={`/users/${authorSlug}`} className="text-emerald-600 hover:underline font-bold flex items-center gap-1.5 text-base">
@@ -300,7 +290,6 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {/* Leave Feedback Section */}
         <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
           <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
           
@@ -388,7 +377,6 @@ export default function ListingDetailPage() {
         </div>
       </main>
 
-      {/* Contact Modal */}
       {showContactModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative">
@@ -459,7 +447,6 @@ export default function ListingDetailPage() {
         </div>
       )}
 
-      {/* Reviews Modal */}
       {activeReviewsItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-lg w-full shadow-2xl relative max-h-[85vh] overflow-y-auto">
