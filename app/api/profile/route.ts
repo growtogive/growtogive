@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-// Precise regional coordinates helper for Florida cities
+// Precise regional coordinates helper for Florida cities fallback
 function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   const city = (cityName || '').toLowerCase();
   if (city.includes('bradenton')) return { lat: 27.4989, lng: -82.5748 };
@@ -11,7 +11,7 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   if (city.includes('clearwater')) return { lat: 27.9659, lng: -82.8001 };
   if (city.includes('sarasota')) return { lat: 27.3364, lng: -82.5307 };
   if (city.includes('st. petersburg') || city.includes('saint petersburg')) return { lat: 27.7676, lng: -82.6403 };
-  return { lat: 27.5000, lng: -82.5500 }; // Default regional fallback
+  return { lat: 27.5000, lng: -82.5500 };
 }
 
 // GET: Fetch current user profile details, Growbucks balance, and listings
@@ -42,7 +42,6 @@ export async function GET() {
       },
     });
 
-    // Fallback: Create user record on the fly with auto-assigned coordinates if missing
     if (!user) {
       const defaultCity = 'Bradenton';
       const defaultCoords = getCoordsForCity(defaultCity);
@@ -75,31 +74,6 @@ export async function GET() {
           growbucks: true,
         },
       });
-    } else if (user.latitude === null || user.longitude === null || user.latitude === 0) {
-      // Auto-fix existing user if lat/lng were previously missing
-      const coords = getCoordsForCity(user.city || 'Bradenton');
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          latitude: coords.lat,
-          longitude: coords.lng,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          city: true,
-          state: true,
-          churchName: true,
-          address: true,
-          latitude: true,
-          longitude: true,
-          bio: true,
-          avatar: true,
-          growbucks: true,
-        },
-      });
     }
 
     const listings = await prisma.listing.findMany({
@@ -114,7 +88,7 @@ export async function GET() {
   }
 }
 
-// PUT: Update all user profile fields including automatic coordinate assignment
+// PUT: Update all user profile fields independently without cross-over overwrites
 export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -130,7 +104,6 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
 
-    // Determine final lat/lng: parse from request if provided, otherwise compute based on city
     let finalLat = latitude !== '' && latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
     let finalLng = longitude !== '' && longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
 
@@ -145,10 +118,10 @@ export async function PUT(req: Request) {
       data: {
         name,
         email,
-        city,
-        state,
-        churchName,
-        address,
+        city,          // Saved independently
+        state,         // Saved independently
+        churchName,    // Saved independently
+        address,       // Saved independently from taxonomy dropdowns
         latitude: finalLat,
         longitude: finalLng,
         bio,
