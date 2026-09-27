@@ -24,6 +24,11 @@ export default function ListingDetailPage() {
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  // States for editing existing reviews
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editComment, setEditComment] = useState('');
+
   useEffect(() => {
     if (id) {
       fetchListingDetail();
@@ -142,7 +147,19 @@ export default function ListingDetailPage() {
   const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${authorEmail}&su=${subject}&body=${body}`;
   const outlookUrl = `https://outlook.live.com/owa/?path=/mail/action/compose&to=${authorEmail}&subject=${subject}&body=${body}`;
 
-  const isAuthor = session?.user?.email && listing.author?.email === session.user.email;
+  // Robust validations
+  const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
+  const isAuthor = Boolean(currentUserEmail && listing.author?.email?.toLowerCase()?.trim() === currentUserEmail);
+  
+  const hasAlreadyReviewed = reviews.some((rev: any) => {
+    const revAuthorEmail = (rev.author?.email || rev.authorEmail || '').toLowerCase().trim();
+    const revAuthorId = rev.authorId || rev.author?.id;
+    return Boolean(
+      (currentUserEmail && revAuthorEmail && revAuthorEmail === currentUserEmail) ||
+      (revAuthorId && session?.user && (revAuthorId === (session.user as any).id))
+    );
+  });
+
   const isCommercial = listing.type === 'COMMERCIAL';
 
   const displayCity = (listing.city || listing.author?.city || '').trim() || 'General City';
@@ -290,16 +307,13 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
-          <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
-          
-          {error && <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">{error}</div>}
+        {/* Leave Feedback Section (Hidden if author, not logged in, or already reviewed) */}
+        {!isAuthor && session && !hasAlreadyReviewed && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+            <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
+            
+            {error && <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">{error}</div>}
 
-          {isAuthor ? (
-            <p className="text-xs text-slate-400 italic">You cannot submit feedback or reviews on your own listing.</p>
-          ) : !session ? (
-            <p className="text-xs text-slate-500">Please <Link href="/login" className="text-emerald-600 font-bold underline">log in</Link> to leave feedback.</p>
-          ) : (
             <form onSubmit={handleReviewSubmit} className="space-y-4">
               <div className="flex items-center gap-3">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Rating:</label>
@@ -320,7 +334,7 @@ export default function ListingDetailPage() {
                 required
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Share your experience (submitting again will update your previous review)..."
+                placeholder="Share your experience..."
                 className="w-full px-4 py-3 border border-slate-200 bg-white text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
               <button
@@ -331,47 +345,122 @@ export default function ListingDetailPage() {
                 {submittingReview ? 'Submitting...' : 'Submit Review'}
               </button>
             </form>
-          )}
+          </div>
+        )}
 
-          <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+          <div className="mt-2 space-y-4">
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Community Reviews ({reviews.length})</h4>
             {reviews.length === 0 ? (
               <p className="text-xs text-slate-400">No reviews yet for this listing.</p>
             ) : (
-              reviews.map((rev: any) => (
-                <div key={rev.id} className="p-4 border border-slate-200 bg-slate-50 rounded-2xl space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-xs text-slate-900">{rev.author?.name || 'Member'}</span>
-                    <span className="text-xs text-amber-500 font-black">{'★'.repeat(rev.rating)}</span>
+              reviews.map((rev: any) => {
+                const revAuthorEmail = (rev.author?.email || rev.authorEmail || '').toLowerCase().trim();
+                const isReviewAuthor = Boolean(
+                  (currentUserEmail && revAuthorEmail && revAuthorEmail === currentUserEmail) ||
+                  (rev.authorId && session?.user && (rev.authorId === (session.user as any).id))
+                );
+                const isEditing = editingReviewId === rev.id;
+
+                return (
+                  <div key={rev.id} className="p-4 border border-slate-200 bg-slate-50 rounded-2xl space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-xs text-slate-900">{rev.author?.name || 'Member'}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-amber-500 font-black">{'★'.repeat(rev.rating)}</span>
+                        {isReviewAuthor && !isEditing && (
+                          <button
+                            onClick={() => {
+                              setEditingReviewId(rev.id);
+                              setEditRating(rev.rating);
+                              setEditComment(rev.comment);
+                            }}
+                            className="text-[11px] font-bold text-emerald-600 hover:underline ml-2"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isEditing ? (
+                      <div className="space-y-3 pt-2">
+                        <select
+                          value={editRating}
+                          onChange={(e) => setEditRating(Number(e.target.value))}
+                          className="px-2 py-1 border border-slate-200 bg-white text-xs rounded-lg font-bold"
+                        >
+                          <option value="5">5 - Excellent</option>
+                          <option value="4">4 - Very Good</option>
+                          <option value="3">3 - Average</option>
+                          <option value="2">2 - Fair</option>
+                          <option value="1">1 - Poor</option>
+                        </select>
+                        <textarea
+                          rows={2}
+                          value={editComment}
+                          onChange={(e) => setEditComment(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 bg-white text-xs rounded-xl"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/listings/${id}/reviews`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ reviewId: rev.id, rating: editRating, comment: editComment }),
+                                });
+                                if (!res.ok) throw new Error('Failed to update review');
+                                setEditingReviewId(null);
+                                fetchListingDetail();
+                              } catch (err: any) {
+                                alert(err.message);
+                              }
+                            }}
+                            className="px-3 py-1 bg-emerald-600 text-white font-bold text-xs rounded-lg"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingReviewId(null)}
+                            className="px-3 py-1 bg-slate-200 text-slate-700 font-bold text-xs rounded-lg"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-slate-600 text-xs">{rev.comment}</p>
+                    )}
+
+                    {rev.reply && !isEditing && (
+                      <div className="mt-2 p-3 bg-white border-l-4 border-emerald-600 rounded-xl text-xs">
+                        <strong className="text-slate-900 block mb-0.5">Author Reply:</strong>
+                        <p className="text-slate-600">{rev.reply}</p>
+                      </div>
+                    )}
+
+                    {isAuthor && !rev.reply && !isEditing && (
+                      <div className="mt-3 pt-3 border-t border-slate-200 flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Write a reply as author..."
+                          value={replyText[rev.id] || ''}
+                          onChange={(e) => setReplyText({ ...replyText, [rev.id]: e.target.value })}
+                          className="flex-1 px-3 py-1.5 border border-slate-200 rounded-xl text-xs bg-white"
+                        />
+                        <button
+                          onClick={() => handleReplySubmit(rev.id)}
+                          className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer"
+                        >
+                          Reply
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-slate-600 text-xs">{rev.comment}</p>
-
-                  {rev.reply && (
-                    <div className="mt-2 p-3 bg-white border-l-4 border-emerald-600 rounded-xl text-xs">
-                      <strong className="text-slate-900 block mb-0.5">Author Reply:</strong>
-                      <p className="text-slate-600">{rev.reply}</p>
-                    </div>
-                  )}
-
-                  {isAuthor && !rev.reply && (
-                    <div className="mt-3 pt-3 border-t border-slate-200 flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Write a reply as author..."
-                        value={replyText[rev.id] || ''}
-                        onChange={(e) => setReplyText({ ...replyText, [rev.id]: e.target.value })}
-                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-xl text-xs bg-white"
-                      />
-                      <button
-                        onClick={() => handleReplySubmit(rev.id)}
-                        className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer"
-                      >
-                        Reply
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
