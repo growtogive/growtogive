@@ -20,7 +20,7 @@ export default function EditListingPage() {
     title: '',
     description: '',
     type: 'OFFER',
-    category: '', // Starts empty so it forces a selection
+    category: '',
     priceInBucks: '0.00',
     imageUrl: '',
     location: '',
@@ -29,6 +29,8 @@ export default function EditListingPage() {
     longitude: -82.5648,
   });
 
+  const [originalType, setOriginalType] = useState('OFFER');
+  const [hasOtherCommercial, setHasOtherCommercial] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -105,6 +107,17 @@ export default function EditListingPage() {
         latitude: listing.latitude ?? 27.4989,
         longitude: listing.longitude ?? -82.5648,
       });
+      setOriginalType(listing.type || 'OFFER');
+
+      // Check if user already has another commercial listing
+      const allRes = await fetch('/api/listings');
+      if (allRes.ok) {
+        const listings = await allRes.json();
+        const commercialExists = listings.some(
+          (l: any) => l.type === 'COMMERCIAL' && l.id !== listingId && l.userId === listing.userId
+        );
+        setHasOtherCommercial(commercialExists);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -114,23 +127,26 @@ export default function EditListingPage() {
 
   const handleTypeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value;
-    setFormData((prev) => ({ ...prev, type: newType }));
     setError('');
 
-    if (newType === 'COMMERCIAL') {
+    if (newType === 'COMMERCIAL' && originalType !== 'COMMERCIAL') {
       try {
         const res = await fetch('/api/listings');
         if (res.ok) {
           const listings = await res.json();
-          const hasCommercial = listings.some((l: any) => l.type === 'COMMERCIAL' && l.id !== listingId && l.distance === 0);
+          const hasCommercial = listings.some((l: any) => l.type === 'COMMERCIAL' && l.id !== listingId);
           if (hasCommercial) {
-            setError('⚠️ You are already allowed only one active commercial listing. You cannot select Commercial.');
+            setHasOtherCommercial(true);
+            setError('⚠️ You are allowed only one active commercial listing. You cannot switch to Commercial.');
+            return;
           }
         }
       } catch (err) {
         console.error('Failed to verify commercial status', err);
       }
     }
+
+    setFormData((prev) => ({ ...prev, type: newType }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -169,6 +185,11 @@ export default function EditListingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (formData.type === 'COMMERCIAL' && originalType !== 'COMMERCIAL' && hasOtherCommercial) {
+      setError('⚠️ Action blocked: You already have an active commercial listing.');
+      return;
+    }
 
     if (!formData.category) {
       setError('Please select a valid category.');
@@ -260,7 +281,9 @@ export default function EditListingPage() {
               >
                 <option value="OFFER">Offer</option>
                 <option value="REQUEST">Request</option>
-                <option value="COMMERCIAL">Commercial</option>
+                <option value="COMMERCIAL" disabled={originalType !== 'COMMERCIAL' && hasOtherCommercial}>
+                  Commercial {originalType !== 'COMMERCIAL' && hasOtherCommercial ? '(Limit Reached)' : ''}
+                </option>
               </select>
             </div>
 
@@ -385,7 +408,7 @@ export default function EditListingPage() {
 
             <button
               type="submit"
-              disabled={submitting || uploadingImage || error.includes('already allowed')}
+              disabled={submitting || uploadingImage || (formData.type === 'COMMERCIAL' && originalType !== 'COMMERCIAL' && hasOtherCommercial)}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {submitting ? 'Saving Changes...' : 'Save Listing'}

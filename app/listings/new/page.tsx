@@ -1,9 +1,15 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LISTING_CATEGORIES } from '@/lib/constants/categories';
+
+declare global {
+  interface Window {
+    google: any;
+  }
+}
 
 export default function NewListingPage() {
   const router = useRouter();
@@ -11,97 +17,93 @@ export default function NewListingPage() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    type: 'OFFER',      // Default to OFFER
-    category: '',       // Default to blank
-    priceInBucks: '',
+    type: 'OFFER',
+    category: '',
+    priceInBucks: '0.00',
     imageUrl: '',
-    location: '',       // Required only for Commercial
-    city: 'Bradenton',
+    location: '',
+    businessHours: '',
     latitude: 27.4989,
     longitude: -82.5648,
-    businessHours: '',  // Required only for Commercial
   });
 
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [hasCommercial, setHasCommercial] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [error, setError] = useState('');
 
   const autocompleteRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Re-initialize Google Maps Autocomplete when COMMERCIAL is selected
   useEffect(() => {
-    if (formData.type === 'COMMERCIAL') {
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-      if (!apiKey) return;
-
-      const initAutocomplete = () => {
-        if (!inputRef.current || !window.google) return;
-
-        autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
-          types: ['geocode'],
-          componentRestrictions: { country: 'us' },
-        });
-
-        autocompleteRef.current.addListener('place_changed', () => {
-          const place = autocompleteRef.current.getPlace();
-          if (place && place.geometry && place.geometry.location) {
-            const lat = place.geometry.location.lat();
-            const lng = place.geometry.location.lng();
-            const address = place.formatted_address || inputRef.current?.value || '';
-
-            let detectedCity = formData.city;
-            if (place.address_components) {
-              for (const comp of place.address_components) {
-                if (comp.types.includes('locality')) {
-                  detectedCity = comp.long_name;
-                }
-              }
-            }
-
-            setFormData((prev) => ({
-              ...prev,
-              location: address,
-              latitude: lat,
-              longitude: lng,
-              city: detectedCity,
-            }));
-          }
-        });
-      };
-
-      if (!window.google || !window.google.maps) {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-        script.async = true;
-        script.onload = initAutocomplete;
-        document.body.appendChild(script);
-      } else {
-        setTimeout(initAutocomplete, 100);
-      }
-    }
-  }, [formData.type]);
-
-  // Immediate check when user selects COMMERCIAL
-  const handleTypeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newType = e.target.value;
-    setFormData((prev) => ({ ...prev, type: newType }));
-    setError('');
-
-    if (newType === 'COMMERCIAL') {
+    async function checkExistingCommercial() {
       try {
         const res = await fetch('/api/listings');
         if (res.ok) {
           const listings = await res.json();
-          const hasCommercial = listings.some((l: any) => l.type === 'COMMERCIAL' && l.distance === 0);
-          if (hasCommercial) {
-            setError('⚠️ You are already allowed only one active commercial listing. You cannot select Commercial.');
-          }
+          const exists = listings.some((l: any) => l.type === 'COMMERCIAL');
+          setHasCommercial(exists);
         }
       } catch (err) {
-        console.error('Failed to verify commercial status', err);
+        console.error('Failed to verify commercial listings', err);
+      } finally {
+        setLoading(false);
       }
     }
+    checkExistingCommercial();
+  }, []);
+
+  useEffect(() => {
+    if (formData.type !== 'COMMERCIAL') return;
+
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) return;
+
+    if (!window.google || !window.google.maps) {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.onload = initAutocomplete;
+      document.body.appendChild(script);
+    } else {
+      initAutocomplete();
+    }
+  }, [formData.type]);
+
+  const initAutocomplete = () => {
+    if (!inputRef.current || !window.google) return;
+
+    autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
+      types: ['geocode'],
+      componentRestrictions: { country: 'us' },
+    });
+
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current.getPlace();
+      if (place && place.geometry && place.geometry.location) {
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        const address = place.formatted_address || inputRef.current?.value || '';
+
+        setFormData((prev) => ({
+          ...prev,
+          location: address,
+          latitude: lat,
+          longitude: lng,
+        }));
+      }
+    });
+  };
+
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newType = e.target.value;
+    if (newType === 'COMMERCIAL' && hasCommercial) {
+      setError('⚠️ You are allowed only one active commercial listing.');
+      return;
+    }
+    setError('');
+    setFormData((prev) => ({ ...prev, type: newType }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -141,8 +143,13 @@ export default function NewListingPage() {
     e.preventDefault();
     setError('');
 
-    if (!formData.title || !formData.description || !formData.category) {
-      setError('Title, Description, and Category are required.');
+    if (formData.type === 'COMMERCIAL' && hasCommercial) {
+      setError('⚠️ Action blocked: You already have an active commercial listing.');
+      return;
+    }
+
+    if (!formData.category) {
+      setError('Please select a valid category.');
       return;
     }
 
@@ -157,64 +164,83 @@ export default function NewListingPage() {
       }
     }
 
-    if (formData.type !== 'COMMERCIAL' && !formData.priceInBucks) {
-      setError('Amount is required for Offers and Requests.');
-      return;
-    }
-
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       const res = await fetch('/api/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          priceInBucks: formData.type === 'COMMERCIAL' ? 0 : (parseFloat(formData.priceInBucks) || 0),
+        }),
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create listing.');
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create listing.');
-      }
-
-      // Redirect straight to the new listing's page for review/editing
-      router.push(`/listings/${data.listing.id}`);
+      router.push('/profile');
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium text-sm">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto bg-white border border-slate-200 shadow-sm p-8 sm:p-10">
         
-        <div className="text-center mb-8">
-          <Link href="/marketplace" className="inline-block text-3xl mb-2 hover:scale-105 transition-transform">🌱</Link>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Create New Listing</h1>
-          <p className="text-slate-500 text-sm mt-1">Share an offering, request, or commercial storefront with your church community.</p>
+        <div className="flex justify-between items-center mb-8 border-b border-slate-200 pb-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Create Marketplace Listing</h1>
+            <p className="text-slate-500 text-xs mt-0.5">Post an item, service, or community offering.</p>
+          </div>
+          <Link href="/profile" className="text-xs font-semibold text-slate-500 hover:text-slate-900">
+            Cancel
+          </Link>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium">
+          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Title</label>
+            <input
+              type="text"
+              name="title"
+              required
+              value={formData.title}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Type *</label>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Type</label>
               <select
                 name="type"
                 value={formData.type}
                 onChange={handleTypeChange}
-                className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
+                className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
               >
                 <option value="OFFER">Offer</option>
                 <option value="REQUEST">Request</option>
-                <option value="COMMERCIAL">Commercial</option>
+                <option value="COMMERCIAL" disabled={hasCommercial}>
+                  Commercial {hasCommercial ? '(Limit Reached)' : ''}
+                </option>
               </select>
             </div>
 
@@ -225,9 +251,11 @@ export default function NewListingPage() {
                 required
                 value={formData.category}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
+                className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
               >
-                <option value="">Select category...</option>
+                <option value="" disabled>
+                  Select category...
+                </option>
                 {LISTING_CATEGORIES.map((catName) => (
                   <option key={catName} value={catName}>
                     {catName}
@@ -237,23 +265,9 @@ export default function NewListingPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Title *</label>
-            <input
-              type="text"
-              name="title"
-              required
-              value={formData.title}
-              onChange={handleChange}
-              className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              placeholder="Fresh Organic Tomatoes / Math Tutoring..."
-            />
-          </div>
-
-          {/* Amount field: Hidden for Commercial */}
           {formData.type !== 'COMMERCIAL' && (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Amount *</label>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Growbucks Amount</label>
               <input
                 type="number"
                 step="0.01"
@@ -261,12 +275,11 @@ export default function NewListingPage() {
                 required
                 value={formData.priceInBucks}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
             </div>
           )}
 
-          {/* Commercial fields: Location (Google Autocomplete) & Business Hours */}
           {formData.type === 'COMMERCIAL' && (
             <div className="space-y-6 p-5 bg-sky-50/50 border border-sky-200 rounded-lg">
               <div>
@@ -302,29 +315,19 @@ export default function NewListingPage() {
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Description *</label>
-            <textarea
-              name="description"
-              required
-              rows={4}
-              value={formData.description}
-              onChange={handleChange}
-              className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              placeholder="Provide details about your offering or request..."
-            />
-          </div>
+          <input type="hidden" name="latitude" value={formData.latitude} />
+          <input type="hidden" name="longitude" value={formData.longitude} />
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Listing Image (Optional)
+              Listing Image (Upload from Device)
             </label>
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+              <div className="w-20 h-20 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
                 {formData.imageUrl ? (
-                  <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  <img src={formData.imageUrl} alt="Listing Preview" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-xl text-slate-400">📷</span>
+                  <span className="text-2xl">📦</span>
                 )}
               </div>
 
@@ -335,23 +338,37 @@ export default function NewListingPage() {
                   onChange={handleFileChange}
                   className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">PNG, JPG or WEBP (Max 5MB)</p>
               </div>
             </div>
             {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Processing image...</p>}
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-            <Link href="/marketplace" className="text-xs font-semibold text-slate-500 hover:text-slate-700">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Description</label>
+            <textarea
+              name="description"
+              rows={4}
+              required
+              value={formData.description}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+            <Link
+              href="/profile"
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-all"
+            >
               Cancel
             </Link>
 
             <button
               type="submit"
-              disabled={loading || uploadingImage || error.includes('already allowed')}
-              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              disabled={submitting || uploadingImage || (formData.type === 'COMMERCIAL' && hasCommercial)}
+              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
-              {loading ? 'Publishing...' : 'Publish Listing'}
+              {submitting ? 'Publishing...' : 'Save Listing'}
             </button>
           </div>
         </form>
