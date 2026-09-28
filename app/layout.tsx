@@ -21,7 +21,8 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           <Navbar />
-          <main className="max-w-6xl mx-auto px-4 pb-12">{children}</main>
+          {/* Full-width container with 5px padding on mobile, 30px padding on desktop */}
+          <main className="w-full px-[5px] sm:px-[30px] pb-12">{children}</main>
         </Providers>
 
         {/* Google Maps Places API Script */}

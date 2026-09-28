@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { LISTING_CATEGORIES } from '@/lib/constants/categories';
 
 declare global {
   interface Window {
@@ -19,7 +20,7 @@ export default function EditListingPage() {
     title: '',
     description: '',
     type: 'OFFER',
-    category: 'GOODS',
+    category: '', // Starts empty so it forces a selection
     priceInBucks: '0.00',
     imageUrl: '',
     location: '',
@@ -96,7 +97,7 @@ export default function EditListingPage() {
         title: listing.title || '',
         description: listing.description || '',
         type: listing.type || 'OFFER',
-        category: listing.category || 'GOODS',
+        category: listing.category || '',
         priceInBucks: listing.priceInBucks?.toString() || '0.00',
         imageUrl: listing.imageUrl || '',
         location: listing.location || '',
@@ -111,7 +112,6 @@ export default function EditListingPage() {
     }
   };
 
-  // Immediate check when user selects COMMERCIAL
   const handleTypeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value;
     setFormData((prev) => ({ ...prev, type: newType }));
@@ -122,7 +122,6 @@ export default function EditListingPage() {
         const res = await fetch('/api/listings');
         if (res.ok) {
           const listings = await res.json();
-          // Check if user already has an active commercial listing (excluding this current listing)
           const hasCommercial = listings.some((l: any) => l.type === 'COMMERCIAL' && l.id !== listingId && l.distance === 0);
           if (hasCommercial) {
             setError('⚠️ You are already allowed only one active commercial listing. You cannot select Commercial.');
@@ -170,6 +169,11 @@ export default function EditListingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!formData.category) {
+      setError('Please select a valid category.');
+      return;
+    }
 
     if (formData.type === 'COMMERCIAL') {
       if (!formData.location) {
@@ -261,21 +265,26 @@ export default function EditListingPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Category</label>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Category *</label>
               <select
                 name="category"
+                required
                 value={formData.category}
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
               >
-                <option value="GOODS">Goods & Produce</option>
-                <option value="SKILLS">Skills & Tutoring</option>
-                <option value="RIDES">Transportation</option>
+                <option value="" disabled>
+                  Select category...
+                </option>
+                {LISTING_CATEGORIES.map((catName) => (
+                  <option key={catName} value={catName}>
+                    {catName}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* Amount field: Hidden completely for Commercial listings */}
           {formData.type !== 'COMMERCIAL' && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Growbucks Amount</label>
@@ -291,7 +300,6 @@ export default function EditListingPage() {
             </div>
           )}
 
-          {/* Commercial fields: Location & Business Hours */}
           {formData.type === 'COMMERCIAL' && (
             <div className="space-y-6 p-5 bg-sky-50/50 border border-sky-200 rounded-lg">
               <div>

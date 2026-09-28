@@ -24,7 +24,6 @@ export default function ListingDetailPage() {
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  // States for editing existing reviews
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [editRating, setEditRating] = useState(5);
   const [editComment, setEditComment] = useState('');
@@ -147,7 +146,6 @@ export default function ListingDetailPage() {
   const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${authorEmail}&su=${subject}&body=${body}`;
   const outlookUrl = `https://outlook.live.com/owa/?path=/mail/action/compose&to=${authorEmail}&subject=${subject}&body=${body}`;
 
-  // Robust validations
   const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
   const isAuthor = Boolean(currentUserEmail && listing.author?.email?.toLowerCase()?.trim() === currentUserEmail);
   
@@ -172,13 +170,14 @@ export default function ListingDetailPage() {
   expDate.setDate(expDate.getDate() + 14);
   const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  const displayDistance = listing.distance !== undefined && listing.distance !== null ? listing.distance : '1.2';
+  // Correct distance mapping
+  const displayDistance = `${listing.distance !== undefined && listing.distance !== null ? listing.distance : 0} mi`;
   const priceDisplay = !isCommercial ? `GB: ${Number(listing.priceInBucks || 0).toFixed(2)}` : null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
       <header className="w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div className="w-full max-w-7xl mx-auto px-6 py-3.5 flex justify-between items-center gap-4">
+        <div className="w-full py-3.5 flex justify-between items-center gap-4">
           <Link href="/marketplace" className="flex items-center gap-2.5">
             <span className="text-2xl">🌱</span>
             <span className="text-xl font-black tracking-tight text-slate-900">GrowToGive</span>
@@ -210,7 +209,7 @@ export default function ListingDetailPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-4xl mx-auto px-6 pt-10 space-y-8">
+      <main className="w-full max-w-4xl mx-auto pt-10 space-y-8">
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
           {listing.imageUrl && (
             <div className="h-80 w-full bg-slate-100 relative">
@@ -243,7 +242,7 @@ export default function ListingDetailPage() {
                   {listing.category || 'Goods'}
                 </span>
                 <span className="text-slate-600 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5">
-                  <span>✝️</span>
+                  <span className="text-blue-600">✝️</span>
                   <span>{displayCity} &gt; {displayChurch}</span>
                 </span>
               </div>
@@ -281,7 +280,7 @@ export default function ListingDetailPage() {
                   👤 {authorName}
                 </Link>
                 <span className="text-xs font-normal text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md">
-                  📍 {displayDistance} miles away
+                  📍 {displayDistance} away
                 </span>
               </div>
 
@@ -307,7 +306,7 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {/* Leave Feedback Section (Hidden if author, not logged in, or already reviewed) */}
+        {/* Leave Feedback Section */}
         {!isAuthor && session && !hasAlreadyReviewed && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
             <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
@@ -528,65 +527,6 @@ export default function ListingDetailPage() {
               <button
                 onClick={() => { setShowContactModal(false); setCopied(false); }}
                 className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeReviewsItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-lg w-full shadow-2xl relative max-h-[85vh] overflow-y-auto">
-            <button
-              onClick={() => setActiveReviewsItem(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
-            >
-              ×
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div>
-                <h3 className="text-xl font-black text-slate-900">Feedback for {authorName}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Listing: {listing.title}</p>
-              </div>
-              <div className="ml-auto bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-xl font-black text-sm shrink-0">
-                ★ {ratingVal} / 5.0
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {reviews.length === 0 ? (
-                <p className="text-xs text-slate-400 py-6 text-center">No reviews yet.</p>
-              ) : (
-                reviews.map((rev: any) => (
-                  <div key={rev.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-xs text-slate-900">{rev.author?.name || 'Member'}</span>
-                      <span className="text-xs text-amber-500 font-bold">{'★'.repeat(rev.rating)}</span>
-                    </div>
-                    <p className="text-slate-600 text-xs">{rev.comment}</p>
-                    {rev.reply && (
-                      <div className="mt-2 p-2 bg-white border-l-2 border-emerald-600 text-[11px] rounded-lg">
-                        <strong>Author Reply:</strong> {rev.reply}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="mt-8 pt-4 border-t border-slate-200 flex gap-3">
-              <Link
-                href={`/users/${authorSlug}`}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl text-center transition-colors shadow-md"
-              >
-                View Full User Profile
-              </Link>
-              <button
-                onClick={() => setActiveReviewsItem(null)}
-                className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm rounded-xl transition-colors"
               >
                 Close
               </button>

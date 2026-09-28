@@ -82,31 +82,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       allReviews = userReviews;
     }
 
-    const authorId = listing.authorId || listing.author?.id || '';
-    const authorEmail = listing.author?.email ? listing.author.email.toLowerCase().trim() : '';
+    // Always calculate actual distance based on coordinates (Commercial uses listing lat/lng, Offers/Requests use author lat/lng)
+    const isCommercial = listing.type === 'COMMERCIAL';
+    let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
+    let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
 
-    const isAuthor = Boolean(
-      (currentUserId && authorId && currentUserId === authorId) ||
-      (currentUserEmail && authorEmail && currentUserEmail === authorEmail)
-    );
-
-    let distance = 1.2;
-    if (isAuthor) {
-      distance = 0.0;
-    } else {
-      const isCommercial = listing.type === 'COMMERCIAL';
-      let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
-      let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
-
-      if (!targetLat || !targetLng || targetLat === 0) {
-        const targetCity = isCommercial ? (listing.city || listing.author?.city || 'South Bradenton') : (listing.author?.city || 'South Bradenton');
-        const coords = getCoordsForCity(targetCity);
-        targetLat = coords.lat;
-        targetLng = coords.lng;
-      }
-
-      distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
+    if (!targetLat || !targetLng || targetLat === 0) {
+      const targetCity = isCommercial ? (listing.city || listing.author?.city || 'South Bradenton') : (listing.author?.city || 'South Bradenton');
+      const coords = getCoordsForCity(targetCity);
+      targetLat = coords.lat;
+      targetLng = coords.lng;
     }
+
+    const distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
 
     return NextResponse.json({
       listing: {

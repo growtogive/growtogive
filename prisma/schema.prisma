@@ -22,7 +22,7 @@ model User {
   bio           String?
   avatar        String?
   growbucks     Float     @default(10.00)
-  emailVerified Boolean   @default(false) // 🎯 Required for email confirmation check
+  emailVerified Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   listings      Listing[]
@@ -35,7 +35,7 @@ model Listing {
   title         String
   description   String
   type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
-  category      String   @default("GOODS") // "GOODS", "SERVICES", "SKILLS", "RIDES"
+  category      String   // Required string without default
   priceInBucks  Float    @default(0.00)
   imageUrl      String?
   
@@ -58,18 +58,18 @@ model Listing {
 }
 
 model Review {
-  id            String   @id @default(cuid())
-  rating        Int      @default(5)
-  comment       String
-  reply         String?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  rating       Int      @default(5)
+  comment      String
+  reply        String?
+  createdAt    DateTime @default(now())
   
-  authorId      String
-  author        User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
   
-  targetUserId  String
-  targetUser    User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetUserId String
+  targetUser   User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
   
-  listingId     String?
-  listing       Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  listingId    String?
+  listing      Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
 }

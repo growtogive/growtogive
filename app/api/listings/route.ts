@@ -28,10 +28,6 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const { searchParams } = new URL(req.url);
-    const radiusParam = searchParams.get('radius');
-    const maxRadius = radiusParam ? parseFloat(radiusParam) : 25;
-
     let currentUserLat: number | null = null;
     let currentUserLng: number | null = null;
     let currentUserId: string | null = null;
@@ -73,26 +69,21 @@ export async function GET(req: Request) {
     });
 
     const enrichedListings = listings.map((listing) => {
-      const authorId = listing.authorId || listing.author?.id || '';
-      const isAuthor = currentUserId && authorId && currentUserId === authorId;
+      const isCommercial = listing.type === 'COMMERCIAL';
+      
+      // Commercial uses its own listing coordinates; Offers/Requests use author coordinates
+      let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
+      let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
 
-      let distance = 1.2;
-      if (isAuthor) {
-        distance = 0.0;
-      } else {
-        const isCommercial = listing.type === 'COMMERCIAL';
-        let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
-        let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
-
-        if (!targetLat || !targetLng || targetLat === 0) {
-          const targetCity = isCommercial ? (listing.city || 'Clearwater') : (listing.author?.city || 'Tampa');
-          const coords = getCoordsForCity(targetCity);
-          targetLat = coords.lat;
-          targetLng = coords.lng;
-        }
-
-        distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
+      if (!targetLat || !targetLng || targetLat === 0) {
+        const targetCity = isCommercial ? (listing.city || 'Clearwater') : (listing.author?.city || 'Tampa');
+        const coords = getCoordsForCity(targetCity);
+        targetLat = coords.lat;
+        targetLng = coords.lng;
       }
+
+      // Always calculate actual distance based on coordinates
+      const distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
 
       return {
         ...listing,
@@ -130,7 +121,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
     }
 
-    // Enforce 1 commercial listing limit per user
     if (type === 'COMMERCIAL') {
       const existingCommercial = await prisma.listing.findFirst({
         where: { authorId: user.id, type: 'COMMERCIAL' },

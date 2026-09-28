@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { LISTING_CATEGORIES } from '@/lib/constants/categories';
 
 export default function NewListingPage() {
   const router = useRouter();
@@ -226,10 +227,12 @@ export default function NewListingPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
               >
-                <option value="" disabled>-- Select Category --</option>
-                <option value="GOODS">Goods & Produce</option>
-                <option value="SKILLS">Skills & Tutoring</option>
-                <option value="RIDES">Transportation</option>
+                <option value="">Select category...</option>
+                {LISTING_CATEGORIES.map((catName) => (
+                  <option key={catName} value={catName}>
+                    {catName}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
