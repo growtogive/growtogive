@@ -109,12 +109,12 @@ export default function EditListingPage() {
       });
       setOriginalType(listing.type || 'OFFER');
 
-      // Check if user already has another commercial listing
+      const authorId = listing.authorId || listing.author?.id;
       const allRes = await fetch('/api/listings');
       if (allRes.ok) {
         const listings = await allRes.json();
         const commercialExists = listings.some(
-          (l: any) => l.type === 'COMMERCIAL' && l.id !== listingId && l.userId === listing.userId
+          (l: any) => l.type === 'COMMERCIAL' && l.id !== listingId && (l.authorId === authorId || l.userId === authorId)
         );
         setHasOtherCommercial(commercialExists);
       }
@@ -187,7 +187,7 @@ export default function EditListingPage() {
     setError('');
 
     if (formData.type === 'COMMERCIAL' && originalType !== 'COMMERCIAL' && hasOtherCommercial) {
-      setError('⚠️ Action blocked: You already have an active commercial listing.');
+      setError('⚠️ Action blocked: This author already has an active commercial listing.');
       return;
     }
 
@@ -222,7 +222,7 @@ export default function EditListingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update listing.');
 
-      router.push('/profile');
+      router.push(`/listings/${listingId}`);
     } catch (err: any) {
       setError(err.message);
       setSubmitting(false);
@@ -246,7 +246,7 @@ export default function EditListingPage() {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Edit Marketplace Listing</h1>
             <p className="text-slate-500 text-xs mt-0.5">Update your item, service, or community offering details.</p>
           </div>
-          <Link href="/profile" className="text-xs font-semibold text-slate-500 hover:text-slate-900">
+          <Link href={`/listings/${listingId}`} className="text-xs font-semibold text-slate-500 hover:text-slate-900">
             Cancel
           </Link>
         </div>
@@ -281,9 +281,7 @@ export default function EditListingPage() {
               >
                 <option value="OFFER">Offer</option>
                 <option value="REQUEST">Request</option>
-                <option value="COMMERCIAL" disabled={originalType !== 'COMMERCIAL' && hasOtherCommercial}>
-                  Commercial {originalType !== 'COMMERCIAL' && hasOtherCommercial ? '(Limit Reached)' : ''}
-                </option>
+                <option value="COMMERCIAL">Commercial</option>
               </select>
             </div>
 
@@ -400,7 +398,7 @@ export default function EditListingPage() {
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <Link
-              href="/profile"
+              href={`/listings/${listingId}`}
               className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-all"
             >
               Cancel
@@ -408,7 +406,7 @@ export default function EditListingPage() {
 
             <button
               type="submit"
-              disabled={submitting || uploadingImage || (formData.type === 'COMMERCIAL' && originalType !== 'COMMERCIAL' && hasOtherCommercial)}
+              disabled={submitting || uploadingImage}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {submitting ? 'Saving Changes...' : 'Save Listing'}

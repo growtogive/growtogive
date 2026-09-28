@@ -13,6 +13,7 @@ export default function ListingDetailPage() {
 
   const [listing, setListing] = useState<any>(null);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [otherListings, setOtherListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeReviewsItem, setActiveReviewsItem] = useState<any>(null);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -43,6 +44,11 @@ export default function ListingDetailPage() {
       const listingData = data.listing || data;
       setListing(listingData);
       setReviews(listingData.reviews || []);
+
+      const authorId = listingData.authorId || listingData.author?.id;
+      if (authorId) {
+        fetchOtherListings(authorId, listingData.id);
+      }
     } catch (err) {
       console.error(err);
       setListing(null);
@@ -51,12 +57,31 @@ export default function ListingDetailPage() {
     }
   };
 
+  const fetchOtherListings = async (authorId: string, currentId: string) => {
+    try {
+      const res = await fetch(`/api/listings?authorId=${authorId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const allListings = data.listings || data;
+        if (Array.isArray(allListings)) {
+          const filtered = allListings.filter((l: any) => {
+            const lAuthorId = l.authorId || l.author?.id;
+            return lAuthorId === authorId && l.id !== currentId;
+          });
+          setOtherListings(filtered);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch other listings', err);
+    }
+  };
+
   const handleDeleteListing = async () => {
     if (!confirm('Are you sure you want to delete this listing?')) return;
     try {
       const res = await fetch(`/api/listings/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete listing.');
-      router.push('/profile');
+      router.push('/marketplace');
     } catch (err: any) {
       alert(err.message);
     }
@@ -151,7 +176,10 @@ export default function ListingDetailPage() {
   const outlookUrl = `https://outlook.live.com/owa/?path=/mail/action/compose&to=${authorEmail}&subject=${subject}&body=${body}`;
 
   const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
+  const userRole = (session?.user as any)?.role;
+  const isAdmin = userRole?.toUpperCase() === 'ADMIN';
   const isAuthor = Boolean(currentUserEmail && listing.author?.email?.toLowerCase()?.trim() === currentUserEmail);
+  const canModify = isAuthor || isAdmin;
   
   const hasAlreadyReviewed = reviews.some((rev: any) => {
     const revAuthorEmail = (rev.author?.email || rev.authorEmail || '').toLowerCase().trim();
@@ -179,14 +207,15 @@ export default function ListingDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      <header className="w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div className="w-full max-w-5xl mx-auto px-4 py-3.5 flex justify-between items-center gap-4">
+      {/* Top Navbar with Blue Bottom Line */}
+      <header className="w-full bg-white border-b-2 border-blue-500 sticky top-0 z-40 shadow-sm">
+        <div className="w-full max-w-6xl mx-auto px-4 py-3.5 flex justify-between items-center gap-4">
           <Link href="/marketplace" className="flex items-center gap-2.5">
             <span className="text-2xl">🌱</span>
             <span className="text-xl font-black tracking-tight text-slate-900">GrowToGive</span>
           </Link>
           <div className="flex items-center gap-3">
-            {isAuthor && (
+            {canModify && (
               <div className="flex items-center gap-2">
                 <Link
                   href={`/listings/${listing.id}/edit`}
@@ -212,7 +241,7 @@ export default function ListingDetailPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-4xl mx-auto px-4 pt-10 space-y-8">
+      <main className="w-full max-w-6xl mx-auto px-4 pt-10 space-y-8">
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
           {listing.imageUrl && (
             <div className="h-80 w-full bg-slate-100 relative">
@@ -359,6 +388,62 @@ export default function ListingDetailPage() {
                 {submittingReview ? 'Submitting...' : 'Submit Review'}
               </button>
             </form>
+          </div>
+        )}
+
+        {/* My Other Listings Section (4 cards wide on large screens) */}
+        {otherListings.length > 0 && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
+            <h3 className="text-xl font-black text-slate-900">My Other Listings</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {otherListings.map((item: any) => {
+                const itemIsCommercial = item.type === 'COMMERCIAL';
+                const itemPrice = !itemIsCommercial ? `GB: ${Number(item.priceInBucks || 0).toFixed(2)}` : 'Commercial';
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/listings/${item.id}`}
+                    className="group border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col"
+                  >
+                    {item.imageUrl ? (
+                      <div className="h-40 w-full bg-slate-100 relative overflow-hidden">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e: any) => { e.target.style.display = 'none'; }}
+                        />
+                        <span className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border shadow-xs ${
+                          itemIsCommercial 
+                            ? 'bg-sky-100 text-blue-800 border-sky-300' 
+                            : 'bg-white text-slate-800 border-slate-200'
+                        }`}>
+                          {item.type}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-28 w-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-bold">
+                        No Image
+                      </div>
+                    )}
+                    <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+                      <div>
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 uppercase">
+                          {item.category || 'Goods'}
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm mt-1.5 line-clamp-1 group-hover:text-emerald-600 transition-colors">
+                          {item.title}
+                        </h4>
+                      </div>
+                      <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200 font-medium">
+                        <span className="text-slate-500 truncate max-w-[100px]">{item.city || displayCity}</span>
+                        <span className="font-bold text-slate-900">{itemPrice}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         )}
 

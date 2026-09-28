@@ -82,7 +82,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       allReviews = userReviews;
     }
 
-    // Always calculate actual distance based on coordinates (Commercial uses listing lat/lng, Offers/Requests use author lat/lng)
     const isCommercial = listing.type === 'COMMERCIAL';
     let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
     let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
@@ -121,7 +120,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const listing = await prisma.listing.findUnique({ where: { id: resolvedParams.id } });
     if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
 
-    if (listing.authorId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Robust case-insensitive check for admin role
+    const isAdmin = user.role?.toUpperCase() === 'ADMIN';
+    const isOwner = listing.authorId === user.id;
+
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const body = await req.json();
     const { title, description, type, category, priceInBucks, imageUrl, location, latitude, longitude, businessHours } = body;
@@ -135,11 +140,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     if (type === 'COMMERCIAL') {
       const existingCommercial = await prisma.listing.findFirst({
-        where: { authorId: user.id, type: 'COMMERCIAL', NOT: { id: resolvedParams.id } },
+        where: { authorId: listing.authorId, type: 'COMMERCIAL', NOT: { id: resolvedParams.id } },
       });
       if (existingCommercial) {
         return NextResponse.json(
-          { error: 'You are allowed only one active commercial listing.' },
+          { error: 'This user already has an active commercial listing.' },
           { status: 400 }
         );
       }
@@ -180,7 +185,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const listing = await prisma.listing.findUnique({ where: { id: resolvedParams.id } });
     if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
 
-    if (listing.authorId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // Robust case-insensitive check for admin role
+    const isAdmin = user.role?.toUpperCase() === 'ADMIN';
+    const isOwner = listing.authorId === user.id;
+
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     await prisma.listing.delete({ where: { id: resolvedParams.id } });
 
