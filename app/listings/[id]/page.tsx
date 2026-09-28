@@ -64,6 +64,10 @@ export default function ListingDetailPage() {
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!session) {
+      router.push('/signup');
+      return;
+    }
     setSubmittingReview(true);
     setError('');
 
@@ -170,14 +174,13 @@ export default function ListingDetailPage() {
   expDate.setDate(expDate.getDate() + 14);
   const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  // Correct distance mapping
   const displayDistance = `${listing.distance !== undefined && listing.distance !== null ? listing.distance : 0} mi`;
   const priceDisplay = !isCommercial ? `GB: ${Number(listing.priceInBucks || 0).toFixed(2)}` : null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
       <header className="w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div className="w-full py-3.5 flex justify-between items-center gap-4">
+        <div className="w-full max-w-5xl mx-auto px-4 py-3.5 flex justify-between items-center gap-4">
           <Link href="/marketplace" className="flex items-center gap-2.5">
             <span className="text-2xl">🌱</span>
             <span className="text-xl font-black tracking-tight text-slate-900">GrowToGive</span>
@@ -209,7 +212,7 @@ export default function ListingDetailPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-4xl mx-auto pt-10 space-y-8">
+      <main className="w-full max-w-4xl mx-auto px-4 pt-10 space-y-8">
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
           {listing.imageUrl && (
             <div className="h-80 w-full bg-slate-100 relative">
@@ -276,9 +279,15 @@ export default function ListingDetailPage() {
 
             <div className="pt-6 border-t border-slate-100 flex flex-wrap justify-between items-center gap-4">
               <div className="flex items-center gap-3">
-                <Link href={`/users/${authorSlug}`} className="text-emerald-600 hover:underline font-bold flex items-center gap-1.5 text-base">
-                  👤 {authorName}
-                </Link>
+                {session ? (
+                  <Link href={`/users/${authorSlug}`} className="text-emerald-600 hover:underline font-bold flex items-center gap-1.5 text-base">
+                    👤 {authorName}
+                  </Link>
+                ) : (
+                  <span className="text-slate-700 font-bold flex items-center gap-1.5 text-base">
+                    👤 {authorName}
+                  </span>
+                )}
                 <span className="text-xs font-normal text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md">
                   📍 {displayDistance} away
                 </span>
@@ -296,7 +305,13 @@ export default function ListingDetailPage() {
                 </button>
 
                 <button
-                  onClick={() => setShowContactModal(true)}
+                  onClick={() => {
+                    if (!session) {
+                      router.push('/signup');
+                    } else {
+                      setShowContactModal(true);
+                    }
+                  }}
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm text-center transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>✉️</span> Contact Member
@@ -306,7 +321,7 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {/* Leave Feedback Section */}
+        {/* Leave Feedback Section (Restricted to Logged-in Users) */}
         {!isAuthor && session && !hasAlreadyReviewed && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
             <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
@@ -367,7 +382,7 @@ export default function ListingDetailPage() {
                       <span className="font-bold text-xs text-slate-900">{rev.author?.name || 'Member'}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-amber-500 font-black">{'★'.repeat(rev.rating)}</span>
-                        {isReviewAuthor && !isEditing && (
+                        {session && isReviewAuthor && !isEditing && (
                           <button
                             onClick={() => {
                               setEditingReviewId(rev.id);
@@ -440,7 +455,7 @@ export default function ListingDetailPage() {
                       </div>
                     )}
 
-                    {isAuthor && !rev.reply && !isEditing && (
+                    {session && isAuthor && !rev.reply && !isEditing && (
                       <div className="mt-3 pt-3 border-t border-slate-200 flex gap-2">
                         <input
                           type="text"
@@ -465,7 +480,7 @@ export default function ListingDetailPage() {
         </div>
       </main>
 
-      {showContactModal && (
+      {showContactModal && session && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative">
             <button

@@ -125,10 +125,11 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-6 space-y-4">
+      {/* Outer upper padding decreased to 0 (pt-0) */}
+      <main className="w-full pt-0 space-y-6">
         
-        {/* Fully Adaptive Single Row Control Bar (Top padding decreased by 10px, Bottom increased by 5px) */}
-        <div className="bg-white px-3 pt-[2px] pb-[17px] border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        {/* Fully Adaptive Single Row Control Bar (Inside top increased to pt-[7px], inside bottom decreased to pb-[7px]) */}
+        <div className="bg-white px-3 pt-[7px] pb-[7px] border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             {/* Search: w-84 (~150px wider) + shrink-0 */}
             <input
@@ -223,7 +224,7 @@ export default function MarketplacePage() {
               <option value="rating">Star Rating</option>
             </select>
 
-            {/* Clear Button (Light Red Background) */}
+            {/* Clear Button */}
             <button
               onClick={() => {
                 setSearchTerm('');

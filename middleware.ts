@@ -9,9 +9,17 @@ export default withAuth(
     callbacks: {
       authorized: ({ token }) => !!token,
     },
+    pages: {
+      signIn: "/signup",
+    },
   }
 );
 
 export const config = {
-  matcher: ["/marketplace", "/marketplace/:path*", "/listings", "/listings/:path*"],
+  matcher: [
+    "/marketplace",
+    "/marketplace/:path*",
+    "/listings/new",
+    "/listings/:path*/edit"
+  ],
 };
