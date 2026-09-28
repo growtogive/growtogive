@@ -127,8 +127,8 @@ export default function MarketplacePage() {
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <main className="w-full pt-6 space-y-4">
         
-        {/* Fully Adaptive Single Row Control Bar */}
-        <div className="bg-white p-3 border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        {/* Fully Adaptive Single Row Control Bar (Top padding decreased by 10px, Bottom increased by 5px) */}
+        <div className="bg-white px-3 pt-[2px] pb-[17px] border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             {/* Search: w-84 (~150px wider) + shrink-0 */}
             <input
@@ -223,7 +223,7 @@ export default function MarketplacePage() {
               <option value="rating">Star Rating</option>
             </select>
 
-            {/* Clear Button */}
+            {/* Clear Button (Light Red Background) */}
             <button
               onClick={() => {
                 setSearchTerm('');
@@ -233,7 +233,7 @@ export default function MarketplacePage() {
                 setMaxRadius('25');
                 setSortBy('date_desc');
               }}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs rounded-lg font-bold transition-all whitespace-nowrap"
+              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold transition-all whitespace-nowrap"
             >
               × Clear
             </button>
