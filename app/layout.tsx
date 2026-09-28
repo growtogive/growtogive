@@ -7,8 +7,8 @@ import Navbar from "@/components/navbar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Grow to Give",
-  description: "Community sharing platform",
+  title: "GrowToGive",
+  description: "Directory & Marketplace for Church Members & Friends",
 };
 
 export default function RootLayout({
@@ -17,12 +17,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className="w-full h-full">
+      <body className={`${inter.className} w-full min-h-screen bg-white text-slate-900 overflow-x-hidden`}>
         <Providers>
           <Navbar />
-          {/* Full-width container with 5px padding on mobile, 30px padding on desktop */}
-          <main className="w-full px-[5px] sm:px-[30px] pb-12">{children}</main>
+          {/* Fluid full-width container with responsive padding and overflow safeguards */}
+          <main className="w-full max-w-full px-[5px] sm:px-[30px] pb-12 overflow-x-hidden">
+            {children}
+          </main>
         </Providers>
 
         {/* Google Maps Places API Script */}

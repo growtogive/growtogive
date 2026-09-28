@@ -10,27 +10,35 @@ export default function Navbar() {
   const pathname = usePathname();
 
   return (
-    <nav className="bg-white shadow-sm border-b mb-6 sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+    <nav className="w-full bg-white shadow-sm border-b mb-6 sticky top-0 z-50">
+      <div className="w-full px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3">
         
-        {/* Logo (Links to Home) */}
-        <Link href="/" className="flex items-center gap-2 group">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 group shrink-0">
           <span className="text-xl group-hover:scale-110 transition-transform">🌱</span>
           <span className="text-xl font-bold text-green-600 tracking-tight">GrowToGive</span>
         </Link>
 
         {/* Navigation Actions */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           
           {status === 'loading' ? (
             <span className="text-gray-400 text-sm">Loading...</span>
           ) : session ? (
             <>
+              {/* NEW + Button (Visible site-wide to logged-in users) */}
+              <Link
+                href="/listings/new"
+                className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-md text-xs transition-all shadow-xs whitespace-nowrap"
+              >
+                + NEW
+              </Link>
+
               {/* Marketplace Link */}
               <Link
                 href="/marketplace"
                 className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                  pathname === '/marketplace' ? 'bg-slate-200 text-blue-700 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600'
+                  pathname?.startsWith('/marketplace') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-blue-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-blue-400'
                 }`}
               >
                 <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -41,11 +49,11 @@ export default function Navbar() {
                 </span>
               </Link>
 
-              {/* My Profile Link */}
+              {/* Profile Link */}
               <Link
                 href="/profile"
                 className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                  pathname === '/profile' ? 'bg-slate-200 text-blue-700 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600'
+                  pathname?.startsWith('/profile') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-blue-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-blue-400'
                 }`}
               >
                 <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -61,7 +69,7 @@ export default function Navbar() {
                 <Link
                   href="/admin/dashboard"
                   className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                    pathname === '/admin/dashboard' ? 'bg-slate-200 text-blue-700 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600'
+                    pathname?.startsWith('/admin') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-blue-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-blue-400'
                   }`}
                 >
                   <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -73,10 +81,10 @@ export default function Navbar() {
                 </Link>
               )}
 
-              {/* Sign Out Button */}
+              {/* Sign Out */}
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
-                className="group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-rose-600 transition-all cursor-pointer"
+                className="group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-rose-600 hover:border-b-2 hover:border-rose-400 transition-all cursor-pointer"
                 title="Sign Out"
               >
                 <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -91,7 +99,7 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                className="px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:border-b-2 hover:border-blue-400 rounded-md transition-colors"
               >
                 Sign In
               </Link>
