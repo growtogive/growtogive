@@ -426,7 +426,7 @@ export default function ListingDetailPage() {
             <div className="pt-6 border-t border-slate-100 flex flex-wrap justify-between items-center gap-4">
               <div className="flex items-center gap-3">
                 {session ? (
-                  <Link href={`/users/${authorSlug}`} className="text-emerald-600 hover:underline font-bold flex items-center gap-1.5 text-base">
+                  <Link href={`/profile/${authorSlug}`} className="text-emerald-600 hover:underline font-bold flex items-center gap-1.5 text-base">
                     👤 {authorName}
                   </Link>
                 ) : (

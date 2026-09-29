@@ -273,7 +273,7 @@ export default function MarketplacePage() {
               const displayDistance = `${item.distance ?? 0} mi`;
 
               return (
-                <div key={item.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all group">
+                <div key={item.id} className="bg-white rounded-xl border-2 border-slate-300 overflow-hidden shadow-xs flex flex-col justify-between hover:border-slate-400 transition-all group">
                   <Link href={`/listings/${item.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       <img

@@ -26,7 +26,7 @@ export default function Navbar() {
             <span className="text-gray-400 text-sm">Loading...</span>
           ) : session ? (
             <>
-              {/* NEW + Button (Visible site-wide to logged-in users) */}
+              {/* NEW + Button */}
               <Link
                 href="/listings/new"
                 className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-md text-xs transition-all shadow-xs whitespace-nowrap"
@@ -34,7 +34,7 @@ export default function Navbar() {
                 + NEW
               </Link>
 
-              {/* Marketplace Link */}
+              {/* Marketplace Link (Handshake Icon) */}
               <Link
                 href="/marketplace"
                 className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
@@ -42,10 +42,25 @@ export default function Navbar() {
                 }`}
               >
                 <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
                 <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
                   Marketplace
+                </span>
+              </Link>
+
+              {/* Members Link (User Group Icon) */}
+              <Link
+                href="/members"
+                className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  pathname?.startsWith('/members') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-blue-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-blue-400'
+                }`}
+              >
+                <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
+                  Members
                 </span>
               </Link>
 
