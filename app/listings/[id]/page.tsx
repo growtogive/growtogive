@@ -5,6 +5,35 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
+// Helper function to capitalize titles properly
+function formatListingTitle(title: string): string {
+  if (!title) return '';
+  const minorWords = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'by', 'with', 'in']);
+  
+  return title
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (index > 0 && minorWords.has(word)) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
+// Simple deterministic pseudo-random jitter for privacy on offers/requests (~0.5 - 1 mile offset)
+function getJitteredCoords(lat: number, lng: number, seedStr: string) {
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = seedStr.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const latOffset = ((hash % 100) / 10000) * (hash % 2 === 0 ? 1 : -1);
+  const lngOffset = (((hash >> 3) % 100) / 10000) * (hash % 3 === 0 ? 1 : -1);
+  return { lat: lat + latOffset, lng: lng + lngOffset };
+}
+
 export default function ListingDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -29,11 +58,76 @@ export default function ListingDetailPage() {
   const [editRating, setEditRating] = useState(5);
   const [editComment, setEditComment] = useState('');
 
+  // Map state
+  const [mapLoaded, setMapLoaded] = useState(false);
+
   useEffect(() => {
     if (id) {
       fetchListingDetail();
     }
   }, [id]);
+
+  // Load Google Maps Script dynamically using your radius search key from env
+  useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) return;
+
+    if ((window as any).google && (window as any).google.maps) {
+      setMapLoaded(true);
+      return;
+    }
+
+    if (document.getElementById('google-maps-script')) {
+      setMapLoaded(true);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'google-maps-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setMapLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+
+  // Initialize Map once listing and map script are ready
+  useEffect(() => {
+    if (!mapLoaded || !listing) return;
+
+    const lat = listing.latitude || listing.author?.latitude;
+    const lng = listing.longitude || listing.author?.longitude;
+
+    if (lat && lng) {
+      const isCommercial = listing.type === 'COMMERCIAL';
+      let pinLat = Number(lat);
+      let pinLng = Number(lng);
+
+      // If it's an offer or request, shift coordinates slightly to protect author privacy
+      if (!isCommercial) {
+        const jittered = getJitteredCoords(pinLat, pinLng, listing.id || 'offer');
+        pinLat = jittered.lat;
+        pinLng = jittered.lng;
+      }
+
+      const mapElement = document.getElementById('listing-google-map');
+      if (mapElement && (window as any).google) {
+        const map = new (window as any).google.maps.Map(mapElement, {
+          center: { lat: pinLat, lng: pinLng },
+          zoom: 14,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+        });
+
+        new (window as any).google.maps.Marker({
+          position: { lat: pinLat, lng: pinLng },
+          map: map,
+          title: isCommercial ? listing.title : 'Approximate Location',
+        });
+      }
+    }
+  }, [mapLoaded, listing]);
 
   const fetchListingDetail = async () => {
     try {
@@ -42,6 +136,11 @@ export default function ListingDetailPage() {
       if (!res.ok) throw new Error('Failed to fetch listing details');
       const data = await res.json();
       const listingData = data.listing || data;
+      
+      if (listingData.title) {
+        listingData.title = formatListingTitle(listingData.title);
+      }
+
       setListing(listingData);
       setReviews(listingData.reviews || []);
 
@@ -191,7 +290,6 @@ export default function ListingDetailPage() {
   });
 
   const isCommercial = listing.type === 'COMMERCIAL';
-
   const displayCity = (listing.city || listing.author?.city || '').trim() || 'General City';
   const displayChurch = (listing.churchName || listing.author?.churchName || listing.author?.church || '').trim() || 'Grace Family Church';
 
@@ -204,10 +302,13 @@ export default function ListingDetailPage() {
 
   const displayDistance = `${listing.distance !== undefined && listing.distance !== null ? listing.distance : 0} mi`;
   const priceDisplay = !isCommercial ? `GB: ${Number(listing.priceInBucks || 0).toFixed(2)}` : null;
+  const hasCoords = Boolean(listing.latitude || listing.author?.latitude);
+
+  const storefrontAddress = listing.location || '';
+  const googleMapsSearchUrl = storefrontAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storefrontAddress)}` : '#';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      {/* Top Navbar with Blue Bottom Line */}
       <header className="w-full bg-white border-b-2 border-blue-500 sticky top-0 z-40 shadow-sm">
         <div className="w-full max-w-6xl mx-auto px-4 py-3.5 flex justify-between items-center gap-4">
           <Link href="/marketplace" className="flex items-center gap-2.5">
@@ -252,9 +353,7 @@ export default function ListingDetailPage() {
                 onError={(e: any) => { e.target.style.display = 'none'; }}
               />
               <span className={`absolute top-6 right-6 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
-                isCommercial 
-                  ? 'bg-sky-100 text-blue-800 border-sky-300' 
-                  : 'bg-slate-100 text-black border-slate-200'
+                isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
               }`}>
                 {listing.type}
               </span>
@@ -274,7 +373,7 @@ export default function ListingDetailPage() {
                   {listing.category || 'Goods'}
                 </span>
                 <span className="text-slate-600 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 flex items-center gap-1.5">
-                  <span className="text-blue-600">✝️</span>
+                  <span className="text-blue-600 inline-block filter hue-rotate-15">✝️</span>
                   <span>{displayCity} &gt; {displayChurch}</span>
                 </span>
               </div>
@@ -298,11 +397,29 @@ export default function ListingDetailPage() {
             </div>
 
             {isCommercial && listing.businessHours && (
-              <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800 mb-1">Business Hours</h2>
-                <p className="text-slate-800 font-medium text-sm whitespace-pre-line">
-                  {listing.businessHours}
-                </p>
+              <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800 mb-1">Business Hours</h2>
+                  <p className="text-slate-800 font-medium text-sm whitespace-pre-line">
+                    {listing.businessHours}
+                  </p>
+                </div>
+
+                {storefrontAddress && (
+                  <div className="pt-3 border-t border-sky-200/60">
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800 mb-1">Storefront Address</h2>
+                    <a
+                      href={googleMapsSearchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold text-sm underline transition-colors"
+                    >
+                      <span>📍</span>
+                      <span>{storefrontAddress}</span>
+                      <span className="text-xs">↗</span>
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
@@ -326,7 +443,6 @@ export default function ListingDetailPage() {
                 <button
                   onClick={() => setActiveReviewsItem(listing)}
                   className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-2 rounded-2xl transition-colors cursor-pointer group shadow-xs shrink-0"
-                  title="Click to view reviews"
                 >
                   <span className="text-amber-500 font-black text-base">★</span>
                   <span className="text-sm font-black text-slate-900 group-hover:text-amber-800">{ratingVal}</span>
@@ -348,15 +464,32 @@ export default function ListingDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Google Map Section */}
+          {hasCoords ? (
+            <div className="border-t border-slate-200 p-8 bg-slate-50/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                  {isCommercial ? 'Business Location' : 'Approximate Location (Author Address Area)'}
+                </h3>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {isCommercial ? 'Exact address pin' : 'Shifted slightly for author privacy'}
+                </span>
+              </div>
+              <div id="listing-google-map" className="w-full h-72 rounded-2xl border border-slate-200 bg-slate-200 shadow-inner"></div>
+            </div>
+          ) : (
+            <div className="border-t border-slate-200 p-6 bg-slate-50 text-center text-xs text-slate-400">
+              Location coordinates not available for mapping.
+            </div>
+          )}
         </div>
 
-        {/* Leave Feedback Section (Restricted to Logged-in Users) */}
+        {/* Leave Feedback Section */}
         {!isAuthor && session && !hasAlreadyReviewed && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
             <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
-            
             {error && <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">{error}</div>}
-
             <form onSubmit={handleReviewSubmit} className="space-y-4">
               <div className="flex items-center gap-3">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Rating:</label>
@@ -391,7 +524,7 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* My Other Listings Section (4 cards wide on large screens) */}
+        {/* My Other Listings Section */}
         {otherListings.length > 0 && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
             <h3 className="text-xl font-black text-slate-900">My Other Listings</h3>
@@ -414,9 +547,7 @@ export default function ListingDetailPage() {
                           onError={(e: any) => { e.target.style.display = 'none'; }}
                         />
                         <span className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border shadow-xs ${
-                          itemIsCommercial 
-                            ? 'bg-sky-100 text-blue-800 border-sky-300' 
-                            : 'bg-white text-slate-800 border-slate-200'
+                          itemIsCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-slate-800 border-slate-200'
                         }`}>
                           {item.type}
                         </span>
@@ -432,7 +563,7 @@ export default function ListingDetailPage() {
                           {item.category || 'Goods'}
                         </span>
                         <h4 className="font-bold text-slate-900 text-sm mt-1.5 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                          {item.title}
+                          {formatListingTitle(item.title)}
                         </h4>
                       </div>
                       <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200 font-medium">
@@ -447,6 +578,7 @@ export default function ListingDetailPage() {
           </div>
         )}
 
+        {/* Community Reviews Section */}
         <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
           <div className="mt-2 space-y-4">
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Community Reviews ({reviews.length})</h4>
@@ -565,6 +697,7 @@ export default function ListingDetailPage() {
         </div>
       </main>
 
+      {/* Contact Modal */}
       {showContactModal && session && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative">

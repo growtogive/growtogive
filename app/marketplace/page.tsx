@@ -125,13 +125,11 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      {/* Outer upper padding decreased to 0 (pt-0) */}
       <main className="w-full pt-0 space-y-6">
         
-        {/* Fully Adaptive Single Row Control Bar (Inside top increased to pt-[7px], inside bottom decreased to pb-[7px]) */}
+        {/* Control Bar */}
         <div className="bg-white px-3 pt-[7px] pb-[7px] border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
-            {/* Search: w-84 (~150px wider) + shrink-0 */}
             <input
               type="text"
               placeholder="Search..."
@@ -140,7 +138,6 @@ export default function MarketplacePage() {
               className="px-3 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-84 shrink-0 font-medium"
             />
 
-            {/* City > Church */}
             <select
               value={selectedHierarchy}
               onChange={(e) => setSelectedHierarchy(e.target.value)}
@@ -152,7 +149,6 @@ export default function MarketplacePage() {
               ))}
             </select>
 
-            {/* Checkmark Listing Types */}
             <div className="flex items-center gap-2 px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded-lg">
               <label className="flex items-center gap-1 cursor-pointer font-medium text-[11px] text-sky-900">
                 <input
@@ -183,7 +179,6 @@ export default function MarketplacePage() {
               </label>
             </div>
 
-            {/* Radius */}
             <select
               value={maxRadius}
               onChange={(e) => setMaxRadius(e.target.value)}
@@ -196,7 +191,6 @@ export default function MarketplacePage() {
               <option value="100">100 mi</option>
             </select>
 
-            {/* Categories */}
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
@@ -210,7 +204,6 @@ export default function MarketplacePage() {
               ))}
             </select>
 
-            {/* Sorting */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -224,7 +217,6 @@ export default function MarketplacePage() {
               <option value="rating">Star Rating</option>
             </select>
 
-            {/* Clear Button */}
             <button
               onClick={() => {
                 setSearchTerm('');
@@ -241,7 +233,6 @@ export default function MarketplacePage() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 ml-auto">
-            {/* Listing Count */}
             <div className="text-slate-500 font-medium whitespace-nowrap">
               <span className="text-blue-600 font-black">{filteredAndSortedListings.length}</span> listings
             </div>
@@ -306,7 +297,8 @@ export default function MarketplacePage() {
                           {item.title}
                         </h3>
                         <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium mt-1 pb-2.5 border-b border-slate-100">
-                          <span className="text-blue-600">✝️</span>
+                          {/* Forced Blue Church Icon */}
+                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝️</span>
                           <span>{displayCity} &gt; {displayChurch}</span>
                         </div>
                       </div>

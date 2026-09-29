@@ -11,6 +11,23 @@ declare global {
   }
 }
 
+function formatListingTitle(title: string): string {
+  if (!title) return '';
+  const minorWords = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'by', 'with', 'in']);
+  
+  return title
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (index > 0 && minorWords.has(word)) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 export default function EditListingPage() {
   const router = useRouter();
   const params = useParams();
@@ -96,7 +113,7 @@ export default function EditListingPage() {
       const listing = data.listing || data;
 
       setFormData({
-        title: listing.title || '',
+        title: formatListingTitle(listing.title || ''),
         description: listing.description || '',
         type: listing.type || 'OFFER',
         category: listing.category || '',
@@ -150,7 +167,17 @@ export default function EditListingPage() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleTitleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (e.target.name === 'title') {
+      setFormData((prev) => ({
+        ...prev,
+        title: formatListingTitle(e.target.value),
+      }));
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -210,11 +237,14 @@ export default function EditListingPage() {
     setSubmitting(true);
 
     try {
+      const formattedTitle = formatListingTitle(formData.title);
+
       const res = await fetch(`/api/listings/${listingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          title: formattedTitle,
           priceInBucks: formData.type === 'COMMERCIAL' ? 0 : (parseFloat(formData.priceInBucks) || 0),
         }),
       });
@@ -266,6 +296,7 @@ export default function EditListingPage() {
               required
               value={formData.title}
               onChange={handleChange}
+              onBlur={handleTitleBlur}
               className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
             />
           </div>
