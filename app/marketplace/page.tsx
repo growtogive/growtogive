@@ -125,23 +125,33 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-0 space-y-6">
+      <main className="w-full pt-0 space-y-6 p-[10px] sm:p-6">
         
-        {/* Control Bar */}
-        <div className="bg-white px-3 pt-[7px] pb-[7px] border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        {/* Gray Header & Subheading */}
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
+            DIRECTORY & MARKETPLACE
+          </h1>
+          <h2 className="text-sm sm:text-base font-medium text-gray-500">
+            for Church Members and Friends • Trade with GROWBUCKS not your bucks!
+          </h2>
+        </div>
+
+        {/* Control Bar with 15px top/bottom padding & 2px Gray Underline */}
+        <div className="bg-white px-3 pt-[15px] pb-[15px] border-b-[2px] border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             <input
               type="text"
               placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-84 shrink-0 font-medium"
+              className="px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-84 max-w-full shrink-0 font-medium"
             />
 
             <select
               value={selectedHierarchy}
               onChange={(e) => setSelectedHierarchy(e.target.value)}
-              className="px-2.5 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
+              className="px-2.5 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
             >
               <option value="ALL">All Cities & Churches</option>
               {uniqueHierarchies.map((hier: any) => (
@@ -149,7 +159,7 @@ export default function MarketplacePage() {
               ))}
             </select>
 
-            <div className="flex items-center gap-2 px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded-lg">
+            <div className="flex items-center gap-2 px-2.5 py-2 border border-sky-200 bg-sky-50 rounded-lg">
               <label className="flex items-center gap-1 cursor-pointer font-medium text-[11px] text-sky-900">
                 <input
                   type="checkbox"
@@ -182,7 +192,7 @@ export default function MarketplacePage() {
             <select
               value={maxRadius}
               onChange={(e) => setMaxRadius(e.target.value)}
-              className="px-2.5 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
+              className="px-2.5 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
             >
               <option value="5">5 mi</option>
               <option value="10">10 mi</option>
@@ -194,7 +204,7 @@ export default function MarketplacePage() {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-2.5 py-1.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-slate-700 cursor-pointer text-xs"
+              className="px-2.5 py-2 border border-slate-200 bg-slate-50 rounded-lg font-bold text-slate-700 cursor-pointer text-xs"
             >
               <option value="ALL">All Categories (34)</option>
               {LISTING_CATEGORIES.map((catName) => (
@@ -207,7 +217,7 @@ export default function MarketplacePage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer w-32 truncate"
+              className="px-2 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer w-32 truncate"
             >
               <option value="date_desc">Newest First</option>
               <option value="date_asc">Oldest First</option>
@@ -226,7 +236,7 @@ export default function MarketplacePage() {
                 setMaxRadius('25');
                 setSortBy('date_desc');
               }}
-              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold transition-all whitespace-nowrap"
+              className="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold transition-all whitespace-nowrap"
             >
               × Clear
             </button>

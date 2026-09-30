@@ -14,7 +14,7 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   return { lat: 27.5000, lng: -82.5500 };
 }
 
-// GET: Fetch current user profile details, Growbucks balance, and listings
+// GET: Fetch current user profile details, Growbucks balance, transaction history, and listings
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -23,7 +23,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let user = await prisma.user.findUnique({
+    let user = await (prisma as any).user.findUnique({
       where: { email: session.user.email },
       select: {
         id: true,
@@ -39,6 +39,18 @@ export async function GET() {
         bio: true,
         avatar: true,
         growbucks: true,
+        sentTx: {
+          include: {
+            receiver: { select: { name: true, email: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        receivedTx: {
+          include: {
+            sender: { select: { name: true, email: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -46,7 +58,7 @@ export async function GET() {
       const defaultCity = 'Bradenton';
       const defaultCoords = getCoordsForCity(defaultCity);
 
-      user = await prisma.user.create({
+      user = await (prisma as any).user.create({
         data: {
           email: session.user.email,
           name: session.user.name || 'Community Member',
@@ -72,6 +84,18 @@ export async function GET() {
           bio: true,
           avatar: true,
           growbucks: true,
+          sentTx: {
+            include: {
+              receiver: { select: { name: true, email: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+          receivedTx: {
+            include: {
+              sender: { select: { name: true, email: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       });
     }
@@ -118,7 +142,7 @@ export async function PUT(req: Request) {
       data: {
         name,
         email,
-        city,          // Saved independently
+        city,           // Saved independently
         state,         // Saved independently
         churchName,    // Saved independently
         address,       // Saved independently from taxonomy dropdowns

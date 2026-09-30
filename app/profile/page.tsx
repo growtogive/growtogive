@@ -215,7 +215,6 @@ export default function ProfilePage() {
       setIsEditing(false);
       setSuccessMessage('Profile updated successfully!');
       
-      // Clean hard reload to ensure data freshness across components
       window.location.reload();
     } catch (err: any) {
       setError(err.message);
@@ -242,15 +241,65 @@ export default function ProfilePage() {
     return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
   }
 
+  // Combine and sort sent and received transactions
+  const allTransactions = profileData ? [
+    ...(profileData.sentTx || []),
+    ...(profileData.receivedTx || [])
+  ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [];
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 space-y-8">
         
-        {error && <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl">{error}</div>}
-        {successMessage && <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl">{successMessage}</div>}
+        {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl">{error}</div>}
+        {successMessage && <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl">{successMessage}</div>}
+
+        {/* GrowBucks Wallet & Transaction History Card */}
+        <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 rounded-2xl space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-black text-slate-900">GrowBucks Wallet</h2>
+              <p className="text-xs text-slate-500">Your available balance and transfer transaction ledger</p>
+            </div>
+            <span className="px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 font-black text-base rounded-2xl">
+              GB {Number(profileData?.growbucks || 0).toFixed(2)}
+            </span>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t border-slate-100">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Transaction History</h3>
+            {allTransactions.length === 0 ? (
+              <p className="text-xs text-slate-400">No Growbucks transactions yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {allTransactions.map((tx: any) => {
+                  const isSender = tx.senderId === profileData?.id;
+                  return (
+                    <div key={tx.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-slate-900 text-sm block">{tx.reason}</span>
+                        <span className="text-slate-500 font-medium">
+                          {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-black text-sm block ${isSender ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {isSender ? '-' : '+'}GB {Number(isSender ? tx.amount : tx.netAmount).toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Commission: GB {tx.commission.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Profile Card Header (Inline Dropdown Edit Form) */}
-        <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 mb-8 rounded-2xl">
+        <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 rounded-2xl">
           {!isEditing ? (
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
               <div className="flex items-center gap-5">
@@ -278,11 +327,6 @@ export default function ProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                <div className="bg-amber-50 border border-amber-200 px-4 py-2 text-center rounded-xl">
-                  <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider">Growbucks</span>
-                  <span className="text-lg font-bold text-amber-900">GB {profileData?.growbucks?.toFixed(2) ?? '10.00'}</span>
-                </div>
-
                 <button
                   onClick={() => setIsEditing(true)}
                   className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition-all shadow-xs rounded-xl cursor-pointer"
@@ -319,11 +363,9 @@ export default function ProfilePage() {
               <input type="hidden" name="latitude" value={formData.latitude} />
               <input type="hidden" name="longitude" value={formData.longitude} />
 
-              {/* Border Wrapper for City > Church Hierarchy Section */}
               <div className="p-4 border border-slate-200 rounded-xl space-y-4 bg-slate-50/50">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Church Community (City &gt; Church)</span>
 
-                {/* City Selection + Add New City */}
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">City, State</label>
                   {!isAddingCity ? (
@@ -358,7 +400,6 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                {/* Church Affiliation Selection + Add New Church */}
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Church Affiliation</label>
                   {!isAddingChurch ? (
@@ -393,7 +434,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Device Avatar Upload */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Profile Photo (Upload from Device)</label>
                 <div className="flex items-center gap-4">

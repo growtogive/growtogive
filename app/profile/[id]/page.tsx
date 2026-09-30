@@ -10,55 +10,18 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [showReviewsModal, setShowReviewsModal] = useState(false);
 
   useEffect(() => {
-    fetchUserData();
+    if (id) {
+      fetchUserData();
+    }
   }, [id]);
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/marketplace');
-      if (!res.ok) throw new Error('Failed to fetch marketplace data');
+      const res = await fetch(`/api/users/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch user profile data');
       const data = await res.json();
-      
-      const allListings = Array.isArray(data) ? data : [];
-      const userListings = allListings.filter(
-        (item: any) => String(item.authorId) === String(id) || String(item.authorName).toLowerCase().replace(/\s+/g, '-') === String(id).toLowerCase()
-      );
-
-      const firstItem = userListings[0];
-      const authorName = firstItem ? firstItem.authorName : id.replace(/-/g, ' ');
-      const churchName = firstItem ? firstItem.churchName : 'Grace Family Church - Tampa';
-      
-      const collectedReviews: any[] = [];
-      userListings.forEach((item: any) => {
-        if (item.reviews && Array.isArray(item.reviews)) {
-          item.reviews.forEach((r: any) => {
-            if (!collectedReviews.some((existing) => existing.id === r.id)) {
-              collectedReviews.push({
-                id: r.id,
-                author: r.author?.name || r.author || 'Community Member',
-                rating: r.rating,
-                date: r.date || new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-                comment: r.comment,
-              });
-            }
-          });
-        }
-      });
-
-      const avgRating = collectedReviews.length > 0 
-        ? (collectedReviews.reduce((acc, r) => acc + r.rating, 0) / collectedReviews.length).toFixed(1)
-        : 'New';
-
-      setUserProfile({
-        name: authorName,
-        churchName,
-        email: `${authorName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-        rating: avgRating,
-        memberSince: 'March 2026',
-        listings: userListings,
-        reviews: collectedReviews,
-      });
+      setUserProfile(data.user || data);
     } catch (err) {
       console.error(err);
       setUserProfile(null);
@@ -83,6 +46,17 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  const reviewsList = userProfile.reviews || userProfile.targetUserReviews || [];
+  const avgRating = reviewsList.length > 0 
+    ? (reviewsList.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewsList.length).toFixed(1)
+    : 'New';
+
+  const memberSinceFormatted = userProfile.createdAt 
+    ? new Date(userProfile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : 'March 2026';
+
+  const listingsList = userProfile.listings || [];
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8">
@@ -96,14 +70,14 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 mb-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-xl bg-emerald-100 text-emerald-800 font-black text-2xl flex items-center justify-center border border-emerald-200 shrink-0 shadow-inner">
-              {userProfile.name.charAt(0)}
+              {userProfile.name ? userProfile.name.charAt(0) : 'U'}
             </div>
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 inline-block mb-2">
-                ⛪ {userProfile.churchName}
+                ⛪ {userProfile.churchName || 'Grace Family Church'}
               </span>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Member since {userProfile.memberSince}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Member since {memberSinceFormatted} • {userProfile.city || 'Bradenton'}, {userProfile.state || 'FL'}</p>
             </div>
           </div>
 
@@ -115,7 +89,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             <span className="text-amber-500 font-black text-lg group-hover:scale-110 transition-transform">★</span>
             <div className="text-left">
               <div className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors flex items-center gap-1.5">
-                {userProfile.rating} <span className="text-[11px] font-semibold text-emerald-700 underline">({userProfile.reviews.length} reviews)</span>
+                {avgRating} <span className="text-[11px] font-semibold text-emerald-700 underline">({reviewsList.length} reviews)</span>
               </div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">View Feedback</div>
             </div>
@@ -123,23 +97,23 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="mb-6">
-          <h2 className="text-lg font-bold text-slate-900">Listings by {userProfile.name} ({userProfile.listings.length})</h2>
+          <h2 className="text-lg font-bold text-slate-900">Listings by {userProfile.name} ({listingsList.length})</h2>
           <p className="text-xs text-slate-500 mt-0.5">Explore offers, requests, and store items posted by this member.</p>
         </div>
 
-        {userProfile.listings.length === 0 ? (
+        {listingsList.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm text-slate-400 text-sm font-medium">
             This user has no active listings at the moment.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {userProfile.listings.map((item: any) => {
+            {listingsList.map((item: any) => {
               const createdDate = new Date(item.createdAt || Date.now());
               const expirationDate = new Date(createdDate);
               expirationDate.setDate(expirationDate.getDate() + 14);
               const isCommercial = (item.type || '').toUpperCase() === 'COMMERCIAL';
               
-              const displayCity = (item.city || '').trim() || 'General City';
+              const displayCity = (item.city || userProfile.city || '').trim() || 'General City';
               const displayChurch = (item.churchName || userProfile.churchName || '').trim() || 'Grace Family Church';
               const dateDisplay = isCommercial ? `Created: ${createdDate.toLocaleDateString()}` : `Expires: ${expirationDate.toLocaleDateString()}`;
               const priceDisplay = !isCommercial ? `GB ${Number(item.priceInBucks || 0).toFixed(2)}` : 'Storefront';
@@ -219,21 +193,23 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <p className="text-xs text-slate-500 mt-0.5">Community feedback tied to this user profile</p>
               </div>
               <div className="ml-auto bg-amber-50 border border-amber-200 text-amber-800 px-3.5 py-1.5 rounded-xl font-black text-sm shrink-0">
-                ★ {userProfile.rating}
+                ★ {avgRating}
               </div>
             </div>
 
             <div className="space-y-4">
-              {userProfile.reviews.length === 0 ? (
+              {reviewsList.length === 0 ? (
                 <p className="text-xs text-slate-500 text-center py-6">No reviews submitted for this user yet.</p>
               ) : (
-                userProfile.reviews.map((rev: any) => (
+                reviewsList.map((rev: any) => (
                   <div key={rev.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="font-bold text-slate-900 text-sm">{rev.author}</span>
+                      <span className="font-bold text-slate-900 text-sm">{rev.author?.name || rev.author || 'Member'}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-amber-500 font-bold text-xs">{'★'.repeat(rev.rating)}</span>
-                        <span className="text-slate-400 text-xs">{rev.date}</span>
+                        <span className="text-slate-400 text-xs">
+                          {new Date(rev.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
                       </div>
                     </div>
                     <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>

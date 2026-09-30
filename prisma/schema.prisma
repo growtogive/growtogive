@@ -8,26 +8,28 @@ generator client {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String?
-  name          String?
-  role          String    @default("USER")
-  city          String?   @default("Bradenton")
-  state         String?   @default("FL")
-  churchName    String?   @default("Grace Family Church")
-  address       String?
-  latitude      Float?
-  longitude     Float?
-  bio           String?
-  avatar        String?
-  growbucks     Float     @default(10.00)
-  emailVerified Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  listings      Listing[]
-  reviews       Review[]  @relation("TargetUserReviews")
-  authReviews   Review[]  @relation("AuthorReviews")
+  id              String        @id @default(cuid())
+  email           String        @unique
+  password        String?
+  name            String?
+  role            String        @default("USER")
+  city            String?       @default("Bradenton")
+  state           String?       @default("FL")
+  churchName      String?       @default("Grace Family Church")
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  bio             String?
+  avatar          String?
+  growbucks       Float         @default(10.00)
+  emailVerified   Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  listings        Listing[]
+  reviews         Review[]      @relation("TargetUserReviews")
+  authReviews     Review[]      @relation("AuthorReviews")
+  sentTx          Transaction[] @relation("SentTransactions")
+  receivedTx      Transaction[] @relation("ReceivedTransactions")
 }
 
 model Listing {
@@ -72,4 +74,19 @@ model Review {
   
   listingId    String?
   listing      Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  reason      String   // Listing title
+  amount      Float    // Total transferred amount
+  commission  Float    // 10% commission amount
+  netAmount   Float    // 90% receiver amount
+  
+  senderId    String
+  sender      User     @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  receiverId  String
+  receiver    User     @relation("ReceivedTransactions", fields: [receiverId], references: [id], onDelete: Cascade)
 }

@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
-// Helper function to capitalize titles properly
 function formatListingTitle(title: string): string {
   if (!title) return '';
   const minorWords = new Set(['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'by', 'with', 'in']);
@@ -23,7 +22,6 @@ function formatListingTitle(title: string): string {
     .join(' ');
 }
 
-// Simple deterministic pseudo-random jitter for privacy on offers/requests (~0.5 - 1 mile offset)
 function getJitteredCoords(lat: number, lng: number, seedStr: string) {
   let hash = 0;
   for (let i = 0; i < seedStr.length; i++) {
@@ -49,6 +47,13 @@ export default function ListingDetailPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
+  // Transfer Modal States
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferAmount, setTransferAmount] = useState<number>(0);
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [transferSuccess, setTransferSuccess] = useState('');
+
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
@@ -58,7 +63,6 @@ export default function ListingDetailPage() {
   const [editRating, setEditRating] = useState(5);
   const [editComment, setEditComment] = useState('');
 
-  // Map state
   const [mapLoaded, setMapLoaded] = useState(false);
 
   useEffect(() => {
@@ -67,7 +71,6 @@ export default function ListingDetailPage() {
     }
   }, [id]);
 
-  // Load Google Maps Script dynamically using your radius search key from env
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) return;
@@ -91,7 +94,6 @@ export default function ListingDetailPage() {
     document.head.appendChild(script);
   }, []);
 
-  // Initialize Map once listing and map script are ready
   useEffect(() => {
     if (!mapLoaded || !listing) return;
 
@@ -103,7 +105,6 @@ export default function ListingDetailPage() {
       let pinLat = Number(lat);
       let pinLng = Number(lng);
 
-      // If it's an offer or request, shift coordinates slightly to protect author privacy
       if (!isCommercial) {
         const jittered = getJitteredCoords(pinLat, pinLng, listing.id || 'offer');
         pinLat = jittered.lat;
@@ -310,7 +311,7 @@ export default function ListingDetailPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
       <header className="w-full bg-white border-b-2 border-blue-500 sticky top-0 z-40 shadow-sm">
-        <div className="w-full max-w-6xl mx-auto px-4 py-3.5 flex justify-between items-center gap-4">
+        <div className="w-full mx-auto px-4 py-3.5 flex justify-between items-center gap-4" style={{ maxWidth: '750px' }}>
           <Link href="/marketplace" className="flex items-center gap-2.5">
             <span className="text-2xl">🌱</span>
             <span className="text-xl font-black tracking-tight text-slate-900">GrowToGive</span>
@@ -342,10 +343,10 @@ export default function ListingDetailPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-6xl mx-auto px-4 pt-10 space-y-8">
+      <main className="w-full mx-auto px-4 pt-10 space-y-8" style={{ maxWidth: '750px' }}>
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
           {listing.imageUrl && (
-            <div className="h-80 w-full bg-slate-100 relative">
+            <div className="h-[420px] w-full bg-slate-100 relative overflow-hidden">
               <img
                 src={listing.imageUrl}
                 alt={listing.title}
@@ -353,7 +354,7 @@ export default function ListingDetailPage() {
                 onError={(e: any) => { e.target.style.display = 'none'; }}
               />
               <span className={`absolute top-6 right-6 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
-                isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
+                isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-black border-slate-200'
               }`}>
                 {listing.type}
               </span>
@@ -383,7 +384,23 @@ export default function ListingDetailPage() {
                 ) : (
                   <>
                     <span>Expires: {expirationDateFormatted}</span>
-                    <span className="text-slate-900 font-bold">{priceDisplay}</span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-slate-900 font-bold">{priceDisplay}</span>
+                      {session && !isAuthor && (
+                        <button
+                          onClick={() => {
+                            setTransferAmount(Number(listing.priceInBucks || 0));
+                            setTransferError('');
+                            setTransferSuccess('');
+                            setShowTransferModal(true);
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                          title="Transfer Growbucks for this offer/request"
+                        >
+                          <span>💸</span> Transfer GB
+                        </button>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -459,13 +476,12 @@ export default function ListingDetailPage() {
                   }}
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm text-center transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>✉️</span> Contact Member
+                  <span>✉️️</span> Contact Member
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Google Map Section */}
           {hasCoords ? (
             <div className="border-t border-slate-200 p-8 bg-slate-50/50 space-y-3">
               <div className="flex items-center justify-between">
@@ -484,6 +500,126 @@ export default function ListingDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Growbucks Transfer Modal */}
+        {showTransferModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
+              <button
+                onClick={() => setShowTransferModal(false)}
+                className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+              >
+                ×
+              </button>
+              
+              <h3 className="text-xl font-black text-slate-900">Growbucks Transfer</h3>
+              <p className="text-xs text-slate-500">Send Growbucks securely for this offer/request.</p>
+
+              {transferError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                  {transferError}
+                </div>
+              )}
+
+              {transferSuccess ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl space-y-3 text-center">
+                  <p className="font-bold text-sm">🎉 {transferSuccess}</p>
+                  <button
+                    onClick={() => { setShowTransferModal(false); window.location.reload(); }}
+                    className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (transferAmount <= 0) {
+                    setTransferError('Transfer amount must be greater than zero.');
+                    return;
+                  }
+                  if (isAuthor) {
+                    setTransferError('You cannot transfer Growbucks to your own listing.');
+                    return;
+                  }
+
+                  setTransferring(true);
+                  setTransferError('');
+                  try {
+                    const res = await fetch('/api/growbucks/transfer', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        listingId: listing.id,
+                        receiverId: listing.authorId || listing.author?.id,
+                        amount: transferAmount,
+                        reason: listing.title,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Transfer failed.');
+                    setTransferSuccess('Transfer completed! 90% sent to receiver, 10% platform commission logged.');
+                  } catch (err: any) {
+                    setTransferError(err.message);
+                  } finally {
+                    setTransferring(false);
+                  }
+                }} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Listing Title (Reason)</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={listing.title}
+                      className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 text-slate-600 text-xs rounded-xl font-bold cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Recipient</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={authorName}
+                      className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 text-slate-600 text-xs rounded-xl font-bold cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Transfer Amount (GB)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(Number(e.target.value))}
+                      className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl font-bold focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">90% goes to recipient, 10% platform commission applies. Minimum &gt; 0.</p>
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTransferModal(false)}
+                      className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={transferring}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all"
+                    >
+                      {transferring ? 'Processing...' : 'Confirm Transfer'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Leave Feedback Section */}
         {!isAuthor && session && !hasAlreadyReviewed && (
@@ -528,7 +664,7 @@ export default function ListingDetailPage() {
         {otherListings.length > 0 && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
             <h3 className="text-xl font-black text-slate-900">My Other Listings</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {otherListings.map((item: any) => {
                 const itemIsCommercial = item.type === 'COMMERCIAL';
                 const itemPrice = !itemIsCommercial ? `GB: ${Number(item.priceInBucks || 0).toFixed(2)}` : 'Commercial';
