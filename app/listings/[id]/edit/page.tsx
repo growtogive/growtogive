@@ -40,6 +40,7 @@ export default function EditListingPage() {
     category: '',
     priceInBucks: '0.00',
     imageUrl: '',
+    images: [] as string[], // Up to 5 images allowed for Commercial or Featured
     location: '',
     businessHours: '',
     latitude: 27.4989,
@@ -55,6 +56,9 @@ export default function EditListingPage() {
 
   const autocompleteRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Both Commercial and Featured (or any listing supporting multi-image) can have up to 5 images
+  const maxImagesAllowed = 5;
 
   useEffect(() => {
     if (listingId) {
@@ -112,13 +116,19 @@ export default function EditListingPage() {
       const data = await res.json();
       const listing = data.listing || data;
 
+      // Properly parse images array or fallback to single imageUrl
+      const listingImages = listing.images && listing.images.length > 0 
+        ? listing.images 
+        : (listing.imageUrl ? [listing.imageUrl] : []);
+
       setFormData({
         title: formatListingTitle(listing.title || ''),
         description: listing.description || '',
         type: listing.type || 'OFFER',
         category: listing.category || '',
         priceInBucks: listing.priceInBucks?.toString() || '0.00',
-        imageUrl: listing.imageUrl || '',
+        imageUrl: listing.imageUrl || listingImages[0] || '',
+        images: listingImages,
         location: listing.location || '',
         businessHours: listing.businessHours || '',
         latitude: listing.latitude ?? 27.4989,
@@ -181,11 +191,11 @@ export default function EditListingPage() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image file is too large. Please select an image under 5MB.');
+    if (formData.images.length + files.length > maxImagesAllowed) {
+      setError(`Listings can have a maximum of 5 images.`);
       return;
     }
 
@@ -193,20 +203,44 @@ export default function EditListingPage() {
     setError('');
 
     try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, imageUrl: reader.result as string }));
-        setUploadingImage(false);
-      };
-      reader.onerror = () => {
-        setError('Failed to read image file.');
-        setUploadingImage(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      setError('Error uploading image.');
+      const newImagePromises = Array.from(files).map((file) => {
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error('Image file is too large. Please select images under 5MB.');
+        }
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const base64Images = await Promise.all(newImagePromises);
+      
+      setFormData((prev) => {
+        const updatedImages = [...prev.images, ...base64Images].slice(0, 5);
+        return {
+          ...prev,
+          images: updatedImages,
+          imageUrl: updatedImages[0] || '',
+        };
+      });
+    } catch (err: any) {
+      setError(err.message || 'Error processing uploaded image(s).');
+    } finally {
       setUploadingImage(false);
     }
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setFormData((prev) => {
+      const updatedImages = prev.images.filter((_, idx) => idx !== indexToRemove);
+      return {
+        ...prev,
+        images: updatedImages,
+        imageUrl: updatedImages[0] || '',
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -390,29 +424,42 @@ export default function EditListingPage() {
           <input type="hidden" name="latitude" value={formData.latitude} />
           <input type="hidden" name="longitude" value={formData.longitude} />
 
+          {/* Media Upload Section (Up to 5 images) */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Listing Image (Upload from Device)
+              Listing Images (Up to 5 images)
             </label>
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                {formData.imageUrl ? (
-                  <img src={formData.imageUrl} alt="Listing Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-2xl">📦</span>
-                )}
-              </div>
 
-              <div className="flex-1">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
-                />
-              </div>
+            <div className="grid grid-cols-5 gap-3 mb-3">
+              {formData.images.map((imgSrc, idx) => (
+                <div key={idx} className="relative w-full h-20 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center rounded">
+                  <img src={imgSrc} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold hover:bg-rose-700 cursor-pointer"
+                    title="Remove image"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+              {formData.images.length < maxImagesAllowed && (
+                <label className="w-full h-20 border-2 border-dashed border-slate-300 hover:border-slate-400 rounded flex flex-col items-center justify-center cursor-pointer bg-slate-50 text-slate-500 text-[11px] font-medium">
+                  <span>+ Add</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
-            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Processing image...</p>}
+
+            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Processing image(s)...</p>}
           </div>
 
           <div>

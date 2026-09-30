@@ -43,9 +43,14 @@ export default function ListingDetailPage() {
   const [otherListings, setOtherListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeReviewsItem, setActiveReviewsItem] = useState<any>(null);
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+
+  // In-App Message Modal States
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageContent, setMessageContent] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const [messageSuccess, setMessageSuccess] = useState('');
 
   // Upgrade States
   const [upgrading, setUpgrading] = useState(false);
@@ -220,6 +225,35 @@ export default function ListingDetailPage() {
     }
   };
 
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageContent.trim()) return;
+    setSendingMessage(true);
+    setMessageError('');
+    setMessageSuccess('');
+
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: listing.id,
+          receiverId: listing.authorId || listing.author?.id,
+          content: messageContent,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send message.');
+
+      setMessageSuccess('Private message sent successfully! The author has been notified.');
+      setMessageContent('');
+    } catch (err: any) {
+      setMessageError(err.message);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session) {
@@ -264,12 +298,6 @@ export default function ListingDetailPage() {
     }
   };
 
-  const handleCopyEmail = (email: string) => {
-    navigator.clipboard.writeText(email);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium text-lg">
@@ -300,13 +328,6 @@ export default function ListingDetailPage() {
 
   const authorSlug = listing.authorId || listing.author?.name?.toLowerCase().replace(/\s+/g, '-') || 'user';
   const authorName = listing.author?.name || 'Community Member';
-  const authorEmail = listing.author?.email || `${authorName.toLowerCase().replace(/\s+/g, '')}@growtogive.org`;
-  
-  const subject = encodeURIComponent(`Regarding your GrowToGive listing: ${listing.title}`);
-  const body = encodeURIComponent(`Hi ${authorName},\n\nI saw your listing "${listing.title}" on GrowToGive and am interested in connecting.\n\nBlessings!`);
-
-  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${authorEmail}&su=${subject}&body=${body}`;
-  const outlookUrl = `https://outlook.live.com/owa/?path=/mail/action/compose&to=${authorEmail}&subject=${subject}&body=${body}`;
 
   const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
   const userRole = (session?.user as any)?.role;
@@ -384,8 +405,8 @@ export default function ListingDetailPage() {
 
       <main className="w-full mx-auto px-4 pt-10 space-y-8" style={{ maxWidth: '750px' }}>
         
-        {/* Upgrade Callout Box for Author / Admin (Hidden if already featured and not commercial) */}
-        {canModify && (!isFeatured || isCommercial) && (
+        {/* Upgrade Callout Box: Visible ONLY if the user is the author and the listing is NOT already featured */}
+        {isAuthor && !isFeatured && (
           <div className="bg-sky-50 border border-sky-200 rounded-3xl p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
@@ -397,7 +418,7 @@ export default function ListingDetailPage() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {!isCommercial && !isFeatured && (
+                {!isCommercial && (
                   <button
                     onClick={() => handleUpgrade('FEATURED')}
                     disabled={upgrading}
@@ -613,12 +634,12 @@ export default function ListingDetailPage() {
                     if (!session) {
                       router.push('/signup');
                     } else {
-                      setShowContactModal(true);
+                      setShowMessageModal(true);
                     }
                   }}
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm text-center transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>✉</span> Contact Member
+                  <span>✉</span> Send Private Message
                 </button>
               </div>
             </div>
@@ -642,6 +663,72 @@ export default function ListingDetailPage() {
             </div>
           )}
         </div>
+
+        {/* In-App Private Message Modal */}
+        {showMessageModal && session && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
+              <button
+                onClick={() => { setShowMessageModal(false); setMessageSuccess(''); setMessageContent(''); }}
+                className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+              >
+                ×
+              </button>
+
+              <h3 className="text-xl font-black text-slate-900">Message {authorName}</h3>
+              <p className="text-xs text-slate-500">Send a secure private message regarding <span className="font-bold text-slate-700">{listing.title}</span>.</p>
+
+              {messageError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                  {messageError}
+                </div>
+              )}
+
+              {messageSuccess ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl space-y-3 text-center">
+                  <p className="font-bold text-sm">🎉 {messageSuccess}</p>
+                  <button
+                    onClick={() => { setShowMessageModal(false); setMessageSuccess(''); setMessageContent(''); }}
+                    className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSendMessage} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Your Message</label>
+                    <textarea
+                      rows={4}
+                      required
+                      value={messageContent}
+                      onChange={(e) => setMessageContent(e.target.value)}
+                      placeholder="Write your message here..."
+                      className="w-full px-4 py-3 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setShowMessageModal(false); setMessageContent(''); }}
+                      className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={sendingMessage}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all"
+                    >
+                      {sendingMessage ? 'Sending...' : 'Send Message'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Growbucks Transfer Modal */}
         {showTransferModal && (
@@ -975,77 +1062,6 @@ export default function ListingDetailPage() {
           </div>
         </div>
       </main>
-
-      {/* Contact Modal */}
-      {showContactModal && session && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative">
-            <button
-              onClick={() => { setShowContactModal(false); setCopied(false); }}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
-            >
-              ×
-            </button>
-            <h3 className="text-xl font-black text-slate-900 mb-1">Contact {authorName}</h3>
-            <p className="text-xs text-slate-500 mb-6">Choose how you would like to reach out regarding <span className="font-bold text-slate-700">{listing.title}</span>.</p>
-            <div className="space-y-3">
-              <button
-                onClick={() => handleCopyEmail(authorEmail)}
-                className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left transition-all flex items-center justify-between group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📋</span>
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-wider text-slate-900">Copy Email Address</div>
-                    <div className="text-xs text-slate-500 font-mono mt-0.5">{authorEmail}</div>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                  {copied ? '✓ Copied!' : 'Copy'}
-                </span>
-              </button>
-              <a
-                href={gmailUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-red-50 border border-slate-200 text-left transition-all flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">✉️</span>
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-wider text-slate-900 group-hover:text-red-700">Open in Gmail</div>
-                    <div className="text-xs text-slate-500 mt-0.5">Composes a pre-filled email in Gmail</div>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-slate-400 group-hover:text-red-600">↗</span>
-              </a>
-              <a
-                href={outlookUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-blue-50 border border-slate-200 text-left transition-all flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📨</span>
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-wider text-slate-900 group-hover:text-blue-700">Open in Outlook</div>
-                    <div className="text-xs text-slate-500 mt-0.5">Composes a pre-filled email in Outlook</div>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-slate-400 group-hover:text-blue-600">↗</span>
-              </a>
-            </div>
-            <div className="mt-8 pt-4 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => { setShowContactModal(false); setCopied(false); }}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

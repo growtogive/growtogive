@@ -610,11 +610,28 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 {allTransactions.map((tx: any) => {
                   const isSender = tx.senderId === profileData?.id;
+                  const txType = tx.type || 'Trade'; // Fallback to 'Trade' for transfers if field isn't set yet
+
+                  // Assign badge styling based on transaction type
+                  let typeBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                  if (txType === 'Trade') {
+                    typeBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                  } else if (txType === 'Referral') {
+                    typeBadgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
+                  } else if (txType === 'Activity') {
+                    typeBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
+                  }
+
                   return (
                     <div key={tx.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs">
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-slate-900 text-sm block">{tx.reason}</span>
-                        <span className="text-slate-500 font-medium">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">{tx.reason}</span>
+                          <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-md border ${typeBadgeClass}`}>
+                            {txType}
+                          </span>
+                        </div>
+                        <span className="text-slate-500 font-medium block">
                           {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
                         </span>
                       </div>

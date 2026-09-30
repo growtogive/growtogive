@@ -38,7 +38,7 @@ export default function NewListingPage() {
     category: '',
     priceInBucks: '0.00',
     imageUrl: '', // Legacy single image fallback
-    images: [] as string[], // Up to 5 for commercial, 1 for standard
+    images: [] as string[], // Up to 5 images allowed
     videoUrl: '', // Optional video for commercial
     location: '',
     businessHours: '',
@@ -56,7 +56,7 @@ export default function NewListingPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isCommercialType = formData.type === 'COMMERCIAL';
-  const maxImagesAllowed = isCommercialType ? 5 : 1;
+  const maxImagesAllowed = 5; // Allow up to 5 images for all listings
 
   useEffect(() => {
     async function checkExistingCommercial() {
@@ -129,8 +129,6 @@ export default function NewListingPage() {
     setFormData((prev) => ({
       ...prev,
       type: newType,
-      images: newType !== 'COMMERCIAL' && prev.images.length > 1 ? [prev.images[0]] : prev.images,
-      imageUrl: prev.images.length > 0 ? prev.images[0] : prev.imageUrl,
     }));
   };
 
@@ -153,7 +151,7 @@ export default function NewListingPage() {
     if (!files || files.length === 0) return;
 
     if (formData.images.length + files.length > maxImagesAllowed) {
-      setError(`Commercial listings can have up to 5 images. Standard listings are limited to 1 image.`);
+      setError(`Listings can have a maximum of 5 images.`);
       return;
     }
 
@@ -176,10 +174,7 @@ export default function NewListingPage() {
       const base64Images = await Promise.all(newImagePromises);
       
       setFormData((prev) => {
-        const updatedImages = isCommercialType 
-          ? [...prev.images, ...base64Images].slice(0, 5) 
-          : [base64Images[0]];
-        
+        const updatedImages = [...prev.images, ...base64Images].slice(0, 5);
         return {
           ...prev,
           images: updatedImages,
@@ -402,10 +397,10 @@ export default function NewListingPage() {
           <input type="hidden" name="latitude" value={formData.latitude} />
           <input type="hidden" name="longitude" value={formData.longitude} />
 
-          {/* Media Upload Section */}
+          {/* Media Upload Section (Up to 5 images for all listing types) */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              {isCommercialType ? 'Listing Images (Up to 5 images)' : 'Listing Image (1 image)'}
+              Listing Images (Up to 5 images)
             </label>
             
             <div className="grid grid-cols-5 gap-3 mb-3">
@@ -415,7 +410,7 @@ export default function NewListingPage() {
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
-                    className="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold hover:bg-rose-700"
+                    className="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold hover:bg-rose-700 cursor-pointer"
                     title="Remove image"
                   >
                     ×
@@ -429,7 +424,7 @@ export default function NewListingPage() {
                   <input
                     type="file"
                     accept="image/*"
-                    multiple={isCommercialType}
+                    multiple
                     onChange={handleFileChange}
                     className="hidden"
                   />

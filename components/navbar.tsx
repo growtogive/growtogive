@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
@@ -9,6 +10,20 @@ export default function Navbar() {
   const { data: session, status } = useSession();
   const userRole = (session?.user as any)?.role;
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (session) {
+      fetch('/api/messages')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.unreadCount !== undefined) {
+            setUnreadCount(data.unreadCount);
+          }
+        })
+        .catch((err) => console.error('Failed to fetch unread messages count', err));
+    }
+  }, [session, pathname]);
 
   return (
     <nav className="w-full bg-white shadow-xs border-b border-blue-500 mb-3 sticky top-0 z-50">
@@ -28,7 +43,7 @@ export default function Navbar() {
           </div>
         </Link>
 
-        {/* Navigation Actions (Increased gap for more spreading) */}
+        {/* Navigation Actions */}
         <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           
           {status === 'loading' ? (
@@ -43,7 +58,7 @@ export default function Navbar() {
                 + NEW
               </Link>
 
-              {/* Marketplace Link (Handshake Icon) */}
+              {/* Marketplace Link */}
               <Link
                 href="/marketplace"
                 className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
@@ -55,6 +70,28 @@ export default function Navbar() {
                 </svg>
                 <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
                   Marketplace
+                </span>
+              </Link>
+
+              {/* Messages Link with Notification Badge */}
+              <Link
+                href="/messages"
+                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
+                  pathname?.startsWith('/messages') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
+                }`}
+              >
+                <div className="relative">
+                  <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] font-black w-4 h-4 flex items-center justify-center rounded-full shadow-sm">
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
+                  Messages {unreadCount > 0 && `(${unreadCount})`}
                 </span>
               </Link>
 
