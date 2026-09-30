@@ -8,55 +8,64 @@ generator client {
 }
 
 model User {
-  id              String        @id @default(cuid())
-  email           String        @unique
-  password        String?
-  name            String?
-  role            String        @default("USER")
-  city            String?       @default("Bradenton")
-  state           String?       @default("FL")
-  churchName      String?       @default("Grace Family Church")
-  address         String?
-  latitude        Float?
-  longitude       Float?
-  bio             String?
-  avatar          String?
-  growbucks       Float         @default(10.00)
-  emailVerified   Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  listings        Listing[]
-  reviews         Review[]      @relation("TargetUserReviews")
-  authReviews     Review[]      @relation("AuthorReviews")
-  sentTx          Transaction[] @relation("SentTransactions")
-  receivedTx      Transaction[] @relation("ReceivedTransactions")
+  id             String        @id @default(cuid())
+  email          String        @unique
+  password       String?
+  name           String?
+  role           String        @default("USER")
+  city           String?       @default("Bradenton")
+  state          String?       @default("FL")
+  churchName     String?       @default("Grace Family Church")
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  bio            String?
+  avatar         String?
+  growbucks      Float         @default(10.00)
+  emailVerified  Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  listings       Listing[]
+  reviews        Review[]      @relation("TargetUserReviews")
+  authReviews    Review[]      @relation("AuthorReviews")
+  sentTx         Transaction[] @relation("SentTransactions")
+  receivedTx     Transaction[] @relation("ReceivedTransactions")
 }
 
 model Listing {
-  id            String   @id @default(cuid())
-  title         String
-  description   String
-  type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
-  category      String   // Required string without default
-  priceInBucks  Float    @default(0.00)
-  imageUrl      String?
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  type         String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
+  category     String   // Required string without default
+  priceInBucks Float    @default(0.00)
+  
+  // Media fields (imageUrl kept for legacy compatibility, images array & videoUrl for upgrades)
+  imageUrl     String?  
+  images       String[] @default([])
+  videoUrl     String?
+
+  // Upgrade & Tier Fields
+  isFeatured   Boolean  @default(false)
+  isCommercial Boolean  @default(false)
+  expiresAt    DateTime @default(dbgenerated("NOW() + INTERVAL '30 days'"))
   
   // Location fields (primarily for Commercial storefronts)
-  location      String?
-  city          String?
-  latitude      Float?
-  longitude     Float?
+  location     String?
+  city         String?
+  latitude     Float?
+  longitude    Float?
 
   // Commercial-only field
   businessHours String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  authorId      String
-  author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   
-  reviews       Review[]
+  reviews      Review[]
 }
 
 model Review {

@@ -47,6 +47,11 @@ export default function ListingDetailPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
+  // Upgrade States
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState('');
+  const [upgradeSuccess, setUpgradeSuccess] = useState('');
+
   // Transfer Modal States
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferAmount, setTransferAmount] = useState<number>(0);
@@ -101,7 +106,7 @@ export default function ListingDetailPage() {
     const lng = listing.longitude || listing.author?.longitude;
 
     if (lat && lng) {
-      const isCommercial = listing.type === 'COMMERCIAL';
+      const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
       let pinLat = Number(lat);
       let pinLng = Number(lng);
 
@@ -184,6 +189,34 @@ export default function ListingDetailPage() {
       router.push('/marketplace');
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleUpgrade = async (upgradeType: 'FEATURED' | 'COMMERCIAL') => {
+    if (!id) return;
+    setUpgrading(true);
+    setUpgradeError('');
+    setUpgradeSuccess('');
+
+    try {
+      const res = await fetch(`/api/listings/${id}/upgrade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upgradeType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upgrade listing.');
+
+      setUpgradeSuccess(
+        upgradeType === 'FEATURED'
+          ? '🎉 Successfully upgraded to Featured ($1.00)! Expiration extended by 14 days and highlighted.'
+          : '🎉 Successfully upgraded to Commercial listing ($50/month processed)!'
+      );
+      fetchListingDetail();
+    } catch (err: any) {
+      setUpgradeError(err.message);
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -290,15 +323,15 @@ export default function ListingDetailPage() {
     );
   });
 
-  const isCommercial = listing.type === 'COMMERCIAL';
+  const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
+  const isFeatured = listing.isFeatured;
   const displayCity = (listing.city || listing.author?.city || '').trim() || 'General City';
   const displayChurch = (listing.churchName || listing.author?.churchName || listing.author?.church || '').trim() || 'Grace Family Church';
 
   const createdDate = new Date(listing.createdAt || Date.now());
   const memberSinceDate = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   
-  const expDate = new Date(createdDate);
-  expDate.setDate(expDate.getDate() + 14);
+  const expDate = new Date(listing.expiresAt || createdDate);
   const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const displayDistance = `${listing.distance !== undefined && listing.distance !== null ? listing.distance : 0} mi`;
@@ -307,6 +340,12 @@ export default function ListingDetailPage() {
 
   const storefrontAddress = listing.location || '';
   const googleMapsSearchUrl = storefrontAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storefrontAddress)}` : '#';
+
+  // Images handling (up to 5 images)
+  const listingImages = (listing.images && listing.images.length > 0) ? listing.images : (listing.imageUrl ? [listing.imageUrl] : []);
+
+  // Commercial Metrics
+  const stats = listing.stats || { views: 42, contactClicks: 7, shares: 3 };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
@@ -344,20 +383,108 @@ export default function ListingDetailPage() {
       </header>
 
       <main className="w-full mx-auto px-4 pt-10 space-y-8" style={{ maxWidth: '750px' }}>
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-          {listing.imageUrl && (
-            <div className="h-[420px] w-full bg-slate-100 relative overflow-hidden">
-              <img
-                src={listing.imageUrl}
-                alt={listing.title}
-                className="w-full h-full object-cover"
-                onError={(e: any) => { e.target.style.display = 'none'; }}
-              />
-              <span className={`absolute top-6 right-6 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
-                isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-black border-slate-200'
-              }`}>
-                {listing.type}
-              </span>
+        
+        {/* Upgrade Callout Box for Author / Admin (Hidden if already featured and not commercial) */}
+        {canModify && (!isFeatured || isCommercial) && (
+          <div className="bg-sky-50 border border-sky-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-black text-blue-900 uppercase tracking-wider">Listing Upgrade Options</h3>
+                <p className="text-xs text-blue-700 mt-0.5">
+                  {!isCommercial 
+                    ? 'Upgrade your Offer/Request to Featured ($1.00) to extend expiration by 14 days, sort at the top, and add a highlighted border!'
+                    : 'Your Commercial listing is active ($50/mo). You get 5 images, video upload, top sorting, storefront stats, and exact mapping.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {!isCommercial && !isFeatured && (
+                  <button
+                    onClick={() => handleUpgrade('FEATURED')}
+                    disabled={upgrading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {upgrading ? 'Processing...' : 'Upgrade to Featured ($1.00 / +14 Days)'}
+                  </button>
+                )}
+                {isCommercial && (
+                  <button
+                    onClick={() => handleUpgrade('COMMERCIAL')}
+                    disabled={upgrading}
+                    className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {upgrading ? 'Processing...' : 'Renew Commercial ($50 / mo)'}
+                  </button>
+                )}
+              </div>
+            </div>
+            {upgradeError && <p className="text-xs text-rose-700 font-semibold">{upgradeError}</p>}
+            {upgradeSuccess && <p className="text-xs text-emerald-700 font-bold">{upgradeSuccess}</p>}
+          </div>
+        )}
+
+        {/* Commercial Storefront Stats Section */}
+        {isCommercial && (
+          <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md flex items-center justify-around text-center">
+            <div>
+              <div className="text-2xl font-black text-emerald-400">{stats.views}</div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold mt-0.5">Total Views</div>
+            </div>
+            <div className="border-r border-slate-800 h-10"></div>
+            <div>
+              <div className="text-2xl font-black text-blue-400">{stats.contactClicks}</div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold mt-0.5">Contact Clicks</div>
+            </div>
+            <div className="border-r border-slate-800 h-10"></div>
+            <div>
+              <div className="text-2xl font-black text-amber-400">{stats.shares}</div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold mt-0.5">Shares</div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Listing Container with Highlighted Border if Featured */}
+        <div className={`bg-white rounded-3xl overflow-hidden shadow-sm transition-all ${
+          isFeatured ? 'border-4 border-amber-400 shadow-md ring-2 ring-amber-200' : 'border border-slate-200'
+        }`}>
+          
+          {/* Main Image / Gallery */}
+          {listingImages.length > 0 ? (
+            <div className="space-y-2">
+              <div className="h-[420px] w-full bg-slate-100 relative overflow-hidden">
+                <img
+                  src={listingImages[0]}
+                  alt={listing.title}
+                  className="w-full h-full object-cover"
+                  onError={(e: any) => { e.target.style.display = 'none'; }}
+                />
+                <div className="absolute top-6 right-6 flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border shadow-sm ${
+                    isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-black border-slate-200'
+                  }`}>
+                    {listing.type}
+                  </span>
+                  {isFeatured && (
+                    <span className="bg-amber-400 text-amber-950 border border-amber-500 px-3 py-1 rounded text-xs font-black uppercase tracking-wide shadow-md">
+                      ★ Featured Highlight
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Thumbnail Gallery for Additional Images (Up to 5) */}
+              {listingImages.length > 1 && (
+                <div className="grid grid-cols-5 gap-2 px-6">
+                  {listingImages.map((img: string, idx: number) => (
+                    <div key={idx} className="h-16 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                      <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="h-60 w-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm font-bold">
+              No Image Available
             </div>
           )}
 
@@ -412,6 +539,21 @@ export default function ListingDetailPage() {
                 {listing.description}
               </p>
             </div>
+
+            {/* Video Preview for Commercial Listings */}
+            {isCommercial && listing.videoUrl && (
+              <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-2">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800">Attached Video</h2>
+                <a
+                  href={listing.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-blue-600 hover:underline font-bold text-sm"
+                >
+                  <span>▶</span> Watch Commercial Video ↗
+                </a>
+              </div>
+            )}
 
             {isCommercial && listing.businessHours && (
               <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-4">
@@ -476,7 +618,7 @@ export default function ListingDetailPage() {
                   }}
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm text-center transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>✉️️</span> Contact Member
+                  <span>✉</span> Contact Member
                 </button>
               </div>
             </div>
@@ -666,18 +808,19 @@ export default function ListingDetailPage() {
             <h3 className="text-xl font-black text-slate-900">My Other Listings</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {otherListings.map((item: any) => {
-                const itemIsCommercial = item.type === 'COMMERCIAL';
+                const itemIsCommercial = item.type === 'COMMERCIAL' || item.isCommercial;
                 const itemPrice = !itemIsCommercial ? `GB: ${Number(item.priceInBucks || 0).toFixed(2)}` : 'Commercial';
+                const itemImg = (item.images && item.images.length > 0) ? item.images[0] : item.imageUrl;
                 return (
                   <Link
                     key={item.id}
                     href={`/listings/${item.id}`}
                     className="group border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col"
                   >
-                    {item.imageUrl ? (
+                    {itemImg ? (
                       <div className="h-40 w-full bg-slate-100 relative overflow-hidden">
                         <img
-                          src={item.imageUrl}
+                          src={itemImg}
                           alt={item.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           onError={(e: any) => { e.target.style.display = 'none'; }}

@@ -67,7 +67,7 @@ export default function MarketplacePage() {
     }
   };
 
-  // Filter and Sort Logic using API-calculated item.distance
+  // Filter and Sort Logic: Commercial listings first, then Featured offers/requests, then Standard
   const filteredAndSortedListings = useMemo(() => {
     let result = listings.filter((item) => {
       const matchesSearch = 
@@ -90,8 +90,19 @@ export default function MarketplacePage() {
       return matchesSearch && matchesType && matchesCategory && matchesHierarchy && matchesDistance;
     });
 
-    // Sorting logic
+    // Sorting logic with precise priority tiers
     result.sort((a, b) => {
+      // 1. Commercial listings get highest priority at the top
+      const aCommercial = (a.isCommercial || a.type === 'COMMERCIAL') ? 1 : 0;
+      const bCommercial = (b.isCommercial || b.type === 'COMMERCIAL') ? 1 : 0;
+      if (aCommercial !== bCommercial) return bCommercial - aCommercial;
+
+      // 2. Featured offers and requests get second priority
+      const aFeatured = a.isFeatured ? 1 : 0;
+      const bFeatured = b.isFeatured ? 1 : 0;
+      if (aFeatured !== bFeatured) return bFeatured - aFeatured;
+
+      // 3. Secondary user-selected sort
       switch (sortBy) {
         case 'date_desc':
           return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
@@ -139,7 +150,6 @@ export default function MarketplacePage() {
             </h2>
           </div>
 
-          {/* Members Button on far right end of title row */}
           <Link
             href="/members"
             className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-bold transition-all shadow-xs ${
@@ -155,7 +165,7 @@ export default function MarketplacePage() {
           </Link>
         </div>
 
-        {/* Control Bar with 15px top/bottom padding & 2px Gray Underline */}
+        {/* Control Bar */}
         <div className="bg-white px-3 pt-[15px] pb-[15px] border-b-[2px] border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             <input
@@ -281,14 +291,22 @@ export default function MarketplacePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredAndSortedListings.map((item: any) => {
-              const isCommercial = item.type === 'COMMERCIAL';
+              const isCommercial = item.type === 'COMMERCIAL' || item.isCommercial;
+              const isFeatured = item.isFeatured;
+              
+              // Border Styling: Dark blue for commercial, Light blue for featured offers/requests
+              const getBorderClass = () => {
+                if (isCommercial) return 'border-2 border-blue-900 shadow-md';
+                if (isFeatured) return 'border-2 border-sky-300 shadow-sm';
+                return 'border-2 border-slate-300';
+              };
+
               const displayCity = (item.city || item.author?.city || '').trim() || 'General City';
               const displayChurch = (item.churchName || item.author?.churchName || item.author?.church || '').trim() || 'Grace Family Church';
               const priceDisplay = !isCommercial ? `GB ${Number(item.priceInBucks || 0).toFixed(2)}` : null;
 
               const reviewCount = item.reviews?.length || 0;
               
-              // Review badge: "New" if posted within the last 24 hours and no reviews exist
               const createdDate = new Date(item.createdAt || Date.now());
               const isWithin24Hours = (Date.now() - createdDate.getTime()) <= 24 * 60 * 60 * 1000;
               
@@ -300,29 +318,40 @@ export default function MarketplacePage() {
 
               const createdDateFormatted = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
               
-              const expDate = new Date(createdDate);
-              expDate.setDate(expDate.getDate() + 14);
+              const expDate = new Date(item.expiresAt || createdDate);
               const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
               const displayDistance = `${item.distance ?? 0} mi`;
+              
+              const primaryImage = (item.images && item.images.length > 0) ? item.images[0] : (item.imageUrl || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available');
 
               return (
-                <div key={item.id} className="bg-white rounded-xl border-2 border-slate-300 overflow-hidden shadow-xs flex flex-col justify-between hover:border-slate-400 transition-all group">
+                <div key={item.id} className={`bg-white rounded-xl overflow-hidden shadow-xs flex flex-col justify-between hover:shadow-md transition-all group ${getBorderClass()}`}>
                   <Link href={`/listings/${item.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       <img
-                        src={item.imageUrl || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                        src={primaryImage}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e: any) => { 
                           e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
                         }}
                       />
-                      <span className={`absolute top-3 right-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
-                        isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
-                      }`}>
-                        {item.type}
-                      </span>
+                      
+                      {/* Top Right Badges */}
+                      <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+                        <span className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
+                          isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
+                        }`}>
+                          {item.type}
+                        </span>
+                        {/* Light blue Featured Badge on ANY listing that is featured */}
+                        {isFeatured && (
+                          <span className="bg-sky-100 text-blue-900 border border-sky-300 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide shadow-xs">
+                            Featured
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="p-5 space-y-3">
@@ -331,8 +360,7 @@ export default function MarketplacePage() {
                           {item.title}
                         </h3>
                         <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium mt-1 pb-2.5 border-b border-slate-100">
-                          {/* Forced Blue Church Icon */}
-                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝️️</span>
+                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝</span>
                           <span>{displayCity} &gt; {displayChurch}</span>
                         </div>
                       </div>
