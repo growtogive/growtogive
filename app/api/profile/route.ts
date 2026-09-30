@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcrypt';
 
 // Precise regional coordinates helper for Florida cities fallback
 function getCoordsForCity(cityName: string): { lat: number; lng: number } {
@@ -112,7 +113,7 @@ export async function GET() {
   }
 }
 
-// PUT: Update all user profile fields independently without cross-over overwrites
+// PUT: Update all user profile fields independently, along with optional password update verification
 export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -122,7 +123,21 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { name, email, city, state, churchName, address, latitude, longitude, bio, avatar } = body;
+    const { 
+      name, 
+      email, 
+      city, 
+      state, 
+      churchName, 
+      address, 
+      latitude, 
+      longitude, 
+      bio, 
+      avatar, 
+      currentPassword, 
+      newPassword, 
+      confirmPassword 
+    } = body;
 
     if (!name || !email) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
@@ -137,20 +152,52 @@ export async function PUT(req: Request) {
       finalLng = coords.lng;
     }
 
-    const updatedUser = await prisma.user.update({
+    // Build base update payload
+    let updateData: any = {
+      name,
+      email,
+      city,          // Saved independently
+      state,         // Saved independently
+      churchName,    // Saved independently
+      address,       // Saved independently from taxonomy dropdowns
+      latitude: finalLat,
+      longitude: finalLng,
+      bio,
+      avatar,
+    };
+
+    // Handle secure password update if newPassword was provided
+    if (newPassword && newPassword.trim() !== '') {
+      if (newPassword !== confirmPassword) {
+        return NextResponse.json({ error: 'New passwords do not match.' }, { status: 400 });
+      }
+      if (!currentPassword) {
+        return NextResponse.json({ error: 'Current password is required to set a new password.' }, { status: 400 });
+      }
+
+      const dbUser = await (prisma as any).user.findUnique({ where: { email: session.user.email } });
+      if (!dbUser) {
+        return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+      }
+
+      // If user registered through a provider like OAuth without a local password hash
+      if (!dbUser.password || dbUser.password === 'oauth_or_session_user') {
+        return NextResponse.json({ error: 'Password changes are not available for social login accounts.' }, { status: 400 });
+      }
+
+      const passwordMatch = await bcrypt.compare(currentPassword, dbUser.password);
+      if (!passwordMatch) {
+        return NextResponse.json({ error: 'Incorrect current password.' }, { status: 400 });
+      }
+
+      // Hash new password and attach to update payload
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      updateData.password = hashedPassword;
+    }
+
+    const updatedUser = await (prisma as any).user.update({
       where: { email: session.user.email },
-      data: {
-        name,
-        email,
-        city,           // Saved independently
-        state,         // Saved independently
-        churchName,    // Saved independently
-        address,       // Saved independently from taxonomy dropdowns
-        latitude: finalLat,
-        longitude: finalLng,
-        bio,
-        avatar,
-      },
+      data: updateData,
     });
 
     return NextResponse.json({

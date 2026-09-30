@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { LISTING_CATEGORIES } from '@/lib/constants/categories';
 
 export default function MarketplacePage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session } = useSession();
 
   const [listings, setListings] = useState<any[]>([]);
@@ -125,16 +126,33 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-0 space-y-6 p-[10px] sm:p-6">
+      <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6">
         
-        {/* Gray Header & Subheading */}
-        <div className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
-            DIRECTORY & MARKETPLACE
-          </h1>
-          <h2 className="text-sm sm:text-base font-medium text-gray-500">
-            for Church Members and Friends • Trade with GROWBUCKS not your bucks!
-          </h2>
+        {/* Gray Header & Subheading with Members Button on Far Right */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
+              DIRECTORY & MARKETPLACE
+            </h1>
+            <h2 className="text-sm sm:text-base font-medium text-gray-500">
+              for Church Members and Friends • Trade with GROWBUCKS not your bucks!
+            </h2>
+          </div>
+
+          {/* Members Button on far right end of title row */}
+          <Link
+            href="/members"
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-bold transition-all shadow-xs ${
+              pathname?.startsWith('/members') 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <svg className={`w-4 h-4 shrink-0 ${pathname?.startsWith('/members') ? 'text-white' : 'text-blue-600'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <span>Members</span>
+          </Link>
         </div>
 
         {/* Control Bar with 15px top/bottom padding & 2px Gray Underline */}
@@ -269,11 +287,17 @@ export default function MarketplacePage() {
               const priceDisplay = !isCommercial ? `GB ${Number(item.priceInBucks || 0).toFixed(2)}` : null;
 
               const reviewCount = item.reviews?.length || 0;
+              
+              // Review badge: "New" if posted within the last 24 hours and no reviews exist
+              const createdDate = new Date(item.createdAt || Date.now());
+              const isWithin24Hours = (Date.now() - createdDate.getTime()) <= 24 * 60 * 60 * 1000;
+              
               const ratingVal = reviewCount > 0 
                 ? (item.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewCount).toFixed(1) 
-                : 'New';
+                : isWithin24Hours 
+                  ? 'New' 
+                  : '0.0';
 
-              const createdDate = new Date(item.createdAt || Date.now());
               const createdDateFormatted = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
               
               const expDate = new Date(createdDate);
@@ -308,7 +332,7 @@ export default function MarketplacePage() {
                         </h3>
                         <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium mt-1 pb-2.5 border-b border-slate-100">
                           {/* Forced Blue Church Icon */}
-                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝️</span>
+                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝️️</span>
                           <span>{displayCity} &gt; {displayChurch}</span>
                         </div>
                       </div>

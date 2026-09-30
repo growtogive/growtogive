@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 
 export default function Navbar() {
   const { data: session, status } = useSession();
@@ -10,17 +11,25 @@ export default function Navbar() {
   const pathname = usePathname();
 
   return (
-    <nav className="w-full bg-white shadow-sm border-b mb-6 sticky top-0 z-50">
-      <div className="w-full px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3">
+    <nav className="w-full bg-white shadow-xs border-b border-blue-500 mb-3 sticky top-0 z-50">
+      <div className="w-full px-4 sm:px-6 py-2 flex flex-wrap justify-between items-center gap-4">
         
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group shrink-0">
-          <span className="text-xl group-hover:scale-110 transition-transform">🌱</span>
-          <span className="text-xl font-bold text-green-600 tracking-tight">GrowToGive</span>
+        {/* Logo (Image only, cropped/sized to 70x70, caption removed) */}
+        <Link href="/" className="flex items-center group shrink-0">
+          <div className="w-[70px] h-[70px] relative overflow-hidden flex items-center justify-center">
+            <Image
+              src="/logo.png"
+              alt="GrowToGive Logo"
+              width={70}
+              height={70}
+              className="object-cover group-hover:scale-105 transition-transform"
+              priority
+            />
+          </div>
         </Link>
 
-        {/* Navigation Actions */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        {/* Navigation Actions (Increased gap for more spreading) */}
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           
           {status === 'loading' ? (
             <span className="text-gray-400 text-sm">Loading...</span>
@@ -29,7 +38,7 @@ export default function Navbar() {
               {/* NEW + Button */}
               <Link
                 href="/listings/new"
-                className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-md text-xs transition-all shadow-xs whitespace-nowrap"
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-md text-xs transition-all shadow-xs whitespace-nowrap"
               >
                 + NEW
               </Link>
@@ -37,7 +46,7 @@ export default function Navbar() {
               {/* Marketplace Link (Handshake Icon) */}
               <Link
                 href="/marketplace"
-                className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
                   pathname?.startsWith('/marketplace') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
                 }`}
               >
@@ -49,25 +58,10 @@ export default function Navbar() {
                 </span>
               </Link>
 
-              {/* Members Link (Two-Headed / Two Users Icon) */}
-              <Link
-                href="/members"
-                className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                  pathname?.startsWith('/members') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
-                }`}
-              >
-                <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
-                  Members
-                </span>
-              </Link>
-
               {/* Profile Link */}
               <Link
                 href="/profile"
-                className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
                   pathname?.startsWith('/profile') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
                 }`}
               >
@@ -83,7 +77,7 @@ export default function Navbar() {
               {userRole === 'admin' && (
                 <Link
                   href="/admin/dashboard"
-                  className={`group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
                     pathname?.startsWith('/admin') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
                   }`}
                 >
@@ -99,7 +93,7 @@ export default function Navbar() {
               {/* Sign Out */}
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
-                className="group relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-rose-600 hover:border-b-2 hover:border-slate-900 transition-all cursor-pointer"
+                className="group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-rose-600 hover:border-b-2 hover:border-slate-900 transition-all cursor-pointer"
                 title="Sign Out"
               >
                 <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -111,16 +105,16 @@ export default function Navbar() {
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Link
                 href="/login"
-                className="px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:border-b-2 hover:border-slate-900 rounded-md transition-colors"
+                className="px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:border-b-2 hover:border-slate-900 rounded-md transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 href="/signup"
-                className="px-3 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors shadow-xs"
+                className="px-3.5 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors shadow-xs"
               >
                 Sign Up
               </Link>

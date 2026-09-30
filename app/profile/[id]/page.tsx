@@ -18,10 +18,39 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const fetchUserData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/users/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch user profile data');
+      const res = await fetch('/api/listings');
+      if (!res.ok) throw new Error('Failed to fetch marketplace listings');
       const data = await res.json();
-      setUserProfile(data.user || data);
+      const listings = Array.isArray(data) ? data : (data.listings || []);
+
+      // Filter listings belonging to this specific user/author
+      const userListings = listings.filter((item: any) => {
+        const authorId = item.authorId || item.author?.id || (item.author?.name || item.authorName || '').toLowerCase().replace(/\s+/g, '-');
+        return String(authorId) === String(id) || String(item.author?.id) === String(id);
+      });
+
+      let foundAuthor = userListings.length > 0 ? (userListings[0].author || { name: userListings[0].authorName }) : null;
+
+      if (!foundAuthor) {
+        // Fallback search by slug/name match
+        const matchedItem = listings.find((item: any) => {
+          const authorName = item.authorName || item.author?.name || '';
+          return authorName.toLowerCase().replace(/\s+/g, '-') === id;
+        });
+        if (matchedItem) {
+          foundAuthor = matchedItem.author || { name: matchedItem.authorName };
+        }
+      }
+
+      if (foundAuthor) {
+        setUserProfile({
+          ...foundAuthor,
+          listings: userListings,
+          reviews: foundAuthor.reviews || userListings.flatMap((l: any) => l.reviews || [])
+        });
+      } else {
+        setUserProfile(null);
+      }
     } catch (err) {
       console.error(err);
       setUserProfile(null);
@@ -31,12 +60,12 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   };
 
   if (loading) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
+    return <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
   }
 
   if (!userProfile) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
         <h2 className="text-2xl font-black text-slate-900 mb-2">User Not Found</h2>
         <p className="text-slate-600 mb-6 text-sm">The user profile you are looking for does not exist.</p>
         <Link href="/marketplace" className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl text-xs shadow-md hover:bg-emerald-700 transition-colors">
@@ -46,7 +75,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const reviewsList = userProfile.reviews || userProfile.targetUserReviews || [];
+  const reviewsList = userProfile.reviews || [];
   const avgRating = reviewsList.length > 0 
     ? (reviewsList.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewsList.length).toFixed(1)
     : 'New';
@@ -58,12 +87,28 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const listingsList = userProfile.listings || [];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
+    <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8">
         
-        <div className="mb-6">
-          <Link href="/marketplace" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1.5">
-            ← Back to Marketplace
+        {/* Marketplace Title Row Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div className="space-y-0.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
+              User Profile
+            </h1>
+            <h2 className="text-sm sm:text-base font-medium text-gray-500">
+              Member details and active listings portfolio
+            </h2>
+          </div>
+
+          <Link
+            href="/marketplace"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-bold transition-all shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+          >
+            <svg className="w-4 h-4 shrink-0 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <span>Marketplace</span>
           </Link>
         </div>
 
@@ -74,7 +119,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </div>
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 inline-block mb-2">
-                ⛪ {userProfile.churchName || 'Grace Family Church'}
+                ⛪ {userProfile.churchName || userProfile.church || 'Grace Family Church'}
               </span>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
               <p className="text-xs text-slate-500 mt-0.5">Member since {memberSinceFormatted} • {userProfile.city || 'Bradenton'}, {userProfile.state || 'FL'}</p>
@@ -179,7 +224,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
       {showReviewsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-lg w-full shadow-2xl relative max-h-[85vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-lg w-full shadow-2xl relative max-h-[85vh] overflow-y-auto">
             <button
               onClick={() => setShowReviewsModal(false)}
               className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
@@ -189,7 +234,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
             <div className="flex items-center gap-3 mb-6">
               <div>
-                <h3 className="text-2xl font-black text-slate-900">{userProfile.name}'s Reviews</h3>
+                <h3 className="text-2xl font-black text-slate-900">{userProfile.name}&apos;s Reviews</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Community feedback tied to this user profile</p>
               </div>
               <div className="ml-auto bg-amber-50 border border-amber-200 text-amber-800 px-3.5 py-1.5 rounded-xl font-black text-sm shrink-0">

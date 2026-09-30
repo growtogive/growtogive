@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function MembersPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session } = useSession();
 
   const [members, setMembers] = useState<any[]>([]);
@@ -128,23 +129,50 @@ export default function MembersPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-0 space-y-6">
+      <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6">
         
-        {/* Control Bar */}
-        <div className="bg-white px-3 pt-[7px] pb-[7px] border border-slate-200 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        {/* Gray Header & Subheading with Marketplace Button on Far Right */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
+              Members
+            </h1>
+            <h2 className="text-sm sm:text-base font-medium text-gray-500">
+              Connect with fellow church members and community participants
+            </h2>
+          </div>
+
+          {/* Marketplace Button on far right end of title row */}
+          <Link
+            href="/marketplace"
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-bold transition-all shadow-xs ${
+              pathname?.startsWith('/marketplace') 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <svg className={`w-4 h-4 shrink-0 ${pathname?.startsWith('/marketplace') ? 'text-white' : 'text-blue-600'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <span>Marketplace</span>
+          </Link>
+        </div>
+
+        {/* Control Bar with 15px top/bottom padding & 2px Gray Underline */}
+        <div className="bg-white px-3 pt-[15px] pb-[15px] border-b-[2px] border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             <input
               type="text"
               placeholder="Search members..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-84 shrink-0 font-medium"
+              className="px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-84 max-w-full shrink-0 font-medium"
             />
 
             <select
               value={selectedHierarchy}
               onChange={(e) => setSelectedHierarchy(e.target.value)}
-              className="px-2.5 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
+              className="px-2.5 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
             >
               <option value="ALL">All Cities & Churches</option>
               {uniqueHierarchies.map((hier: any) => (
@@ -155,7 +183,7 @@ export default function MembersPage() {
             <select
               value={maxRadius}
               onChange={(e) => setMaxRadius(e.target.value)}
-              className="px-2.5 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
+              className="px-2.5 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
             >
               <option value="5">5 mi</option>
               <option value="10">10 mi</option>
@@ -167,7 +195,7 @@ export default function MembersPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer w-32 truncate"
+              className="px-2.5 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer w-32 truncate"
             >
               <option value="date_desc">Newest First</option>
               <option value="date_asc">Oldest First</option>
@@ -182,7 +210,7 @@ export default function MembersPage() {
                 setMaxRadius('25');
                 setSortBy('date_desc');
               }}
-              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold transition-all whitespace-nowrap"
+              className="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold transition-all whitespace-nowrap"
             >
               × Clear
             </button>
