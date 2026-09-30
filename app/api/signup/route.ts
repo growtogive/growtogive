@@ -15,8 +15,19 @@ export async function POST(req: Request) {
       latitude, 
       longitude, 
       bio, 
-      avatar 
+      avatar,
+      website // Honeypot field
     } = body;
+
+    // --- HONEYPOT CHECK ---
+    // If the hidden 'website' field contains a value, a bot filled it out.
+    // Silently return success so the bot thinks it worked, but do nothing.
+    if (website && website.trim() !== '') {
+      return NextResponse.json(
+        { message: 'Account created successfully!' },
+        { status: 201 }
+      );
+    }
 
     if (!name || !email || !password) {
       return NextResponse.json(

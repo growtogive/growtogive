@@ -294,11 +294,11 @@ export default function MarketplacePage() {
               const isCommercial = item.type === 'COMMERCIAL' || item.isCommercial;
               const isFeatured = item.isFeatured;
               
-              // Border Styling: Dark blue for commercial, Light blue for featured offers/requests
+              // Border Styling: 2px blue for commercial, 1px blue for featured offers/requests, 1px slate for standard
               const getBorderClass = () => {
-                if (isCommercial) return 'border-2 border-blue-900 shadow-md';
-                if (isFeatured) return 'border-2 border-sky-300 shadow-sm';
-                return 'border-2 border-slate-300';
+                if (isCommercial) return 'border-2 border-blue-600 shadow-md';
+                if (isFeatured) return 'border border-blue-400 shadow-sm';
+                return 'border border-slate-300';
               };
 
               const displayCity = (item.city || item.author?.city || '').trim() || 'General City';
@@ -345,7 +345,7 @@ export default function MarketplacePage() {
                         }`}>
                           {item.type}
                         </span>
-                        {/* Light blue Featured Badge on ANY listing that is featured */}
+                        {/* Featured Badge on ANY listing that is featured */}
                         {isFeatured && (
                           <span className="bg-sky-100 text-blue-900 border border-sky-300 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide shadow-xs">
                             Featured
