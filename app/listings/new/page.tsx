@@ -37,17 +37,16 @@ export default function NewListingPage() {
     type: 'OFFER',
     category: '',
     priceInBucks: '0.00',
-    imageUrl: '', // Legacy single image fallback
-    images: [] as string[], // Up to 5 images allowed
-    videoUrl: '', // Optional video for commercial
+    imageUrl: '',
+    images: [] as string[],
+    isFeatured: false,
     location: '',
     businessHours: '',
     latitude: 27.4989,
     longitude: -82.5648,
   });
 
-  const [hasCommercial, setHasCommercial] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [hasOtherCommercial, setHasOtherCommercial] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
@@ -55,29 +54,16 @@ export default function NewListingPage() {
   const autocompleteRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isCommercialType = formData.type === 'COMMERCIAL';
-  const maxImagesAllowed = 5; // Allow up to 5 images for all listings
+  // ONLY Featured listings get up to 5 images. All other listings get 1.
+  const allowsMultipleImages = formData.isFeatured;
+  const maxImagesAllowed = allowsMultipleImages ? 5 : 1;
 
   useEffect(() => {
-    async function checkExistingCommercial() {
-      try {
-        const res = await fetch('/api/listings');
-        if (res.ok) {
-          const listings = await res.json();
-          const exists = listings.some((l: any) => l.type === 'COMMERCIAL' || l.isCommercial);
-          setHasCommercial(exists);
-        }
-      } catch (err) {
-        console.error('Failed to verify commercial listings', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    checkExistingCommercial();
+    checkCommercialStatus();
   }, []);
 
   useEffect(() => {
-    if (!isCommercialType) return;
+    if (formData.type !== 'COMMERCIAL') return;
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) return;
@@ -91,7 +77,7 @@ export default function NewListingPage() {
     } else {
       initAutocomplete();
     }
-  }, [isCommercialType]);
+  }, [formData.type]);
 
   const initAutocomplete = () => {
     if (!inputRef.current || !window.google) return;
@@ -118,18 +104,38 @@ export default function NewListingPage() {
     });
   };
 
+  const checkCommercialStatus = async () => {
+    try {
+      const res = await fetch('/api/listings');
+      if (res.ok) {
+        const listings = await res.json();
+        const hasCommercial = listings.some((l: any) => l.type === 'COMMERCIAL' && l.isUserAuthor);
+        setHasOtherCommercial(hasCommercial);
+      }
+    } catch (err) {
+      console.error('Failed to check commercial listings', err);
+    }
+  };
+
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value;
-    if (newType === 'COMMERCIAL' && hasCommercial) {
-      setError('⚠️ You are allowed only one active commercial listing.');
-      return;
-    }
     setError('');
-    
-    setFormData((prev) => ({
-      ...prev,
-      type: newType,
-    }));
+
+    if (newType === 'COMMERCIAL' && hasOtherCommercial) {
+      setError('⚠️ You are allowed only one active commercial listing.');
+    }
+
+    setFormData((prev) => {
+      const updatedImages = (!prev.isFeatured && prev.images.length > 1) 
+        ? [prev.images[0]] 
+        : prev.images;
+      return {
+        ...prev,
+        type: newType,
+        images: updatedImages,
+        imageUrl: updatedImages[0] || '',
+      };
+    });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -150,8 +156,9 @@ export default function NewListingPage() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    if (formData.images.length + files.length > maxImagesAllowed) {
-      setError(`Listings can have a maximum of 5 images.`);
+    const limit = allowsMultipleImages ? 5 : 1;
+    if (formData.images.length + files.length > limit) {
+      setError(allowsMultipleImages ? 'Featured listings allow a maximum of 5 images.' : 'Standard listings allow only 1 image. Upgrade to Featured to unlock up to 5 images.');
       return;
     }
 
@@ -174,7 +181,9 @@ export default function NewListingPage() {
       const base64Images = await Promise.all(newImagePromises);
       
       setFormData((prev) => {
-        const updatedImages = [...prev.images, ...base64Images].slice(0, 5);
+        const updatedImages = allowsMultipleImages 
+          ? [...prev.images, ...base64Images].slice(0, 5)
+          : [base64Images[0]];
         return {
           ...prev,
           images: updatedImages,
@@ -203,7 +212,7 @@ export default function NewListingPage() {
     e.preventDefault();
     setError('');
 
-    if (isCommercialType && hasCommercial) {
+    if (formData.type === 'COMMERCIAL' && hasOtherCommercial) {
       setError('⚠️ Action blocked: You already have an active commercial listing.');
       return;
     }
@@ -213,7 +222,7 @@ export default function NewListingPage() {
       return;
     }
 
-    if (isCommercialType) {
+    if (formData.type === 'COMMERCIAL') {
       if (!formData.location) {
         setError('Storefront location address is required for Commercial listings.');
         return;
@@ -235,28 +244,19 @@ export default function NewListingPage() {
         body: JSON.stringify({
           ...formData,
           title: formattedTitle,
-          isCommercial: isCommercialType,
-          priceInBucks: isCommercialType ? 0 : (parseFloat(formData.priceInBucks) || 0),
+          priceInBucks: formData.type === 'COMMERCIAL' ? 0 : (parseFloat(formData.priceInBucks) || 0),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create listing.');
 
-      router.push('/profile');
+      router.push(`/listings/${data.listing?.id || data.id}`);
     } catch (err: any) {
       setError(err.message);
       setSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium text-sm">
-        Loading...
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans py-12 px-4 sm:px-6 lg:px-8">
@@ -264,10 +264,10 @@ export default function NewListingPage() {
         
         <div className="flex justify-between items-center mb-8 border-b border-slate-200 pb-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Create Marketplace Listing</h1>
-            <p className="text-slate-500 text-xs mt-0.5">Post an item, service, or community offering.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Create New Listing</h1>
+            <p className="text-slate-500 text-xs mt-0.5">Post an offer, request, or commercial storefront.</p>
           </div>
-          <Link href="/profile" className="text-xs font-semibold text-slate-500 hover:text-slate-900">
+          <Link href="/marketplace" className="text-xs font-semibold text-slate-500 hover:text-slate-900">
             Cancel
           </Link>
         </div>
@@ -288,6 +288,7 @@ export default function NewListingPage() {
               value={formData.title}
               onChange={handleChange}
               onBlur={handleTitleBlur}
+              placeholder="e.g. Fresh Garden Tomatoes or Looking for Lawn Mower"
               className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
             />
           </div>
@@ -303,9 +304,7 @@ export default function NewListingPage() {
               >
                 <option value="OFFER">Offer</option>
                 <option value="REQUEST">Request</option>
-                <option value="COMMERCIAL" disabled={hasCommercial}>
-                  Commercial {hasCommercial ? '(Limit Reached)' : ''}
-                </option>
+                <option value="COMMERCIAL">Commercial</option>
               </select>
             </div>
 
@@ -318,19 +317,15 @@ export default function NewListingPage() {
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
               >
-                <option value="" disabled>
-                  Select category...
-                </option>
+                <option value="" disabled>Select category...</option>
                 {LISTING_CATEGORIES.map((catName) => (
-                  <option key={catName} value={catName}>
-                    {catName}
-                  </option>
+                  <option key={catName} value={catName}>{catName}</option>
                 ))}
               </select>
             </div>
           </div>
 
-          {!isCommercialType && (
+          {formData.type !== 'COMMERCIAL' && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Growbucks Amount</label>
               <input
@@ -345,12 +340,10 @@ export default function NewListingPage() {
             </div>
           )}
 
-          {isCommercialType && (
+          {formData.type === 'COMMERCIAL' && (
             <div className="space-y-6 p-5 bg-sky-50/50 border border-sky-200 rounded-lg">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Storefront Location / Address *
-                </label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Storefront Location / Address *</label>
                 <input
                   ref={inputRef}
                   type="text"
@@ -364,9 +357,7 @@ export default function NewListingPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Business Hours *
-                </label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Business Hours *</label>
                 <input
                   type="text"
                   name="businessHours"
@@ -374,36 +365,19 @@ export default function NewListingPage() {
                   value={formData.businessHours}
                   onChange={handleChange}
                   className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  placeholder="e.g. Mon-Fri 9am - 5pm, Sat 10am - 2pm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Video URL (Optional for Commercial)
-                </label>
-                <input
-                  type="url"
-                  name="videoUrl"
-                  value={formData.videoUrl}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  placeholder="https://www.youtube.com/watch?v=..."
+                  placeholder="e.g. Mon-Fri 9am - 5pm"
                 />
               </div>
             </div>
           )}
 
-          <input type="hidden" name="latitude" value={formData.latitude} />
-          <input type="hidden" name="longitude" value={formData.longitude} />
-
-          {/* Media Upload Section (Up to 5 images for all listing types) */}
+          {/* Media Upload Section */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Listing Images (Up to 5 images)
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Listing Images {allowsMultipleImages ? '(Up to 5 images allowed)' : '(1 image allowed - upgrade to Featured for 5)'}
             </label>
-            
-            <div className="grid grid-cols-5 gap-3 mb-3">
+
+            <div className={`grid gap-3 mb-3 ${allowsMultipleImages ? 'grid-cols-5' : 'grid-cols-1 max-w-xs'}`}>
               {formData.images.map((imgSrc, idx) => (
                 <div key={idx} className="relative w-full h-20 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center rounded">
                   <img src={imgSrc} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
@@ -417,14 +391,14 @@ export default function NewListingPage() {
                   </button>
                 </div>
               ))}
-              
+
               {formData.images.length < maxImagesAllowed && (
                 <label className="w-full h-20 border-2 border-dashed border-slate-300 hover:border-slate-400 rounded flex flex-col items-center justify-center cursor-pointer bg-slate-50 text-slate-500 text-[11px] font-medium">
                   <span>+ Add</span>
                   <input
                     type="file"
                     accept="image/*"
-                    multiple
+                    multiple={allowsMultipleImages}
                     onChange={handleFileChange}
                     className="hidden"
                   />
@@ -443,13 +417,14 @@ export default function NewListingPage() {
               required
               value={formData.description}
               onChange={handleChange}
+              placeholder="Provide a detailed description..."
               className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
             />
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <Link
-              href="/profile"
+              href="/marketplace"
               className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-all"
             >
               Cancel
@@ -457,10 +432,10 @@ export default function NewListingPage() {
 
             <button
               type="submit"
-              disabled={submitting || uploadingImage || (isCommercialType && hasCommercial)}
+              disabled={submitting || uploadingImage}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
-              {submitting ? 'Publishing...' : 'Save Listing'}
+              {submitting ? 'Creating Listing...' : 'Publish Listing'}
             </button>
           </div>
         </form>

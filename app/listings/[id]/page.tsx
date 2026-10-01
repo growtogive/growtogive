@@ -45,6 +45,9 @@ export default function ListingDetailPage() {
   const [activeReviewsItem, setActiveReviewsItem] = useState<any>(null);
   const [error, setError] = useState('');
 
+  // Active Image Index for Gallery Viewer
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
   // In-App Message Modal States
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageContent, setMessageContent] = useState('');
@@ -154,6 +157,7 @@ export default function ListingDetailPage() {
 
       setListing(listingData);
       setReviews(listingData.reviews || []);
+      setActiveImageIndex(0);
 
       const authorId = listingData.authorId || listingData.author?.id;
       if (authorId) {
@@ -214,7 +218,7 @@ export default function ListingDetailPage() {
 
       setUpgradeSuccess(
         upgradeType === 'FEATURED'
-          ? '🎉 Successfully upgraded to Featured ($1.00)! Expiration extended by 14 days and highlighted.'
+          ? '🎉 Successfully upgraded to Featured ($1.00)! Unlocked up to 5 images, extended expiration by 14 days, and highlighted.'
           : '🎉 Successfully upgraded to Commercial listing ($50/month processed)!'
       );
       fetchListingDetail();
@@ -364,6 +368,7 @@ export default function ListingDetailPage() {
 
   // Images handling (up to 5 images)
   const listingImages = (listing.images && listing.images.length > 0) ? listing.images : (listing.imageUrl ? [listing.imageUrl] : []);
+  const currentActiveImage = listingImages[activeImageIndex] || listingImages[0];
 
   // Commercial Metrics
   const stats = listing.stats || { views: 42, contactClicks: 7, shares: 3 };
@@ -413,8 +418,8 @@ export default function ListingDetailPage() {
                 <h3 className="text-sm font-black text-blue-900 uppercase tracking-wider">Listing Upgrade Options</h3>
                 <p className="text-xs text-blue-700 mt-0.5">
                   {!isCommercial 
-                    ? 'Upgrade your Offer/Request to Featured ($1.00) to extend expiration by 14 days, sort at the top, and add a highlighted border!'
-                    : 'Your Commercial listing is active ($50/mo). You get 5 images, video upload, top sorting, storefront stats, and exact mapping.'}
+                    ? 'Upgrade your Offer/Request to Featured ($1.00) to unlock up to 5 photos, extend expiration by 14 days, sort at the top, and highlight!'
+                    : 'Your Commercial listing is active ($50/mo). You get up to 5 images, video upload, top sorting, storefront stats, and exact mapping.'}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -424,7 +429,7 @@ export default function ListingDetailPage() {
                     disabled={upgrading}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {upgrading ? 'Processing...' : 'Upgrade to Featured ($1.00 / +14 Days)'}
+                    {upgrading ? 'Processing...' : 'Upgrade to Featured ($1.00 / +5 Photos & 14 Days)'}
                   </button>
                 )}
                 {isCommercial && (
@@ -468,17 +473,17 @@ export default function ListingDetailPage() {
           isFeatured ? 'border-4 border-amber-400 shadow-md ring-2 ring-amber-200' : 'border border-slate-200'
         }`}>
           
-          {/* Main Image / Gallery */}
+          {/* Main Image / Gallery Viewer */}
           {listingImages.length > 0 ? (
-            <div className="space-y-2">
-              <div className="h-[420px] w-full bg-slate-100 relative overflow-hidden">
+            <div className="space-y-3 p-4 bg-slate-50/50">
+              <div className="h-[420px] w-full bg-slate-100 relative overflow-hidden rounded-2xl border border-slate-200">
                 <img
-                  src={listingImages[0]}
+                  src={currentActiveImage}
                   alt={listing.title}
                   className="w-full h-full object-cover"
                   onError={(e: any) => { e.target.style.display = 'none'; }}
                 />
-                <div className="absolute top-6 right-6 flex items-center gap-2">
+                <div className="absolute top-4 right-4 flex items-center gap-2">
                   <span className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border shadow-sm ${
                     isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-black border-slate-200'
                   }`}>
@@ -494,11 +499,18 @@ export default function ListingDetailPage() {
 
               {/* Thumbnail Gallery for Additional Images (Up to 5) */}
               {listingImages.length > 1 && (
-                <div className="grid grid-cols-5 gap-2 px-6">
+                <div className="grid grid-cols-5 gap-2">
                   {listingImages.map((img: string, idx: number) => (
-                    <div key={idx} className="h-16 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`h-16 bg-slate-100 border rounded-xl overflow-hidden cursor-pointer transition-all ${
+                        activeImageIndex === idx ? 'border-emerald-600 ring-2 ring-emerald-300 shadow-sm' : 'border-slate-200 opacity-75 hover:opacity-100'
+                      }`}
+                    >
                       <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

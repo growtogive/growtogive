@@ -8,30 +8,31 @@ generator client {
 }
 
 model User {
-  id             String        @id @default(cuid())
-  email          String        @unique
-  password       String?
-  name           String?
-  role           String        @default("USER")
-  city           String?       @default("Bradenton")
-  state          String?       @default("FL")
-  churchName     String?       @default("Grace Family Church")
-  address        String?
-  latitude       Float?
-  longitude      Float?
-  bio            String?
-  avatar         String?
-  growbucks      Float         @default(10.00)
-  emailVerified  Boolean       @default(false)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  listings       Listing[]
-  reviews        Review[]      @relation("TargetUserReviews")
-  authReviews    Review[]      @relation("AuthorReviews")
-  sentTx         Transaction[] @relation("SentTransactions")
-  receivedTx     Transaction[] @relation("ReceivedTransactions")
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
+  id               String        @id @default(cuid())
+  email            String        @unique
+  password         String?
+  name             String?
+  role             String        @default("USER")
+  city             String?       @default("Bradenton")
+  state            String?       @default("FL")
+  churchName       String?       @default("Grace Family Church")
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  bio              String?
+  avatar           String?
+  growbucks        Float         @default(10.00)
+  emailVerified    Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  listings         Listing[]
+  reviews          Review[]      @relation("TargetUserReviews")
+  authReviews      Review[]      @relation("AuthorReviews")
+  sentTx           Transaction[] @relation("SentTransactions")
+  receivedTx       Transaction[] @relation("ReceivedTransactions")
+  sentMessages     Message[]     @relation("SentMessages")
+  receivedMessages Message[]     @relation("ReceivedMessages")
+  quizAttempts     QuizAttempt[]
 }
 
 model Listing {
@@ -91,17 +92,19 @@ model Review {
 model Transaction {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())
-  reason      String   // Listing title
+  reason      String   // Listing title or activity description
   amount      Float    // Total transferred amount
-  commission  Float    // 10% commission amount
-  netAmount   Float    // 90% receiver amount
+  commission  Float?   // Optional commission amount
+  netAmount   Float?   // Optional net amount
+  type        String   @default("TRANSFER") // "TRANSFER", "ACTIVITY", etc.
   
-  senderId    String
-  sender      User     @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId    String?
+  sender      User?    @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade)
   
   receiverId  String
   receiver    User     @relation("ReceivedTransactions", fields: [receiverId], references: [id], onDelete: Cascade)
 }
+
 model Message {
   id          String   @id @default(uuid())
   listingId   String
@@ -116,4 +119,60 @@ model Message {
 
   @@index([listingId])
   @@index([receiverId])
+}
+
+model PostCategory {
+  id    String @id @default(uuid())
+  name  String @unique
+  posts Post[]
+}
+
+model Quiz {
+  id                String        @id @default(uuid())
+  postId            String        @unique
+  post              Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  question          String
+  options           String[]      // JSON array of options
+  correctAnswer     Int           // Index of correct option
+  rewardAmount      Float         // Growbucks awarded on pass
+  passingPercentage Int           @default(100) // Passing percentage threshold
+  attempts          QuizAttempt[]
+}
+
+model QuizAttempt {
+  id        String   @id @default(uuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passed    Boolean  @default(false)
+  score     Float    @default(0.00)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([quizId, userId])
+}
+
+model Event {
+  id           String   @id @default(uuid())
+  postId       String   @unique
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  eventDate    DateTime
+  location     String?
+  rewardAmount Float    // Growbucks awarded when attended
+}
+
+model Post {
+  id           String        @id @default(uuid())
+  title        String
+  description  String
+  images       String[]      // Up to 5 images
+  videoUrl     String?
+  price        Float?        // Optional price for events/items
+  categoryId   String
+  category     PostCategory  @relation(fields: [categoryId], references: [id])
+  quiz         Quiz?
+  event        Event?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }

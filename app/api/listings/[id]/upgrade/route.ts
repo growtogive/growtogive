@@ -1,26 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
-) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params;
-    const id = resolvedParams?.id;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Listing ID is required' }, { status: 400 });
-    }
-
-    const body = await req.json();
+    const { id } = await context.params;
+    const body = await request.json();
     const { upgradeType } = body; // 'FEATURED' or 'COMMERCIAL'
 
     const listing = await prisma.listing.findUnique({
@@ -32,43 +23,40 @@ export async function POST(
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
 
-    const userEmail = session.user.email?.toLowerCase()?.trim();
-    const userRole = (session.user as any).role?.toUpperCase();
-    const isAdmin = userRole === 'ADMIN';
-    const isAuthor = listing.author?.email?.toLowerCase()?.trim() === userEmail;
+    const userEmail = session.user.email?.toLowerCase();
+    const isAuthor = listing.author?.email?.toLowerCase() === userEmail;
+    const isAdmin = (session.user as any)?.role?.toUpperCase() === 'ADMIN';
 
-    if (!isAdmin && !isAuthor) {
+    if (!isAuthor && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    let updateData: any = {};
-
     if (upgradeType === 'FEATURED') {
-      const currentExpiry = new Date(listing.expiresAt || Date.now());
-      const newExpiry = new Date(Math.max(currentExpiry.getTime(), Date.now()) + (14 * 24 * 60 * 60 * 1000));
-      
-      updateData = {
-        isFeatured: true,
-        expiresAt: newExpiry,
-      };
-    } else if (upgradeType === 'COMMERCIAL') {
-      updateData = {
-        isCommercial: true,
-        type: 'COMMERCIAL',
-        isFeatured: true,
-      };
-    } else {
-      return NextResponse.json({ error: 'Invalid upgrade type' }, { status: 400 });
+      const newExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // +14 days
+      const updated = await prisma.listing.update({
+        where: { id },
+        data: {
+          isFeatured: true,
+          expiresAt: newExpiresAt,
+        },
+      });
+      return NextResponse.json({ success: true, listing: updated });
     }
 
-    const updatedListing = await prisma.listing.update({
-      where: { id },
-      data: updateData,
-    });
+    if (upgradeType === 'COMMERCIAL') {
+      const updated = await prisma.listing.update({
+        where: { id },
+        data: {
+          type: 'COMMERCIAL',
+          isCommercial: true,
+        },
+      });
+      return NextResponse.json({ success: true, listing: updated });
+    }
 
-    return NextResponse.json({ success: true, listing: updatedListing });
-  } catch (error: any) {
-    console.error('Upgrade error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Invalid upgrade type' }, { status: 400 });
+  } catch (err: any) {
+    console.error('Upgrade error:', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }

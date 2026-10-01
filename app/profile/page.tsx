@@ -640,7 +640,12 @@ export default function ProfilePage() {
                           {isSender ? '-' : '+'}GB {Number(isSender ? tx.amount : tx.netAmount).toFixed(2)}
                         </span>
                         <span className="text-[10px] text-slate-400 font-medium">
-                          Commission: GB {tx.commission.toFixed(2)}
+                          Commission: GB {/* Only show commission and net amount if it's a trade with a commission */}
+{tx.commission !== null && tx.commission !== undefined && (
+  <span className="text-[10px] text-slate-400 font-medium">
+    Commission: GB {tx.commission.toFixed(2)}
+  </span>
+)}
                         </span>
                       </div>
                     </div>
