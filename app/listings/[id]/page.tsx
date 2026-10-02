@@ -632,14 +632,15 @@ export default function ListingDetailPage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setActiveReviewsItem(listing)}
+                {/* Updated: Reviews Badge linked to #reviews */}
+                <Link
+                  href="#reviews"
                   className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-2 rounded-2xl transition-colors cursor-pointer group shadow-xs shrink-0"
                 >
                   <span className="text-amber-500 font-black text-base">★</span>
                   <span className="text-sm font-black text-slate-900 group-hover:text-amber-800">{ratingVal}</span>
                   <span className="text-xs text-slate-500 font-bold">({reviewCount})</span>
-                </button>
+                </Link>
 
                 <button
                   onClick={() => {
@@ -956,8 +957,8 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* Community Reviews Section */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+        {/* Community Reviews Section with id="reviews" and scroll-mt-24 */}
+        <div id="reviews" className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm scroll-mt-24">
           <div className="mt-2 space-y-4">
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Community Reviews ({reviews.length})</h4>
             {reviews.length === 0 ? (

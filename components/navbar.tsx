@@ -29,17 +29,18 @@ export default function Navbar() {
     <nav className="w-full bg-white shadow-xs border-b border-blue-500 mb-3 sticky top-0 z-50">
       <div className="w-full px-4 sm:px-6 py-2 flex flex-wrap justify-between items-center gap-4">
         
-        {/* Logo (Image only, cropped/sized to 70x70, caption removed) */}
+        {/* Logo with explicit fallback handling */}
         <Link href="/" className="flex items-center group shrink-0">
           <div className="w-[70px] h-[70px] relative overflow-hidden flex items-center justify-center">
             <Image
-              src="/logo.png"
-              alt="GrowToGive Logo"
-              width={70}
-              height={70}
-              className="object-cover group-hover:scale-105 transition-transform"
-              priority
-            />
+  src="/uploads/logo.png"
+  alt="GrowToGive Logo"
+  width={70}
+  height={70}
+  className="object-cover group-hover:scale-105 transition-transform"
+  priority
+  unoptimized
+/>
           </div>
         </Link>
 
