@@ -42,6 +42,7 @@ export async function GET() {
         growbucks: true,
         sentTx: {
           include: {
+            sender: { select: { name: true, email: true } },
             receiver: { select: { name: true, email: true } },
           },
           orderBy: { createdAt: 'desc' },
@@ -49,6 +50,7 @@ export async function GET() {
         receivedTx: {
           include: {
             sender: { select: { name: true, email: true } },
+            receiver: { select: { name: true, email: true } },
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -87,6 +89,7 @@ export async function GET() {
           growbucks: true,
           sentTx: {
             include: {
+              sender: { select: { name: true, email: true } },
               receiver: { select: { name: true, email: true } },
             },
             orderBy: { createdAt: 'desc' },
@@ -94,6 +97,7 @@ export async function GET() {
           receivedTx: {
             include: {
               sender: { select: { name: true, email: true } },
+              receiver: { select: { name: true, email: true } },
             },
             orderBy: { createdAt: 'desc' },
           },
@@ -156,10 +160,10 @@ export async function PUT(req: Request) {
     let updateData: any = {
       name,
       email,
-      city,          // Saved independently
-      state,         // Saved independently
-      churchName,    // Saved independently
-      address,       // Saved independently from taxonomy dropdowns
+      city,       // Saved independently
+      state,      // Saved independently
+      churchName, // Saved independently
+      address,    // Saved independently from taxonomy dropdowns
       latitude: finalLat,
       longitude: finalLng,
       bio,

@@ -252,11 +252,15 @@ export default function ProfilePage() {
     return <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
   }
 
-  // Combine and sort sent and received transactions
-  const allTransactions = profileData ? [
+  // Combine and sort sent and received transactions, then deduplicate by tx.id to prevent key collisions
+  const rawTransactions = profileData ? [
     ...(profileData.sentTx || []),
     ...(profileData.receivedTx || [])
   ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [];
+
+  const allTransactions = Array.from(
+    new Map(rawTransactions.map((tx: any) => [tx.id, tx])).values()
+  );
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
@@ -286,12 +290,11 @@ export default function ProfilePage() {
         {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl">{error}</div>}
         {successMessage && <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl">{successMessage}</div>}
 
-        {/* Profile Card Header with Doubled Image */}
+        {/* Profile Card Header */}
         <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 rounded-2xl">
           {!isEditing ? (
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
               <div className="flex items-center gap-5">
-                {/* Doubled image container size to w-40 h-40 (160px) */}
                 <div className="w-40 h-40 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 rounded-2xl shadow-inner">
                   {profileData?.avatar ? (
                     <img src={profileData.avatar} alt={profileData?.name || 'User'} className="w-full h-full object-cover" />
@@ -550,7 +553,7 @@ export default function ProfilePage() {
                           {item.title}
                         </h3>
                         <div className="mt-1.5 text-xs font-medium text-slate-500 flex items-center gap-1.5">
-                          <span>✝️</span>
+                          <span>⛪</span>
                           <span>{displayCity} &gt; {displayChurch}</span>
                         </div>
                       </div>
@@ -590,7 +593,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* GrowBucks Wallet & Transaction History Card with id="wallet" anchor */}
+        {/* GrowBucks Wallet & Transaction History Card */}
         <div id="wallet" className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 rounded-2xl space-y-6">
           <div className="flex justify-between items-center">
             <div>
@@ -609,10 +612,10 @@ export default function ProfilePage() {
             ) : (
               <div className="space-y-2">
                 {allTransactions.map((tx: any) => {
-                  const isSender = tx.senderId === profileData?.id;
-                  const txType = tx.type || 'Trade'; // Fallback to 'Trade' for transfers if field isn't set yet
+                  const isSelfTransfer = tx.senderId === tx.receiverId;
+                  const isSender = isSelfTransfer ? false : (tx.senderId === profileData?.id);
+                  const txType = tx.type || 'Trade';
 
-                  // Assign badge styling based on transaction type
                   let typeBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
                   if (txType === 'Trade') {
                     typeBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -621,6 +624,8 @@ export default function ProfilePage() {
                   } else if (txType === 'Activity') {
                     typeBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
                   }
+
+                  const isOutflow = isSender || Number(tx.amount) < 0;
 
                   return (
                     <div key={tx.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs">
@@ -636,17 +641,14 @@ export default function ProfilePage() {
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className={`font-black text-sm block ${isSender ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {isSender ? '-' : '+'}GB {Number(isSender ? tx.amount : tx.netAmount).toFixed(2)}
+                        <span className={`font-black text-sm block ${isOutflow ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          GB {Math.abs(Number(isSender ? tx.amount : (tx.netAmount ?? tx.amount))).toFixed(2)}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          Commission: GB {/* Only show commission and net amount if it's a trade with a commission */}
-{tx.commission !== null && tx.commission !== undefined && (
-  <span className="text-[10px] text-slate-400 font-medium">
-    Commission: GB {tx.commission.toFixed(2)}
-  </span>
-)}
-                        </span>
+                        {tx.commission !== null && tx.commission !== undefined && (
+                          <span className="text-[10px] text-slate-400 font-medium block">
+                            Commission: GB {tx.commission.toFixed(2)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
