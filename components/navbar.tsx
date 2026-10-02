@@ -33,7 +33,7 @@ export default function Navbar() {
         <Link href="/" className="flex items-center group shrink-0">
           <div className="w-[70px] h-[70px] relative overflow-hidden flex items-center justify-center">
             <Image
-  src="/uploads/logo.png"
+  src="/logo.png"
   alt="GrowToGive Logo"
   width={70}
   height={70}
