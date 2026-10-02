@@ -6,6 +6,21 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { LISTING_CATEGORIES } from '@/lib/constants/categories';
 
+// Strict rule: City > Church text ALWAYS comes from the author profile
+const getAuthorHierarchy = (item: any) => {
+  const city = (item.author?.city || '').trim();
+  const church = (item.author?.churchName || item.author?.church || '').trim();
+  
+  const displayCity = city || 'General City';
+  const displayChurch = church || 'General Church';
+  
+  return {
+    city: displayCity,
+    church: displayChurch,
+    hierarchyString: `${displayCity} > ${displayChurch}`
+  };
+};
+
 export default function MarketplacePage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,13 +59,14 @@ export default function MarketplacePage() {
     }
   };
 
-  // Dynamically build unique City > Church options sorted in alphabetical order
+  // Dynamically build unique City > Church options sorted alphabetically from authors
   const uniqueHierarchies = Array.from(
     new Set(
       listings.map((item) => {
-        const c = (item.city || item.author?.city || '').trim();
-        const ch = (item.churchName || item.author?.churchName || item.author?.church || '').trim();
-        return c && ch ? `${c} > ${ch}` : c ? `${c} > General Church` : null;
+        const { city, church } = getAuthorHierarchy(item);
+        return (item.author?.city || item.author?.churchName || item.author?.church) 
+          ? `${city} > ${church}` 
+          : null;
       }).filter(Boolean)
     )
   ).sort((a: any, b: any) => a.localeCompare(b));
@@ -67,21 +83,19 @@ export default function MarketplacePage() {
     }
   };
 
-  // Filter and Sort Logic: Commercial listings first, then Featured offers/requests, then Standard
+  // Filter and Sort Logic
   const filteredAndSortedListings = useMemo(() => {
     let result = listings.filter((item) => {
       const matchesSearch = 
         item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.city?.toLowerCase().includes(searchTerm.toLowerCase());
+        item.author?.city?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const itemType = item.type?.toUpperCase() || '';
       const matchesType = selectedTypes.length === 0 || selectedTypes.includes(itemType);
       const matchesCategory = selectedCategory === 'ALL' || item.category?.toUpperCase() === selectedCategory.toUpperCase();
       
-      const displayCity = (item.city || item.author?.city || '').trim();
-      const displayChurch = (item.churchName || item.author?.churchName || item.author?.church || '').trim();
-      const itemHierarchy = `${displayCity} > ${displayChurch}`;
+      const { city: displayCity, hierarchyString: itemHierarchy } = getAuthorHierarchy(item);
       const matchesHierarchy = selectedHierarchy === 'ALL' || itemHierarchy === selectedHierarchy || displayCity === selectedHierarchy;
 
       const distanceVal = item.distance !== undefined && item.distance !== null ? Number(item.distance) : 0;
@@ -90,19 +104,16 @@ export default function MarketplacePage() {
       return matchesSearch && matchesType && matchesCategory && matchesHierarchy && matchesDistance;
     });
 
-    // Sorting logic with precise priority tiers
+    // Sorting logic with priority tiers
     result.sort((a, b) => {
-      // 1. Commercial listings get highest priority at the top
       const aCommercial = (a.isCommercial || a.type === 'COMMERCIAL') ? 1 : 0;
       const bCommercial = (b.isCommercial || b.type === 'COMMERCIAL') ? 1 : 0;
       if (aCommercial !== bCommercial) return bCommercial - aCommercial;
 
-      // 2. Featured offers and requests get second priority
       const aFeatured = a.isFeatured ? 1 : 0;
       const bFeatured = b.isFeatured ? 1 : 0;
       if (aFeatured !== bFeatured) return bFeatured - aFeatured;
 
-      // 3. Secondary user-selected sort
       switch (sortBy) {
         case 'date_desc':
           return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
@@ -139,7 +150,7 @@ export default function MarketplacePage() {
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6">
         
-        {/* Gray Header & Subheading with Members Button on Far Right */}
+        {/* Header & Subheading */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
@@ -294,21 +305,18 @@ export default function MarketplacePage() {
               const isCommercial = item.type === 'COMMERCIAL' || item.isCommercial;
               const isFeatured = item.isFeatured;
               
-              // Border Styling: 2px blue for commercial, 1px blue for featured offers/requests, 1px slate for standard
               const getBorderClass = () => {
                 if (isCommercial) return 'border-2 border-blue-600 shadow-md';
                 if (isFeatured) return 'border border-blue-400 shadow-sm';
                 return 'border border-slate-300';
               };
 
-              const displayCity = (item.city || item.author?.city || '').trim() || 'General City';
-              const displayChurch = (item.churchName || item.author?.churchName || item.author?.church || '').trim() || 'Grace Family Church';
+              const { city: displayCity, church: displayChurch } = getAuthorHierarchy(item);
               const priceDisplay = !isCommercial ? `GB ${Number(item.priceInBucks || 0).toFixed(2)}` : null;
 
               const reviewCount = item.reviews?.length || 0;
-              
               const createdDate = new Date(item.createdAt || Date.now());
-              const isWithin24Hours = (Date.now() - createdDate.getTime()) <= 24 * 60 * 60 * 1000;
+              const isWithin24Hours = (Date.now() - createdDate.getTime()) <= (24 * 60 * 60 * 1000);
               
               const ratingVal = reviewCount > 0 
                 ? (item.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewCount).toFixed(1) 
@@ -317,12 +325,10 @@ export default function MarketplacePage() {
                   : '0.0';
 
               const createdDateFormatted = createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-              
               const expDate = new Date(item.expiresAt || createdDate);
               const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
               const displayDistance = `${item.distance ?? 0} mi`;
-              
               const primaryImage = (item.images && item.images.length > 0) ? item.images[0] : (item.imageUrl || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available');
 
               return (
@@ -338,14 +344,12 @@ export default function MarketplacePage() {
                         }}
                       />
                       
-                      {/* Top Right Badges */}
                       <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
                         <span className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
                           isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
                         }`}>
                           {item.type}
                         </span>
-                        {/* Featured Badge on ANY listing that is featured */}
                         {isFeatured && (
                           <span className="bg-sky-100 text-blue-900 border border-sky-300 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide shadow-xs">
                             Featured

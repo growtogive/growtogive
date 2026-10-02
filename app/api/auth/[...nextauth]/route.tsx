@@ -43,19 +43,19 @@ export const authOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
+    async jwt({ token, user }: { token: any; user: any }) {
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+      }
+      return token;
+    },
     async session({ session, token }: { session: any; token: any }) {
       if (token && session.user) {
-        session.user.id = token.sub || token.id;
+        session.user.id = token.id || token.sub;
         session.user.role = token.role;
       }
       return session;
-    },
-    async jwt({ token, user }: { token: any; user: any }) {
-      if (user) {
-        token.role = user.role;
-        token.id = user.id;
-      }
-      return token;
     },
   },
 };

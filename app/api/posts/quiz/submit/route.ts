@@ -3,6 +3,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+interface QuizQuestion {
+  id: string;
+  questionText: string;
+  options: string[];
+  correctAnswer: number;
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -10,12 +17,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = (session.user as any).id;
-    const { quizId, selectedOptionIndex } = await request.json();
+    let userId = (session.user as any).id;
+
+    // Fallback: If session user ID isn't set, find the user by their email address
+    if (!userId && session?.user?.email) {
+      const dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { id: true },
+      });
+      if (dbUser) {
+        userId = dbUser.id;
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID could not be resolved from session.' }, { status: 400 });
+    }
+
+    const { quizId, answers } = await request.json(); // answers = { [questionId]: selectedOptionIndex }
+
+    if (!quizId || !answers) {
+      return NextResponse.json({ error: 'Missing quiz ID or answers.' }, { status: 400 });
+    }
 
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
-      include: { post: true },
+      include: { 
+        post: true, 
+        questions: true 
+      },
     });
 
     if (!quiz) {
@@ -31,11 +61,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, alreadyPassed: true, message: 'You have already passed this quiz and claimed your reward!' });
     }
 
-    const isCorrect = Number(selectedOptionIndex) === quiz.correctAnswer;
-    const score = isCorrect ? 100 : 0;
+    const questions: QuizQuestion[] = quiz.questions;
+    const totalQuestions = questions.length;
+
+    if (totalQuestions === 0) {
+      return NextResponse.json({ error: 'This quiz has no questions configured.' }, { status: 400 });
+    }
+
+    let correctCount = 0;
+    questions.forEach((q: QuizQuestion) => {
+      if (answers[q.id] !== undefined && Number(answers[q.id]) === q.correctAnswer) {
+        correctCount++;
+      }
+    });
+
+    const score = Math.round((correctCount / totalQuestions) * 100);
     const passed = score >= quiz.passingPercentage;
 
-    // Save or update attempt
+    // Save or update attempt using the resolved userId
     await prisma.quizAttempt.upsert({
       where: { quizId_userId: { quizId, userId } },
       update: { passed, score },
@@ -43,7 +86,6 @@ export async function POST(request: Request) {
     });
 
     if (passed) {
-      // Award Growbucks to User & Log Activity Transaction
       await prisma.$transaction([
         prisma.user.update({
           where: { id: userId },
@@ -62,13 +104,15 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         passed: true,
-        message: `🎉 ${quiz.rewardAmount} Growbucks rewarded!`,
+        score,
+        message: `🎉 Passed with ${score}%! ${quiz.rewardAmount} Growbucks rewarded!`,
       });
     } else {
       return NextResponse.json({
         success: true,
         passed: false,
-        message: '❌ Incorrect answer. You can retake the quiz to try again!',
+        score,
+        message: `❌ You scored ${score}%. Required passing score is ${quiz.passingPercentage}%. You can retake the quiz!`,
       });
     }
   } catch (err: any) {

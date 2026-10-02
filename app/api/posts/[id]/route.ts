@@ -7,11 +7,35 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    const session = await getServerSession(authOptions);
+    
+    let userId = (session?.user as any)?.id;
+
+    // Fallback: Find user by email if session ID is missing
+    if (!userId && session?.user?.email) {
+      const dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { id: true },
+      });
+      if (dbUser) {
+        userId = dbUser.id;
+      }
+    }
+
     const post = await prisma.post.findUnique({
       where: { id },
       include: {
         category: true,
-        quiz: true,
+        quiz: {
+          include: {
+            questions: true,
+            attempts: {
+              where: {
+                userId: userId || 'NO_USER_LOGGED_IN',
+              },
+            },
+          },
+        },
         event: true,
       },
     });
@@ -57,22 +81,31 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       });
     }
 
-    const quizOperation = quiz?.question
+    const quizOperation = quiz?.questions && quiz.questions.length > 0
       ? {
           upsert: {
             create: {
-              question: quiz.question,
-              options: quiz.options,
-              correctAnswer: Number(quiz.correctAnswer),
               rewardAmount: parseFloat(quiz.rewardAmount) || 0,
-              passingPercentage: parseInt(quiz.passingPercentage) || 100,
+              passingPercentage: parseInt(quiz.passingPercentage) || 70,
+              questions: {
+                create: quiz.questions.map((q: any) => ({
+                  questionText: q.questionText,
+                  options: q.options,
+                  correctAnswer: Number(q.correctAnswer),
+                })),
+              },
             },
             update: {
-              question: quiz.question,
-              options: quiz.options,
-              correctAnswer: Number(quiz.correctAnswer),
               rewardAmount: parseFloat(quiz.rewardAmount) || 0,
-              passingPercentage: parseInt(quiz.passingPercentage) || 100,
+              passingPercentage: parseInt(quiz.passingPercentage) || 70,
+              questions: {
+                deleteMany: {},
+                create: quiz.questions.map((q: any) => ({
+                  questionText: q.questionText,
+                  options: q.options,
+                  correctAnswer: Number(q.correctAnswer),
+                })),
+              },
             },
           },
         }
@@ -109,7 +142,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       },
       include: {
         category: true,
-        quiz: true,
+        quiz: {
+          include: {
+            questions: true,
+          },
+        },
         event: true,
       },
     });

@@ -2,26 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function PostDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const { data: session, status } = useSession();
 
   const [post, setPost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Quiz states
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [quizResult, setQuizResult] = useState<{ success: boolean; message: string } | null>(null);
+  // Multi-question quiz states
+  const [answers, setAnswers] = useState<{ [questionId: string]: number }>({});
+  const [quizResult, setQuizResult] = useState<{ success: boolean; passed?: boolean; message: string; score?: number } | null>(null);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [hasPassed, setHasPassed] = useState(false);
+
+  const isAdmin = (session?.user as any)?.role?.toUpperCase() === 'ADMIN';
 
   useEffect(() => {
     if (id) {
       fetchPost();
     }
-  }, [id]);
+  }, [id, session]);
 
   const fetchPost = async () => {
     try {
@@ -30,6 +35,14 @@ export default function PostDetailPage() {
       if (!res.ok) throw new Error('Post not found');
       const data = await res.json();
       setPost(data.post);
+
+      // Check if user already passed from the included attempts array
+      if (data.post?.quiz?.attempts && Array.isArray(data.post.quiz.attempts)) {
+        const passedAttempt = data.post.quiz.attempts.find((a: any) => a.passed === true);
+        if (passedAttempt) {
+          setHasPassed(true);
+        }
+      }
     } catch (err) {
       console.error(err);
       setPost(null);
@@ -38,25 +51,46 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleOptionSelect = (questionId: string, optionIndex: number) => {
+    if (hasPassed) return;
+    setAnswers(prev => ({ ...prev, [questionId]: optionIndex }));
+  };
+
   const handleQuizSubmit = async () => {
-    if (selectedAnswer === null || !post?.quiz) return;
+    if (!post?.quiz || !post.quiz.questions) return;
+
+    const questionsList = post.quiz.questions as any[];
+    if (Object.keys(answers).length < questionsList.length) {
+      alert('Please answer all questions before submitting.');
+      return;
+    }
 
     setSubmittingQuiz(true);
     try {
       const res = await fetch('/api/posts/quiz/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quizId: post.quiz.id, selectedOptionIndex: selectedAnswer }),
+        body: JSON.stringify({ quizId: post.quiz.id, answers }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to submit quiz');
 
-      setQuizResult({ success: data.passed || data.alreadyPassed, message: data.message });
+      const isPassed = Boolean(data.passed || data.alreadyPassed);
+      setQuizResult({ success: data.success, passed: isPassed, message: data.message, score: data.score });
+      
+      if (isPassed) {
+        setHasPassed(true);
+      }
     } catch (err: any) {
       setQuizResult({ success: false, message: err.message });
     } finally {
       setSubmittingQuiz(false);
     }
+  };
+
+  const handleRetry = () => {
+    setAnswers({});
+    setQuizResult(null);
   };
 
   if (loading) {
@@ -72,17 +106,26 @@ export default function PostDetailPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      <header className="w-full bg-white border-b sticky top-0 z-40 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 py-3.5 flex justify-between items-center">
-          <Link href="/" className="font-bold text-xs text-slate-600 hover:text-slate-900">← Back to Feed</Link>
-        </div>
-      </header>
+  const quizQuestions = (post.quiz?.questions as any[]) || [];
 
-      <main className="max-w-3xl mx-auto px-4 pt-10 space-y-6">
-        <div className="bg-white border border-slate-200 rounded-3xl p-8 space-y-6 shadow-sm">
-          <div className="flex items-center justify-between">
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 pt-8">
+      <main className="max-w-3xl mx-auto px-4 space-y-6">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 space-y-6 shadow-sm relative">
+          
+          {/* Admin Edit Link (Matching /admin/posts/[id]/edit) */}
+          {isAdmin && (
+            <div className="absolute top-8 right-8">
+              <Link 
+                href={`/admin/posts/${post.id}/edit`} 
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all"
+              >
+                <span>✏️ Edit Post</span>
+              </Link>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pr-24">
             <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border uppercase tracking-wider">
               {post.category?.name || 'Announcement'}
             </span>
@@ -120,41 +163,83 @@ export default function PostDetailPage() {
             </div>
           )}
 
-          {/* Quiz Section */}
+          {/* Multi-Question Quiz Section */}
           {post.quiz && (
             <div className="p-6 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-black text-amber-900 uppercase tracking-wider">🧠 Knowledge Quiz</span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">Reward: {post.quiz.rewardAmount} GB</span>
-              </div>
-              <p className="font-bold text-sm text-slate-800">{post.quiz.question}</p>
-              
-              <div className="space-y-2">
-                {post.quiz.options.map((opt: string, oIdx: number) => (
-                  <label key={oIdx} className="flex items-center gap-3 text-xs font-semibold bg-white p-3 rounded-xl border border-amber-100 cursor-pointer hover:border-amber-300">
-                    <input
-                      type="radio"
-                      name="detail-quiz"
-                      checked={selectedAnswer === oIdx}
-                      onChange={() => setSelectedAnswer(oIdx)}
-                    />
-                    {opt}
-                  </label>
-                ))}
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  Reward: {post.quiz.rewardAmount} GB | Passing Score: {post.quiz.passingPercentage}%
+                </span>
               </div>
 
-              <button
-                type="button"
-                disabled={submittingQuiz}
-                onClick={handleQuizSubmit}
-                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
-              >
-                {submittingQuiz ? 'Evaluating...' : 'Submit Answer'}
-              </button>
+              {status !== 'authenticated' ? (
+                <div className="p-4 bg-white border border-amber-100 rounded-xl text-xs text-slate-600 text-center font-medium">
+                  Please <Link href="/api/auth/signin" className="text-blue-600 underline font-bold">log in</Link> to take this quiz and earn rewards.
+                </div>
+              ) : hasPassed ? (
+                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-1">
+                  <p className="text-sm font-black text-emerald-900 tracking-wide uppercase">✅ Passed</p>
+                  <p className="text-xs text-emerald-700 font-medium">
+                    You have successfully passed this quiz and claimed your {post.quiz.rewardAmount} Growbucks reward!
+                  </p>
+                </div>
+              ) : quizQuestions.length > 0 ? (
+                <div className="space-y-6">
+                  {quizQuestions.map((q: any, qIdx: number) => (
+                    <div key={q.id} className="p-4 bg-white border border-amber-100 rounded-xl space-y-3">
+                      <p className="font-bold text-xs text-slate-800">
+                        {qIdx + 1}. {q.questionText}
+                      </p>
+                      <div className="space-y-2">
+                        {q.options.map((opt: string, oIdx: number) => {
+                          const isSelected = answers[q.id] === oIdx;
+                          return (
+                            <button
+                              type="button"
+                              key={oIdx}
+                              onClick={() => handleOptionSelect(q.id, oIdx)}
+                              className={`w-full text-left p-2.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                                isSelected 
+                                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs' 
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
 
-              {quizResult && (
-                <div className={`p-3.5 rounded-xl text-xs font-bold ${quizResult.success ? 'bg-emerald-50 text-emerald-800 border' : 'bg-rose-50 text-rose-700 border'}`}>
-                  {quizResult.message}
+                  <button
+                    type="button"
+                    disabled={submittingQuiz}
+                    onClick={handleQuizSubmit}
+                    className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {submittingQuiz ? 'Evaluating...' : 'Submit Answers'}
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 bg-white border border-amber-100 rounded-xl text-xs text-slate-600 text-center font-medium">
+                  This quiz has no questions configured.
+                </div>
+              )}
+
+              {quizResult && !hasPassed && (
+                <div className={`p-3.5 rounded-xl text-xs font-bold space-y-2 ${quizResult.passed ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                  <p>{quizResult.message}</p>
+                  {!quizResult.passed && (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Try Again
+                    </button>
+                  )}
                 </div>
               )}
             </div>

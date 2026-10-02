@@ -24,24 +24,21 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   return { lat: 27.4989, lng: -82.5748 };
 }
 
+// 🛒 GET single listing by ID
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const resolvedParams = await params;
     const session = await getServerSession(authOptions);
 
-    let currentUserId: string | null = null;
-    let currentUserEmail: string | undefined = undefined;
     let currentUserLat: number | null = null;
     let currentUserLng: number | null = null;
 
     if (session?.user?.email) {
-      currentUserEmail = session.user.email.toLowerCase().trim();
       const loggedUser = await prisma.user.findUnique({
         where: { email: session.user.email },
         select: { id: true, latitude: true, longitude: true, city: true },
       });
       if (loggedUser) {
-        currentUserId = loggedUser.id;
         if (loggedUser.latitude && loggedUser.longitude && loggedUser.latitude !== 0) {
           currentUserLat = loggedUser.latitude;
           currentUserLng = loggedUser.longitude;
@@ -87,7 +84,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
 
     if (!targetLat || !targetLng || targetLat === 0) {
-      const targetCity = isCommercial ? (listing.city || listing.author?.city || 'South Bradenton') : (listing.author?.city || 'South Bradenton');
+      const targetCity = isCommercial ? (listing.city || 'Clearwater') : (listing.author?.city || 'South Bradenton');
       const coords = getCoordsForCity(targetCity);
       targetLat = coords.lat;
       targetLng = coords.lng;
@@ -108,6 +105,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
+// 📝 PUT (Update) listing by ID with strict Commercial address validation
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const resolvedParams = await params;
@@ -120,7 +118,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const listing = await prisma.listing.findUnique({ where: { id: resolvedParams.id } });
     if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
 
-    // Robust case-insensitive check for admin role
     const isAdmin = user.role?.toUpperCase() === 'ADMIN';
     const isOwner = listing.authorId === user.id;
 
@@ -129,16 +126,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const body = await req.json();
-    const { title, description, type, category, priceInBucks, imageUrl, location, latitude, longitude, businessHours } = body;
+    const { title, description, type, category, priceInBucks, imageUrl, location, city, latitude, longitude, businessHours } = body;
 
-    if (type === 'COMMERCIAL' && listing.type !== 'COMMERCIAL') {
+    const targetType = type || listing.type;
+
+    if (targetType === 'COMMERCIAL' && listing.type !== 'COMMERCIAL') {
       return NextResponse.json(
         { error: 'You cannot change an Offer or Request into a Commercial listing once saved.' },
         { status: 400 }
       );
     }
 
-    if (type === 'COMMERCIAL') {
+    // STRICT VALIDATION: Commercial listings CANNOT be saved without their own business address, lat, and long
+    if (targetType === 'COMMERCIAL') {
+      const finalLocation = location !== undefined ? location : listing.location;
+      const finalLat = latitude !== undefined && latitude !== null ? parseFloat(latitude) : listing.latitude;
+      const finalLng = longitude !== undefined && longitude !== null ? parseFloat(longitude) : listing.longitude;
+
+      if (!finalLocation || !finalLat || !finalLng || finalLat === 0 || finalLng === 0) {
+        return NextResponse.json(
+          { error: 'Commercial listings require a valid business address, latitude, and longitude.' },
+          { status: 400 }
+        );
+      }
+
       const existingCommercial = await prisma.listing.findFirst({
         where: { authorId: listing.authorId, type: 'COMMERCIAL', NOT: { id: resolvedParams.id } },
       });
@@ -150,19 +161,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
+    const newLat = latitude !== undefined && latitude !== null && Number(latitude) !== 0 
+      ? parseFloat(latitude) 
+      : listing.latitude;
+
+    const newLng = longitude !== undefined && longitude !== null && Number(longitude) !== 0 
+      ? parseFloat(longitude) 
+      : listing.longitude;
+
     const updatedListing = await prisma.listing.update({
       where: { id: resolvedParams.id },
       data: {
-        title,
-        description,
-        type,
-        category,
-        priceInBucks: type === 'COMMERCIAL' ? 0 : (priceInBucks !== undefined ? parseFloat(priceInBucks) : 0),
-        imageUrl,
-        location: type === 'COMMERCIAL' ? location : null,
-        latitude: type === 'COMMERCIAL' && latitude !== undefined && latitude !== null ? parseFloat(latitude) : null,
-        longitude: type === 'COMMERCIAL' && longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
-        businessHours: type === 'COMMERCIAL' ? businessHours : null,
+        title: title ?? listing.title,
+        description: description ?? listing.description,
+        type: targetType,
+        category: category ?? listing.category,
+        priceInBucks: targetType === 'COMMERCIAL' ? 0 : (priceInBucks !== undefined ? parseFloat(priceInBucks) : listing.priceInBucks),
+        imageUrl: imageUrl ?? listing.imageUrl,
+        city: city ?? listing.city,
+        location: targetType === 'COMMERCIAL' ? (location ?? listing.location) : null,
+        latitude: targetType === 'COMMERCIAL' ? newLat : null,
+        longitude: targetType === 'COMMERCIAL' ? newLng : null,
+        businessHours: targetType === 'COMMERCIAL' ? (businessHours ?? listing.businessHours) : null,
       },
     });
 
@@ -173,6 +193,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
+// 🗑️ DELETE listing by ID
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const resolvedParams = await params;
@@ -185,7 +206,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const listing = await prisma.listing.findUnique({ where: { id: resolvedParams.id } });
     if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
 
-    // Robust case-insensitive check for admin role
     const isAdmin = user.role?.toUpperCase() === 'ADMIN';
     const isOwner = listing.authorId === user.id;
 

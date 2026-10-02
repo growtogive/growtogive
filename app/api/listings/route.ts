@@ -30,7 +30,6 @@ export async function GET(req: Request) {
     const session = await getServerSession(authOptions);
     let currentUserLat: number | null = null;
     let currentUserLng: number | null = null;
-    let currentUserId: string | null = null;
 
     if (session?.user?.email) {
       const loggedUser = await prisma.user.findUnique({
@@ -38,7 +37,6 @@ export async function GET(req: Request) {
         select: { id: true, latitude: true, longitude: true, city: true },
       });
       if (loggedUser) {
-        currentUserId = loggedUser.id;
         if (loggedUser.latitude && loggedUser.longitude && loggedUser.latitude !== 0) {
           currentUserLat = loggedUser.latitude;
           currentUserLng = loggedUser.longitude;
@@ -59,7 +57,16 @@ export async function GET(req: Request) {
     const listings = await prisma.listing.findMany({
       include: {
         author: {
-          select: { id: true, name: true, email: true, avatar: true, city: true, churchName: true, latitude: true, longitude: true },
+          select: { 
+            id: true, 
+            name: true, 
+            email: true, 
+            avatar: true, 
+            city: true, 
+            churchName: true, 
+            latitude: true, 
+            longitude: true 
+          },
         },
         reviews: {
           include: { author: { select: { name: true, avatar: true } } },
@@ -71,19 +78,32 @@ export async function GET(req: Request) {
     const enrichedListings = listings.map((listing) => {
       const isCommercial = listing.type === 'COMMERCIAL';
       
-      // Commercial uses its own listing coordinates; Offers/Requests use author coordinates
-      let targetLat = isCommercial ? listing.latitude : listing.author?.latitude;
-      let targetLng = isCommercial ? listing.longitude : listing.author?.longitude;
+      let targetLat: number | null = null;
+      let targetLng: number | null = null;
 
-      if (!targetLat || !targetLng || targetLat === 0) {
-        const targetCity = isCommercial ? (listing.city || 'Clearwater') : (listing.author?.city || 'Tampa');
-        const coords = getCoordsForCity(targetCity);
-        targetLat = coords.lat;
-        targetLng = coords.lng;
+      if (isCommercial) {
+        // Commercial listings strictly use their own stored business lat/long
+        targetLat = listing.latitude;
+        targetLng = listing.longitude;
+
+        if (!targetLat || !targetLng || targetLat === 0) {
+          const coords = getCoordsForCity(listing.city || 'Clearwater');
+          targetLat = coords.lat;
+          targetLng = coords.lng;
+        }
+      } else {
+        // Offers and Requests use author coordinates
+        targetLat = listing.author?.latitude;
+        targetLng = listing.author?.longitude;
+
+        if (!targetLat || !targetLng || targetLat === 0) {
+          const coords = getCoordsForCity(listing.author?.city || 'Tampa');
+          targetLat = coords.lat;
+          targetLng = coords.lng;
+        }
       }
 
-      // Always calculate actual distance based on coordinates
-      const distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
+      const distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat!, targetLng!);
 
       return {
         ...listing,
@@ -95,7 +115,7 @@ export async function GET(req: Request) {
     return NextResponse.json(enrichedListings);
   } catch (error: any) {
     console.error('Fetch marketplace listings error:', error);
-    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
   }
 }
 
@@ -121,7 +141,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
     }
 
-    if (type === 'COMMERCIAL') {
+    const listingType = type || 'OFFER';
+
+    if (listingType === 'COMMERCIAL') {
+      // Strict validation: Commercial listings MUST have a business address, latitude, and longitude
+      if (!location || !latitude || !longitude || Number(latitude) === 0 || Number(longitude) === 0) {
+        return NextResponse.json(
+          { error: 'Commercial listings require a business address with valid latitude and longitude.' },
+          { status: 400 }
+        );
+      }
+
       const existingCommercial = await prisma.listing.findFirst({
         where: { authorId: user.id, type: 'COMMERCIAL' },
       });
@@ -133,18 +163,32 @@ export async function POST(req: Request) {
       }
     }
 
+    const listingCity = city || user.city || 'Bradenton';
+
+    // Set coordinates based on type
+    let listingLat: number;
+    let listingLng: number;
+
+    if (listingType === 'COMMERCIAL') {
+      listingLat = parseFloat(latitude);
+      listingLng = parseFloat(longitude);
+    } else {
+      listingLat = latitude ? parseFloat(latitude) : (user.latitude ?? 27.4989);
+      listingLng = longitude ? parseFloat(longitude) : (user.longitude ?? -82.5748);
+    }
+
     const newListing = await prisma.listing.create({
       data: {
         title,
         description,
-        type: type || 'OFFER',
+        type: listingType,
         category: category || 'GOODS',
-        priceInBucks: type === 'COMMERCIAL' ? 0 : (priceInBucks ? parseFloat(priceInBucks) : 0.00),
+        priceInBucks: listingType === 'COMMERCIAL' ? 0 : (priceInBucks ? parseFloat(priceInBucks) : 0.00),
         imageUrl: imageUrl || null,
         location: location || null,
-        city: city || user.city || 'Bradenton',
-        latitude: latitude ? parseFloat(latitude) : user.latitude,
-        longitude: longitude ? parseFloat(longitude) : user.longitude,
+        city: listingCity,
+        latitude: listingLat,
+        longitude: listingLng,
         businessHours: businessHours || null,
         authorId: user.id,
       },

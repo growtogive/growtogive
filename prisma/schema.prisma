@@ -36,40 +36,36 @@ model User {
 }
 
 model Listing {
-  id           String   @id @default(cuid())
-  title        String
-  description  String
-  type         String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
-  category     String   // Required string without default
-  priceInBucks Float    @default(0.00)
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
+  category      String   
+  priceInBucks  Float    @default(0.00)
   
-  // Media fields (imageUrl kept for legacy compatibility, images array & videoUrl for upgrades)
-  imageUrl     String?  
-  images       String[] @default([])
-  videoUrl     String?
+  imageUrl      String?  
+  images        String[] @default([])
+  videoUrl      String?
 
-  // Upgrade & Tier Fields
-  isFeatured   Boolean  @default(false)
-  isCommercial Boolean  @default(false)
-  expiresAt    DateTime @default(dbgenerated("NOW() + INTERVAL '30 days'"))
+  isFeatured    Boolean  @default(false)
+  isCommercial  Boolean  @default(false)
+  expiresAt     DateTime @default(dbgenerated("NOW() + INTERVAL '30 days'"))
   
-  // Location fields (primarily for Commercial storefronts)
-  location     String?
-  city         String?
-  latitude     Float?
-  longitude    Float?
+  location      String?
+  city          String?
+  latitude      Float?
+  longitude     Float?
 
-  // Commercial-only field
   businessHours String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  authorId     String
-  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   
-  reviews      Review[]
-  messages     Message[]
+  reviews       Review[]
+  messages      Message[]
 }
 
 model Review {
@@ -92,11 +88,11 @@ model Review {
 model Transaction {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())
-  reason      String   // Listing title or activity description
-  amount      Float    // Total transferred amount
-  commission  Float?   // Optional commission amount
-  netAmount   Float?   // Optional net amount
-  type        String   @default("TRANSFER") // "TRANSFER", "ACTIVITY", etc.
+  reason      String   
+  amount      Float    
+  commission  Float?   
+  netAmount   Float?   
+  type        String   @default("TRANSFER") 
   
   senderId    String?
   sender      User?    @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade)
@@ -127,16 +123,38 @@ model PostCategory {
   posts Post[]
 }
 
+model Post {
+  id           String        @id @default(uuid())
+  title        String
+  description  String
+  images       String[]      
+  videoUrl     String?
+  price        Float?        
+  categoryId   String
+  category     PostCategory  @relation(fields: [categoryId], references: [id])
+  quiz         Quiz?
+  event        Event?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
 model Quiz {
-  id                String        @id @default(uuid())
-  postId            String        @unique
-  post              Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  question          String
-  options           String[]      // JSON array of options
-  correctAnswer     Int           // Index of correct option
-  rewardAmount      Float         // Growbucks awarded on pass
-  passingPercentage Int           @default(100) // Passing percentage threshold
+  id                String         @id @default(uuid())
+  postId            String         @unique
+  post              Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  rewardAmount      Float          @default(0.00) 
+  passingPercentage Int            @default(70)   
+  questions         QuizQuestion[]
   attempts          QuizAttempt[]
+}
+
+model QuizQuestion {
+  id            String   @id @default(uuid())
+  quizId        String
+  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionText  String
+  options       String[] 
+  correctAnswer Int      
 }
 
 model QuizAttempt {
@@ -159,20 +177,5 @@ model Event {
   post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   eventDate    DateTime
   location     String?
-  rewardAmount Float    // Growbucks awarded when attended
-}
-
-model Post {
-  id           String        @id @default(uuid())
-  title        String
-  description  String
-  images       String[]      // Up to 5 images
-  videoUrl     String?
-  price        Float?        // Optional price for events/items
-  categoryId   String
-  category     PostCategory  @relation(fields: [categoryId], references: [id])
-  quiz         Quiz?
-  event        Event?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  rewardAmount Float    
 }
