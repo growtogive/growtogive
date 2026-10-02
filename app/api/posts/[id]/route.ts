@@ -11,7 +11,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     
     let userId = (session?.user as any)?.id;
 
-    // Fallback: Find user by email if session ID is missing
     if (!userId && session?.user?.email) {
       const dbUser = await prisma.user.findUnique({
         where: { email: session.user.email },
@@ -36,7 +35,15 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
             },
           },
         },
-        event: true,
+        event: {
+          include: {
+            attendees: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -81,6 +88,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       });
     }
 
+    const existingPost = await prisma.post.findUnique({
+      where: { id },
+      include: { quiz: true, event: true },
+    });
+
+    if (!existingPost) {
+      return NextResponse.json({ error: 'Post not found.' }, { status: 404 });
+    }
+
     const quizOperation = quiz?.questions && quiz.questions.length > 0
       ? {
           upsert: {
@@ -109,24 +125,32 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
             },
           },
         }
-      : { delete: true };
+      : existingPost.quiz 
+        ? { delete: true } 
+        : undefined;
 
     const eventOperation = event?.eventDate
       ? {
           upsert: {
             create: {
+              title: event.title || title,
+              description: event.description || description,
               eventDate: new Date(event.eventDate),
               location: event.location || null,
               rewardAmount: parseFloat(event.rewardAmount) || 0,
             },
             update: {
+              title: event.title || title,
+              description: event.description || description,
               eventDate: new Date(event.eventDate),
               location: event.location || null,
               rewardAmount: parseFloat(event.rewardAmount) || 0,
             },
           },
         }
-      : { delete: true };
+      : existingPost.event 
+        ? { delete: true } 
+        : undefined;
 
     const updatedPost = await prisma.post.update({
       where: { id },
@@ -147,7 +171,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
             questions: true,
           },
         },
-        event: true,
+        event: {
+          include: {
+            attendees: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
       },
     });
 

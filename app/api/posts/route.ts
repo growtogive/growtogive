@@ -3,25 +3,39 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// GET: List all posts for the homepage (Newest first, never expire)
+// GET: Fetch all posts (for homepage/feed)
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const categoryId = searchParams.get('categoryId');
+    const url = new URL(request.url);
+    const categoryId = url.searchParams.get('categoryId');
 
     const posts = await prisma.post.findMany({
       where: categoryId ? { categoryId } : undefined,
       include: {
         category: true,
-        quiz: true,
-        event: true,
+        quiz: {
+          include: {
+            questions: true,
+          },
+        },
+        event: {
+          include: {
+            attendees: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
     return NextResponse.json({ posts });
   } catch (err: any) {
-    console.error('Failed to fetch posts:', err);
+    console.error('Failed to fetch posts list:', err);
     return NextResponse.json({ error: 'Server error fetching posts.' }, { status: 500 });
   }
 }
@@ -45,7 +59,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Posts can have a maximum of 5 images.' }, { status: 400 });
     }
 
-    // Find or create the PostCategory taxonomy
+    // Find or create category taxonomy
     let category = await prisma.postCategory.findUnique({
       where: { name: categoryName.trim() },
     });
@@ -62,29 +76,47 @@ export async function POST(request: Request) {
         description,
         images: images || [],
         videoUrl: videoUrl || null,
-        price: price ? parseFloat(price) : null,
+        price: price !== null && price !== '' ? parseFloat(price) : null,
         categoryId: category.id,
-        quiz: quiz?.question ? {
+        quiz: quiz?.questions && quiz.questions.length > 0 ? {
           create: {
-            question: quiz.question,
-            options: quiz.options,
-            correctAnswer: Number(quiz.correctAnswer),
             rewardAmount: parseFloat(quiz.rewardAmount) || 0,
-            passingPercentage: parseInt(quiz.passingPercentage) || 100,
-          }
+            passingPercentage: parseInt(quiz.passingPercentage) || 70,
+            questions: {
+              create: quiz.questions.map((q: any) => ({
+                questionText: q.questionText,
+                options: q.options,
+                correctAnswer: Number(q.correctAnswer),
+              })),
+            },
+          },
         } : undefined,
         event: event?.eventDate ? {
           create: {
+            title: event.title || title,
+            description: event.description || description,
             eventDate: new Date(event.eventDate),
             location: event.location || null,
             rewardAmount: parseFloat(event.rewardAmount) || 0,
-          }
+          },
         } : undefined,
       },
       include: {
         category: true,
-        quiz: true,
-        event: true,
+        quiz: {
+          include: {
+            questions: true,
+          },
+        },
+        event: {
+          include: {
+            attendees: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
       },
     });
 

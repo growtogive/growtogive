@@ -20,7 +20,12 @@ export default function PostDetailPage() {
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [hasPassed, setHasPassed] = useState(false);
 
+  // Event attendance states
+  const [attendingStatus, setAttendingStatus] = useState<string | null>(null);
+  const [updatingAttendance, setUpdatingAttendance] = useState(false);
+
   const isAdmin = (session?.user as any)?.role?.toUpperCase() === 'ADMIN';
+  const currentUserId = (session?.user as any)?.id;
 
   useEffect(() => {
     if (id) {
@@ -36,11 +41,19 @@ export default function PostDetailPage() {
       const data = await res.json();
       setPost(data.post);
 
-      // Check if user already passed from the included attempts array
+      // Check if user already passed quiz
       if (data.post?.quiz?.attempts && Array.isArray(data.post.quiz.attempts)) {
         const passedAttempt = data.post.quiz.attempts.find((a: any) => a.passed === true);
         if (passedAttempt) {
           setHasPassed(true);
+        }
+      }
+
+      // Check user's current attendance status
+      if (data.post?.event?.attendees && currentUserId) {
+        const userAttendee = data.post.event.attendees.find((a: any) => a.userId === currentUserId);
+        if (userAttendee) {
+          setAttendingStatus(userAttendee.status);
         }
       }
     } catch (err) {
@@ -93,6 +106,44 @@ export default function PostDetailPage() {
     setQuizResult(null);
   };
 
+  const handleAttendanceChange = async (newStatus: string) => {
+    if (!post?.event) return;
+    setUpdatingAttendance(true);
+    try {
+      const res = await fetch('/api/events/attend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: post.event.id, status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update attendance');
+
+      setAttendingStatus(newStatus);
+      fetchPost(); // Refresh attendee list
+    } catch (err: any) {
+      alert(err.message || 'Error updating attendance');
+    } finally {
+      setUpdatingAttendance(false);
+    }
+  };
+
+  const handleAdminRemoveAttendee = async (attendeeUserId: string) => {
+    if (!isAdmin || !post?.event) return;
+    if (!confirm('Are you sure you want to remove this attendee?')) return;
+
+    try {
+      const res = await fetch('/api/events/attend', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: post.event.id, userId: attendeeUserId }),
+      });
+      if (!res.ok) throw new Error('Failed to remove attendee');
+      fetchPost();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium">Loading post...</div>;
   }
@@ -107,13 +158,14 @@ export default function PostDetailPage() {
   }
 
   const quizQuestions = (post.quiz?.questions as any[]) || [];
+  const attendeesList = (post.event?.attendees as any[]) || [];
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 pt-8">
       <main className="max-w-3xl mx-auto px-4 space-y-6">
         <div className="bg-white border border-slate-200 rounded-3xl p-8 space-y-6 shadow-sm relative">
           
-          {/* Admin Edit Link (Matching /admin/posts/[id]/edit) */}
+          {/* Admin Edit Link */}
           {isAdmin && (
             <div className="absolute top-8 right-8">
               <Link 
@@ -156,10 +208,110 @@ export default function PostDetailPage() {
             </div>
           )}
 
-          {post.price !== null && post.price !== undefined && (
+          {post.price !== null && post.price !== undefined && Number(post.price) > 0 ? (
+            <Link 
+              href={`/checkout?postId=${post.id}&amount=${post.price}`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+            >
+              <span>🏷️ Price / Fee: ${Number(post.price).toFixed(2)} (Click to Checkout ↗)</span>
+            </Link>
+          ) : post.price !== null && post.price !== undefined ? (
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold">
-              <span>🏷️ Price / Fee:</span>
-              <span>${Number(post.price).toFixed(2)}</span>
+              <span>🏷️ Price / Fee: Free</span>
+            </div>
+          ) : null}
+
+          {/* Event Section */}
+          {post.event && (
+            <div className="p-6 bg-blue-50/60 border border-blue-200 rounded-2xl space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-blue-900 uppercase tracking-wider">📅 Event Details</span>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  Reward: {post.event.rewardAmount} GB
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-slate-900">{post.event.title}</h3>
+                {post.event.description && <p className="text-xs text-slate-600">{post.event.description}</p>}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white p-4 rounded-xl border border-blue-100">
+                <div>
+                  <span className="font-bold text-slate-700 block">Date & Time:</span>
+                  <span className="text-slate-600">
+                    {new Date(post.event.eventDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-700 block">Address / Location:</span>
+                  <span className="text-slate-600">{post.event.location || 'Location not specified'}</span>
+                </div>
+              </div>
+
+              {/* Attendance Actions */}
+              {status === 'authenticated' && (
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={updatingAttendance}
+                    onClick={() => handleAttendanceChange('ATTENDING')}
+                    className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      attendingStatus === 'ATTENDING'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    ✓ Attending
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updatingAttendance}
+                    onClick={() => handleAttendanceChange('NOT_ATTENDING')}
+                    className={`flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      attendingStatus === 'NOT_ATTENDING'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    ✕ Not Attending
+                  </button>
+                </div>
+              )}
+
+              {/* Attendees List */}
+              <div className="border-t border-blue-200 pt-4 space-y-2">
+                <h4 className="text-xs font-black text-blue-900 uppercase tracking-wider">
+                  Attendees ({attendeesList.filter((a: any) => a.status === 'ATTENDING').length} Attending)
+                </h4>
+                {attendeesList.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">No attendance responses yet.</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {attendeesList.map((attendee: any) => (
+                      <div key={attendee.id} className="flex justify-between items-center bg-white px-3 py-2 rounded-xl border border-blue-100 text-xs">
+                        <div>
+                          <span className="font-bold text-slate-800">{attendee.user?.name || attendee.user?.email}</span>
+                          <span className={`ml-2 px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                            attendee.status === 'ATTENDING' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {attendee.status}
+                          </span>
+                        </div>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleAdminRemoveAttendee(attendee.userId)}
+                            className="text-rose-600 hover:text-rose-800 font-bold text-[10px] px-2 py-1 bg-rose-50 rounded-md cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -245,19 +397,6 @@ export default function PostDetailPage() {
             </div>
           )}
 
-          {/* Event Section */}
-          {post.event && (
-            <div className="p-6 bg-blue-50/60 border border-blue-200 rounded-2xl space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-black text-blue-900 uppercase tracking-wider">📅 Featured Event</span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">Reward: {post.event.rewardAmount} GB</span>
-              </div>
-              <p className="text-xs text-slate-700 font-semibold">
-                Date: {new Date(post.event.eventDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
-              </p>
-              {post.event.location && <p className="text-xs text-slate-600 font-medium">Location: {post.event.location}</p>}
-            </div>
-          )}
         </div>
       </main>
     </div>

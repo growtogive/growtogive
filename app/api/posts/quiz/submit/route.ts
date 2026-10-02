@@ -86,17 +86,20 @@ export async function POST(request: Request) {
     });
 
     if (passed) {
+      const postTitle = quiz.post?.title || 'Quiz Completion';
+      const reward = Number(quiz.rewardAmount) > 0 ? Number(quiz.rewardAmount) : 5; // Fallback to 5 if 0 or undefined
+
       await prisma.$transaction([
         prisma.user.update({
           where: { id: userId },
-          data: { growbucks: { increment: quiz.rewardAmount } },
+          data: { growbucks: { increment: reward } },
         }),
         prisma.transaction.create({
           data: {
             receiverId: userId,
-            amount: quiz.rewardAmount,
+            amount: reward,
             type: 'ACTIVITY',
-            reason: `Passed Quiz: ${quiz.post.title}`,
+            reason: `Passed Quiz: ${postTitle}`,
           },
         }),
       ]);
@@ -105,7 +108,7 @@ export async function POST(request: Request) {
         success: true,
         passed: true,
         score,
-        message: `🎉 Passed with ${score}%! ${quiz.rewardAmount} Growbucks rewarded!`,
+        message: `🎉 Passed with ${score}%! ${reward} Growbucks rewarded!`,
       });
     } else {
       return NextResponse.json({
