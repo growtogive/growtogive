@@ -1,6 +1,8 @@
+// app/api/signup/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import * as bcrypt from 'bcrypt';
+import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   try {
@@ -20,8 +22,6 @@ export async function POST(req: Request) {
     } = body;
 
     // --- HONEYPOT CHECK ---
-    // If the hidden 'website' field contains a value, a bot filled it out.
-    // Silently return success so the bot thinks it worked, but do nothing.
     if (website && website.trim() !== '') {
       return NextResponse.json(
         { message: 'Account created successfully!' },
@@ -66,6 +66,40 @@ export async function POST(req: Request) {
         avatar: avatar || null,
       },
     });
+
+    // --- REFERRAL SIGNUP BONUS PROCESSING (GB 50.00) ---
+    try {
+      const cookieStore = await cookies(); // Fixed: Added await for Next.js async cookies
+      const referrerId = cookieStore.get('growtogive_ref')?.value;
+
+      if (referrerId && referrerId !== newUser.id) {
+        const referrer = await prisma.user.findUnique({
+          where: { id: referrerId },
+        });
+
+        if (referrer) {
+          await prisma.$transaction([
+            prisma.user.update({
+              where: { id: referrerId },
+              data: { growbucks: { increment: 50.00 } },
+            }),
+            prisma.transaction.create({
+              data: {
+                receiverId: referrerId,
+                amount: 50.00,
+                type: 'REFERRAL_SIGNUP',
+                reason: `Bonus for referred user signup (${newUser.email})`,
+              },
+            }),
+          ]);
+
+          // Clear the referral cookie
+          cookieStore.set('growtogive_ref', '', { maxAge: 0, path: '/' });
+        }
+      }
+    } catch (refError) {
+      console.error('Referral signup reward error:', refError);
+    }
 
     return NextResponse.json(
       { message: 'Account created successfully!', userId: newUser.id },

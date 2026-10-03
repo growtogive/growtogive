@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { Providers } from "@/components/providers";
-import Navbar from "@/components/navbar";
+// app/layout.tsx
+import { Inter } from 'next/font/google';
+import { Suspense } from 'react';
+import ReferralTracker from '@/components/ReferralTracker';
+import { Providers } from '@/components/providers';
+import Navbar from '@/components/navbar';
+import './globals.css';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: "GrowToGive",
-  description: "Directory & Marketplace for Church Members & Friends",
+export const metadata = {
+  title: 'GrowToGive',
+  description: 'Community marketplace, directory, and giving platform',
 };
 
 export default function RootLayout({
@@ -17,22 +19,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="w-full h-full">
-      <body className={`${inter.className} w-full min-h-screen bg-white text-slate-900 overflow-x-hidden`}>
+    <html lang="en">
+      <body className={inter.className}>
         <Providers>
-          <Navbar />
-          {/* Fluid full-width container with responsive padding and overflow safeguards */}
-          <main className="w-full max-w-full px-[5px] sm:px-[30px] pb-12 overflow-x-hidden">
-            {children}
-          </main>
-        </Providers>
+          {/* Referral Tracker wrapped in Suspense for useSearchParams */}
+          <Suspense fallback={null}>
+            <ReferralTracker />
+          </Suspense>
 
-        {/* Google Maps Places API Script */}
-        <script
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-          async
-          defer
-        ></script>
+          {/* Global Navbar */}
+          <Navbar />
+
+          {/* Main application content */}
+          <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
+            {children}
+          </div>
+        </Providers>
       </body>
     </html>
   );
