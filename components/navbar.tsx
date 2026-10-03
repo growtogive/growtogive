@@ -11,25 +11,42 @@ export default function Navbar() {
   const { data: session, status } = useSession();
   const userId = (session?.user as any)?.id;
   const userRole = (session?.user as any)?.role;
+  const emailVerified = (session?.user as any)?.emailVerified;
+  const basicTrainingPassed = (session?.user as any)?.basicTrainingPassed;
+
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
   const [copied, setCopied] = useState(false);
 
+  // Modal state for restricted access attempts on Share Link
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+
   useEffect(() => {
     if (session) {
       fetch('/api/messages')
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) return null;
+          return res.json();
+        })
         .then((data) => {
-          if (data.unreadCount !== undefined) {
+          if (data && data.unreadCount !== undefined) {
             setUnreadCount(data.unreadCount);
           }
         })
-        .catch((err) => console.error('Failed to fetch unread messages count', err));
+        .catch((err) => {
+          console.debug('Unread messages count check skipped:', err);
+        });
     }
   }, [session, pathname]);
 
   const handleShare = async () => {
     if (!userId) return;
+
+    // --- GATE CHECKS ---
+    if (!emailVerified || !basicTrainingPassed) {
+      setShowRestrictionModal(true);
+      return;
+    }
 
     const currentUrl = window.location.origin + window.location.pathname;
     const referralUrl = `${currentUrl}?ref=${userId}`;
@@ -56,7 +73,7 @@ export default function Navbar() {
     <nav className="w-full bg-white shadow-xs border-b border-blue-500 mb-3 sticky top-0 z-50">
       <div className="w-full px-4 sm:px-6 py-2 flex flex-wrap justify-between items-center gap-4">
         
-        {/* Logo with explicit fallback handling */}
+        {/* Logo with corrected root path */}
         <Link href="/" className="flex items-center group shrink-0">
           <div className="w-[70px] h-[70px] relative overflow-hidden flex items-center justify-center">
             <Image
@@ -212,6 +229,46 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      {/* Restriction Modal Popup */}
+      {showRestrictionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
+            <button
+              onClick={() => setShowRestrictionModal(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+            >
+              ×
+            </button>
+
+            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center text-xl font-bold">🔒</div>
+            <h3 className="text-xl font-black text-slate-900">Basic Training Required</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              You must pass Basic Training Quiz before sharing.
+            </p>
+
+            <div className="pt-2">
+              <Link
+                href="/basic-training"
+                onClick={() => setShowRestrictionModal(false)}
+                className="w-full inline-block text-center bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-xs"
+              >
+                Complete Basic Training Now
+              </Link>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRestrictionModal(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { LISTING_CATEGORIES } from '@/lib/constants/categories';
 
 declare global {
@@ -30,6 +31,8 @@ function formatListingTitle(title: string): string {
 
 export default function NewListingPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
+  const basicTrainingPassed = (session?.user as any)?.basicTrainingPassed;
 
   const [formData, setFormData] = useState({
     title: '',
@@ -257,6 +260,38 @@ export default function NewListingPage() {
       setSubmitting(false);
     }
   };
+
+  // --- BASIC TRAINING GATE CHECK SCREEN ---
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500 text-sm">Loading...</div>;
+  }
+
+  if (session && !basicTrainingPassed) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans py-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md mx-auto bg-white border border-slate-200 shadow-sm p-8 text-center space-y-4">
+          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">🔒</div>
+          <h1 className="text-xl font-bold text-slate-900">Basic Training Required</h1>
+          <p className="text-slate-600 text-xs leading-relaxed">
+            You must complete and pass <span className="font-semibold text-slate-900">Basic Training</span> before you can create marketplace listings or trade Growbucks. You can still browse listings, join events, and take quizzes!
+          </p>
+          <div className="pt-4">
+            <Link
+              href="/basic-training"
+              className="w-full inline-block bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded text-xs transition-all shadow-xs"
+            >
+              Start Basic Training Now
+            </Link>
+          </div>
+          <div className="pt-2">
+            <Link href="/marketplace" className="text-xs text-slate-500 hover:underline">
+              Return to Marketplace
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans py-12 px-4 sm:px-6 lg:px-8">

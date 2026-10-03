@@ -29,6 +29,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Sender account not found.' }, { status: 404 });
     }
 
+    // --- SECURITY GATES ---
+    if (!sender.emailVerified) {
+      return NextResponse.json(
+        { error: 'You must verify your email address before trading Growbucks.' },
+        { status: 403 }
+      );
+    }
+
+    if (!sender.basicTrainingPassed) {
+      return NextResponse.json(
+        { error: 'You must complete Basic Training before trading or sending Growbucks.' },
+        { status: 403 }
+      );
+    }
+
     if (sender.id === receiverId) {
       return NextResponse.json({ error: 'You cannot transfer Growbucks to yourself.' }, { status: 400 });
     }

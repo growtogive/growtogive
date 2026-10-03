@@ -14,6 +14,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    // --- BASIC TRAINING GATE CHECK ---
+    if (!user.basicTrainingPassed) {
+      return NextResponse.json(
+        { error: 'You must complete Basic Training before submitting reviews or taking quizzes.' },
+        { status: 403 }
+      );
+    }
+
     const listingId = resolvedParams.id;
     const listing = await prisma.listing.findUnique({ where: { id: listingId } });
     if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
@@ -40,6 +48,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     if (listing.authorId === user.id) {
       return NextResponse.json({ error: 'You cannot review your own listing.' }, { status: 400 });
+    }
+
+    // --- GROWBUCKS TRANSFER REQUIREMENT CHECK ---
+    // User must have sent Growbucks to this listing's author before they can review
+    const priorTransfer = await prisma.transaction.findFirst({
+      where: {
+        senderId: user.id,
+        receiverId: listing.authorId,
+      },
+    });
+
+    if (!priorTransfer) {
+      return NextResponse.json(
+        { error: 'You can only review an offer or request after you have transferred Growbucks to the author.' },
+        { status: 403 }
+      );
     }
 
     // Check if user already reviewed this listing
@@ -80,6 +104,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    // --- BASIC TRAINING GATE CHECK ---
+    if (!user.basicTrainingPassed) {
+      return NextResponse.json(
+        { error: 'You must complete Basic Training before updating reviews.' },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
     const { reviewId, rating, comment } = body;

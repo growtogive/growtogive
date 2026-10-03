@@ -37,6 +37,7 @@ export default function ListingDetailPage() {
   const params = useParams();
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const { data: session } = useSession();
+  const basicTrainingPassed = (session?.user as any)?.basicTrainingPassed;
 
   const [listing, setListing] = useState<any>(null);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -60,9 +61,9 @@ export default function ListingDetailPage() {
   const [upgradeError, setUpgradeError] = useState('');
   const [upgradeSuccess, setUpgradeSuccess] = useState('');
 
-  // Transfer Modal States
+  // Transfer Modal States (Fixed transferAmount to start as empty string '')
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferAmount, setTransferAmount] = useState<number>(0);
+  const [transferAmount, setTransferAmount] = useState<string>('');
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
   const [transferSuccess, setTransferSuccess] = useState('');
@@ -366,11 +367,9 @@ export default function ListingDetailPage() {
   const storefrontAddress = listing.location || '';
   const googleMapsSearchUrl = storefrontAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storefrontAddress)}` : '#';
 
-  // Images handling (up to 5 images)
   const listingImages = (listing.images && listing.images.length > 0) ? listing.images : (listing.imageUrl ? [listing.imageUrl] : []);
   const currentActiveImage = listingImages[activeImageIndex] || listingImages[0];
 
-  // Commercial Metrics
   const stats = listing.stats || { views: 42, contactClicks: 7, shares: 3 };
 
   return (
@@ -410,7 +409,6 @@ export default function ListingDetailPage() {
 
       <main className="w-full mx-auto px-4 pt-10 space-y-8" style={{ maxWidth: '750px' }}>
         
-        {/* Upgrade Callout Box: Visible ONLY if the user is the author and the listing is NOT already featured */}
         {isAuthor && !isFeatured && (
           <div className="bg-sky-50 border border-sky-200 rounded-3xl p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -448,7 +446,6 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* Commercial Storefront Stats Section */}
         {isCommercial && (
           <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md flex items-center justify-around text-center">
             <div>
@@ -468,12 +465,10 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* Main Listing Container with Highlighted Border if Featured */}
         <div className={`bg-white rounded-3xl overflow-hidden shadow-sm transition-all ${
           isFeatured ? 'border-4 border-amber-400 shadow-md ring-2 ring-amber-200' : 'border border-slate-200'
         }`}>
           
-          {/* Main Image / Gallery Viewer */}
           {listingImages.length > 0 ? (
             <div className="space-y-3 p-4 bg-slate-50/50">
               <div className="h-[420px] w-full bg-slate-100 relative overflow-hidden rounded-2xl border border-slate-200">
@@ -497,7 +492,6 @@ export default function ListingDetailPage() {
                 </div>
               </div>
 
-              {/* Thumbnail Gallery for Additional Images (Up to 5) */}
               {listingImages.length > 1 && (
                 <div className="grid grid-cols-5 gap-2">
                   {listingImages.map((img: string, idx: number) => (
@@ -549,8 +543,12 @@ export default function ListingDetailPage() {
                       {session && !isAuthor && (
                         <button
                           onClick={() => {
-                            setTransferAmount(Number(listing.priceInBucks || 0));
-                            setTransferError('');
+                            if (!basicTrainingPassed) {
+                              setTransferError('You must complete Basic Training before trading or sending Growbucks.');
+                            } else {
+                              setTransferError('');
+                            }
+                            setTransferAmount(listing.priceInBucks ? String(listing.priceInBucks) : '');
                             setTransferSuccess('');
                             setShowTransferModal(true);
                           }}
@@ -573,7 +571,6 @@ export default function ListingDetailPage() {
               </p>
             </div>
 
-            {/* Video Preview for Commercial Listings */}
             {isCommercial && listing.videoUrl && (
               <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-2">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800">Attached Video</h2>
@@ -632,7 +629,6 @@ export default function ListingDetailPage() {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Updated: Reviews Badge linked to #reviews */}
                 <Link
                   href="#reviews"
                   className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-2 rounded-2xl transition-colors cursor-pointer group shadow-xs shrink-0"
@@ -677,7 +673,6 @@ export default function ListingDetailPage() {
           )}
         </div>
 
-        {/* In-App Private Message Modal */}
         {showMessageModal && session && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
@@ -743,7 +738,6 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* Growbucks Transfer Modal */}
         {showTransferModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
@@ -776,7 +770,14 @@ export default function ListingDetailPage() {
               ) : (
                 <form onSubmit={async (e) => {
                   e.preventDefault();
-                  if (transferAmount <= 0) {
+                  
+                  if (!basicTrainingPassed) {
+                    setTransferError('You must complete Basic Training before trading or sending Growbucks.');
+                    return;
+                  }
+
+                  const numericAmount = parseFloat(transferAmount);
+                  if (isNaN(numericAmount) || numericAmount <= 0) {
                     setTransferError('Transfer amount must be greater than zero.');
                     return;
                   }
@@ -794,7 +795,7 @@ export default function ListingDetailPage() {
                       body: JSON.stringify({
                         listingId: listing.id,
                         receiverId: listing.authorId || listing.author?.id,
-                        amount: transferAmount,
+                        amount: numericAmount,
                         reason: listing.title,
                       }),
                     });
@@ -835,10 +836,11 @@ export default function ListingDetailPage() {
                       min="0.01"
                       required
                       value={transferAmount}
-                      onChange={(e) => setTransferAmount(Number(e.target.value))}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      placeholder="0.00"
                       className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl font-bold focus:ring-2 focus:ring-emerald-400 focus:outline-none"
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">90% goes to recipient, 10% platform commission applies. Minimum &gt; 0.</p>
+                    <p className="text-[11px] text-slate-400 mt-1">90% goes to recipient, 10% platform commission applies.</p>
                   </div>
 
                   <div className="pt-2 flex justify-end gap-2">
@@ -863,7 +865,6 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* Leave Feedback Section */}
         {!isAuthor && session && !hasAlreadyReviewed && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
             <h3 className="text-xl font-black text-slate-900 mb-4">Leave Feedback</h3>
@@ -902,7 +903,6 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* My Other Listings Section */}
         {otherListings.length > 0 && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
             <h3 className="text-xl font-black text-slate-900">My Other Listings</h3>
@@ -957,7 +957,6 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* Community Reviews Section with id="reviews" and scroll-mt-24 */}
         <div id="reviews" className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm scroll-mt-24">
           <div className="mt-2 space-y-4">
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Community Reviews ({reviews.length})</h4>

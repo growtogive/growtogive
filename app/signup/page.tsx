@@ -50,29 +50,47 @@ export default function SignupPage() {
       });
   }, []);
 
-  // 2. Initialize Google Places Autocomplete for Address, Lat, and Lng
+  // 2. Initialize Google Places Autocomplete safely (handles async script loading)
   useEffect(() => {
-    if (window.google && addressInputRef.current) {
-      const autocomplete = new window.google.maps.places.Autocomplete(addressInputRef.current, {
-        types: ['address'],
-        componentRestrictions: { country: 'us' },
-      });
+    let autocompleteInstance: google.maps.places.Autocomplete | null = null;
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        if (place.geometry && place.geometry.location) {
-          const lat = place.geometry.location.lat();
-          const lng = place.geometry.location.lng();
-          const formattedAddress = place.formatted_address || '';
+    const initAutocomplete = () => {
+      if (window.google && window.google.maps && addressInputRef.current) {
+        const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+          types: ['address'],
+          componentRestrictions: { country: 'us' },
+        });
+        autocompleteInstance = ac;
 
-          setFormData((prev) => ({
-            ...prev,
-            address: formattedAddress,
-            latitude: String(lat),
-            longitude: String(lng),
-          }));
+        ac.addListener('place_changed', () => {
+          const place = ac.getPlace();
+          if (place && place.geometry && place.geometry.location) {
+            const lat = place.geometry.location.lat();
+            const lng = place.geometry.location.lng();
+            const formattedAddress = place.formatted_address || addressInputRef.current?.value || '';
+
+            setFormData((prev) => ({
+              ...prev,
+              address: formattedAddress,
+              latitude: String(lat),
+              longitude: String(lng),
+            }));
+          }
+        });
+        return true;
+      }
+      return false;
+    };
+
+    // Try immediately, or poll/wait if script is still loading asynchronously
+    if (!initAutocomplete()) {
+      const interval = setInterval(() => {
+        if (initAutocomplete()) {
+          clearInterval(interval);
         }
-      });
+      }, 200);
+
+      return () => clearInterval(interval);
     }
   }, []);
 
@@ -160,7 +178,7 @@ export default function SignupPage() {
     setMessage({ type: '', text: '' });
 
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

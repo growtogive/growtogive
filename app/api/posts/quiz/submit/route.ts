@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     if (!userId && session?.user?.email) {
       const dbUser = await prisma.user.findUnique({
         where: { email: session.user.email },
-        select: { id: true },
+        select: { id: true, basicTrainingPassed: true },
       });
       if (dbUser) {
         userId = dbUser.id;
@@ -32,6 +32,12 @@ export async function POST(request: Request) {
     if (!userId) {
       return NextResponse.json({ error: 'User ID could not be resolved from session.' }, { status: 400 });
     }
+
+    // Fetch full user record to check basic training status
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { basicTrainingPassed: true },
+    });
 
     const { quizId, answers } = await request.json();
 
@@ -49,6 +55,19 @@ export async function POST(request: Request) {
 
     if (!quiz) {
       return NextResponse.json({ error: 'Quiz not found.' }, { status: 404 });
+    }
+
+    // --- BASIC TRAINING PREREQUISITE CHECK ---
+    // Determine if this specific quiz is the Basic Training quiz (by title or identifier check)
+    const quizTitleLower = (quiz.post?.title || quiz.id || '').toLowerCase();
+    const isBasicTrainingQuiz = quizTitleLower.includes('basic training') || quizTitleLower.includes('onboarding');
+
+    // If the user has NOT passed basic training, and they are trying to take any OTHER quiz, block them!
+    if (!currentUser?.basicTrainingPassed && !isBasicTrainingQuiz) {
+      return NextResponse.json(
+        { error: 'You must complete and pass the Basic Training quiz before taking other quizzes.' },
+        { status: 403 }
+      );
     }
 
     const questions: QuizQuestion[] = quiz.questions;
@@ -114,6 +133,14 @@ export async function POST(request: Request) {
         create: { quizId, userId, passed: true, score },
       });
 
+      // If this was the Basic Training quiz and they passed, update their basicTrainingPassed status to true!
+      if (isBasicTrainingQuiz) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { basicTrainingPassed: true },
+        });
+      }
+
       // 1. Increment user balance
       await tx.user.update({
         where: { id: userId },
@@ -126,22 +153,20 @@ export async function POST(request: Request) {
         data: { growbucks: { decrement: reward } },
       });
 
-      // 3. Create TWO transaction records:
-      // - Record A: Positive credit for the user earning it (Admin -> User)
-      // - Record B: Outflow/distribution record for the admin ledger
+      // 3. Create transaction records
       await tx.transaction.createMany({
         data: [
           {
             senderId: adminUser.id,
             receiverId: userId,
-            amount: reward, // Positive (+5.00)
+            amount: reward,
             type: 'Activity',
             reason: `Passed Quiz: ${postTitle}`,
           },
           {
             senderId: adminUser.id,
             receiverId: userId,
-            amount: -reward, // Negative (-5.00) for admin ledger tracking
+            amount: -reward,
             type: 'Activity',
             reason: `Distributed reward for Quiz: ${postTitle}`,
           },

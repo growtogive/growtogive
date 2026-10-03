@@ -15,6 +15,11 @@ export async function GET(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    // --- EMAIL VERIFICATION GATE ---
+    if (!user.emailVerified) {
+      return NextResponse.json({ error: 'You must verify your email address to access messages.' }, { status: 403 });
+    }
+
     // Periodic cleanup for commercial listing messages older than 7 days
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     await prisma.message.deleteMany({
@@ -58,14 +63,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const senderEmail = (session.user as any).email;
+    const sender = await prisma.user.findUnique({ where: { email: senderEmail } });
+    if (!sender) return NextResponse.json({ error: 'Sender not found.' }, { status: 404 });
+
+    // --- SECURITY GATES ---
+    if (!sender.emailVerified) {
+      return NextResponse.json({ error: 'You must verify your email address before sending messages.' }, { status: 403 });
+    }
+
+    if (!sender.basicTrainingPassed) {
+      return NextResponse.json(
+        { error: 'You must complete Basic Training before sending private messages.' },
+        { status: 403 }
+      );
+    }
+
     const { listingId, receiverId, content } = await req.json();
     if (!listingId || !receiverId || !content?.trim()) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
     }
-
-    const senderEmail = (session.user as any).email;
-    const sender = await prisma.user.findUnique({ where: { email: senderEmail } });
-    if (!sender) return NextResponse.json({ error: 'Sender not found.' }, { status: 404 });
 
     if (sender.id === receiverId) {
       return NextResponse.json({ error: 'You cannot message yourself.' }, { status: 400 });
@@ -85,8 +102,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // TODO: Setup email client / nodemailer when ready
-
     return NextResponse.json({ success: true, message });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to send message.' }, { status: 500 });
@@ -102,6 +117,11 @@ export async function PUT(req: Request) {
     const userEmail = (session.user as any).email;
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+    // --- EMAIL VERIFICATION GATE ---
+    if (!user.emailVerified) {
+      return NextResponse.json({ error: 'You must verify your email address.' }, { status: 403 });
+    }
 
     await prisma.message.updateMany({
       where: { receiverId: user.id, isRead: false },

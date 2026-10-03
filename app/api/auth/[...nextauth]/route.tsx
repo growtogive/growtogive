@@ -29,11 +29,18 @@ export const authOptions = {
           throw new Error('Incorrect password');
         }
 
+        // Gate: Ensure user has verified their email before allowing login
+        if (!user.emailVerified) {
+          throw new Error('Please confirm your email address before logging in.');
+        }
+
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          basicTrainingPassed: user.basicTrainingPassed,
+          emailVerified: user.emailVerified,
         };
       },
     }),
@@ -47,6 +54,8 @@ export const authOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.basicTrainingPassed = user.basicTrainingPassed;
+        token.emailVerified = user.emailVerified;
       }
       return token;
     },
@@ -54,6 +63,8 @@ export const authOptions = {
       if (token && session.user) {
         session.user.id = token.id || token.sub;
         session.user.role = token.role;
+        session.user.basicTrainingPassed = token.basicTrainingPassed;
+        session.user.emailVerified = token.emailVerified;
       }
       return session;
     },

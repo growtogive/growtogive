@@ -82,7 +82,6 @@ export async function GET(req: Request) {
       let targetLng: number | null = null;
 
       if (isCommercial) {
-        // Commercial listings strictly use their own stored business lat/long
         targetLat = listing.latitude;
         targetLng = listing.longitude;
 
@@ -92,7 +91,6 @@ export async function GET(req: Request) {
           targetLng = coords.lng;
         }
       } else {
-        // Offers and Requests use author coordinates
         targetLat = listing.author?.latitude;
         targetLng = listing.author?.longitude;
 
@@ -134,6 +132,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // --- BASIC TRAINING GATE CHECK ---
+    if (!user.basicTrainingPassed) {
+      return NextResponse.json(
+        { error: 'You must complete Basic Training before creating listings or trading Growbucks.' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const { title, description, type, category, priceInBucks, imageUrl, location, city, latitude, longitude, businessHours } = body;
 
@@ -144,7 +150,6 @@ export async function POST(req: Request) {
     const listingType = type || 'OFFER';
 
     if (listingType === 'COMMERCIAL') {
-      // Strict validation: Commercial listings MUST have a business address, latitude, and longitude
       if (!location || !latitude || !longitude || Number(latitude) === 0 || Number(longitude) === 0) {
         return NextResponse.json(
           { error: 'Commercial listings require a business address with valid latitude and longitude.' },
@@ -165,7 +170,6 @@ export async function POST(req: Request) {
 
     const listingCity = city || user.city || 'Bradenton';
 
-    // Set coordinates based on type
     let listingLat: number;
     let listingLng: number;
 

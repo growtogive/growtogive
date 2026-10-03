@@ -1,3 +1,4 @@
+/// <reference types="@types/google.maps" />
 // app/layout.tsx
 import { Inter } from 'next/font/google';
 import { Suspense } from 'react';
@@ -35,6 +36,13 @@ export default function RootLayout({
             {children}
           </div>
         </Providers>
+
+        {/* Google Maps Places API Script */}
+        <script
+          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
+          async
+          defer
+        />
       </body>
     </html>
   );
