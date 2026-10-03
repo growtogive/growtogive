@@ -28,34 +28,26 @@ export default function MembersPage() {
     try {
       setLoading(true);
       setError('');
-      const res = await fetch('/api/listings');
-      if (!res.ok) throw new Error('Failed to fetch marketplace data');
+      // Fetch directly from users endpoint so ALL registered members show up
+      const res = await fetch('/api/users');
+      if (!res.ok) throw new Error('Failed to fetch members data');
       const data = await res.json();
-      const listings = Array.isArray(data) ? data : (data.listings || []);
+      const users = Array.isArray(data) ? data : (data.users || []);
 
-      // Extract unique authors from listings and pull their actual profile avatar
-      const userMap = new Map();
-      listings.forEach((item: any) => {
-        const authorName = item.authorName || item.author?.name || 'Community Member';
-        const authorId = item.authorId || item.author?.id || authorName.toLowerCase().replace(/\s+/g, '-');
+      // Map users directly from the database record
+      const mappedMembers = users.map((user: any) => ({
+        id: user.id,
+        name: user.name || 'Community Member',
+        city: user.city || '',
+        churchName: user.churchName || user.church || '',
+        createdAt: user.createdAt || Date.now(),
+        distance: user.distance ?? 0,
+        reviews: user.reviews || [],
+        image: user.avatar || user.image || '',
+        bio: user.bio || 'Community participant and member.',
+      }));
 
-        if (!userMap.has(authorId)) {
-          userMap.set(authorId, {
-            id: authorId,
-            name: authorName,
-            city: item.city || item.author?.city || '',
-            churchName: item.churchName || item.author?.churchName || item.author?.church || '',
-            createdAt: item.createdAt || Date.now(),
-            distance: item.distance ?? 0,
-            reviews: item.reviews || [],
-            // Fixed: Prioritize author/user avatar/image over listing imageUrl
-            image: item.author?.avatar || item.author?.image || item.authorAvatar || '',
-            bio: item.author?.bio || 'Community participant and member.',
-          });
-        }
-      });
-
-      setMembers(Array.from(userMap.values()));
+      setMembers(mappedMembers);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to load members.');
