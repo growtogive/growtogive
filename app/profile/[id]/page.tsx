@@ -1,13 +1,26 @@
+// app/users/[id]/page.tsx
 'use client';
 
 import { useState, useEffect, use } from 'react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { data: session } = useSession();
+  const loggedInEmail = (session?.user as any)?.email;
+  const loggedInUserId = (session?.user as any)?.id;
+  const isAdmin = loggedInEmail === 'admin@growtogive.com';
+
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
+
+  // Admin delete modal states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [listingAction, setListingAction] = useState<'unpublish' | 'delete'>('unpublish');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -18,44 +31,58 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const fetchUserData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/listings');
-      if (!res.ok) throw new Error('Failed to fetch marketplace listings');
+      // Fetch user and their listings directly from a dedicated endpoint or filtered listings
+      const res = await fetch(`/api/listings`);
+      if (!res.ok) throw new Error('Failed to fetch listings');
       const data = await res.json();
-      const listings = Array.isArray(data) ? data : (data.listings || []);
+      const allListings = Array.isArray(data) ? data : (data.listings || []);
 
-      // Filter listings belonging to this specific user/author
-      const userListings = listings.filter((item: any) => {
-        const authorId = item.authorId || item.author?.id || (item.author?.name || item.authorName || '').toLowerCase().replace(/\s+/g, '-');
-        return String(authorId) === String(id) || String(item.author?.id) === String(id);
+      // Filter listings for this user
+      const userListings = allListings.filter((item: any) => {
+        const authorId = item.authorId || item.author?.id;
+        const authorSlug = (item.author?.name || item.authorName || '').toLowerCase().replace(/\s+/g, '-');
+        return String(authorId) === String(id) || authorSlug === String(id);
       });
 
-      let foundAuthor = userListings.length > 0 ? (userListings[0].author || { name: userListings[0].authorName }) : null;
+      const foundAuthor = userListings.length > 0 ? userListings[0].author : null;
 
-      if (!foundAuthor) {
-        // Fallback search by slug/name match
-        const matchedItem = listings.find((item: any) => {
-          const authorName = item.authorName || item.author?.name || '';
-          return authorName.toLowerCase().replace(/\s+/g, '-') === id;
-        });
-        if (matchedItem) {
-          foundAuthor = matchedItem.author || { name: matchedItem.authorName };
-        }
-      }
-
-      if (foundAuthor) {
-        setUserProfile({
-          ...foundAuthor,
-          listings: userListings,
-          reviews: foundAuthor.reviews || userListings.flatMap((l: any) => l.reviews || [])
-        });
-      } else {
-        setUserProfile(null);
-      }
+      setUserProfile({
+        id: foundAuthor?.id || id,
+        name: foundAuthor?.name || userListings[0]?.authorName || 'Community Member',
+        churchName: foundAuthor?.churchName || userListings[0]?.churchName || 'Grace Family Church',
+        city: foundAuthor?.city || userListings[0]?.city || 'Bradenton',
+        state: foundAuthor?.state || userListings[0]?.state || 'FL',
+        createdAt: foundAuthor?.createdAt,
+        reviews: foundAuthor?.reviews || userListings.flatMap((l: any) => l.reviews || []),
+      });
+      setListings(userListings);
     } catch (err) {
       console.error(err);
       setUserProfile(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (targetUserId: string) => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/profile?userId=${targetUserId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingAction }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete user');
+
+      alert(data.message);
+      window.location.href = '/marketplace';
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -84,7 +111,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     ? new Date(userProfile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'March 2026';
 
-  const listingsList = userProfile.listings || [];
+  const profileUserId = userProfile.id;
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
@@ -119,10 +146,22 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </div>
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 inline-block mb-2">
-                ⛪ {userProfile.churchName || userProfile.church || 'Grace Family Church'}
+                ⛪ {userProfile.churchName || 'Grace Family Church'}
               </span>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Member since {memberSinceFormatted} • {userProfile.city || 'Bradenton'}, {userProfile.state || 'FL'}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Member since {memberSinceFormatted} | {userProfile.city}, {userProfile.state}</p>
+              
+              {/* Render Delete Button ONLY for admin viewing someone else's profile */}
+              {isAdmin && loggedInUserId !== profileUserId && (
+                <div className="mt-3">
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                  >
+                    Delete User (Admin)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -142,17 +181,17 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="mb-6">
-          <h2 className="text-lg font-bold text-slate-900">Listings by {userProfile.name} ({listingsList.length})</h2>
+          <h2 className="text-lg font-bold text-slate-900">Listings by {userProfile.name} ({listings.length})</h2>
           <p className="text-xs text-slate-500 mt-0.5">Explore offers, requests, and store items posted by this member.</p>
         </div>
 
-        {listingsList.length === 0 ? (
+        {listings.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm text-slate-400 text-sm font-medium">
             This user has no active listings at the moment.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {listingsList.map((item: any) => {
+            {listings.map((item: any) => {
               const createdDate = new Date(item.createdAt || Date.now());
               const expirationDate = new Date(createdDate);
               expirationDate.setDate(expirationDate.getDate() + 14);
@@ -221,6 +260,62 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      {/* Warning Modal Popup */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
+            <h3 className="text-xl font-black text-slate-900">Confirm User Deletion</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This action will wipe all connected records, transfer any remaining GrowBucks balance back to <span className="font-semibold text-slate-900">admin@growtogive.com</span>, and remove the user.
+            </p>
+
+            <div className="space-y-2 pt-2">
+              <label className="text-xs font-bold text-slate-700 block">Listing Action:</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="listingAction"
+                    value="unpublish"
+                    checked={listingAction === 'unpublish'}
+                    onChange={() => setListingAction('unpublish')}
+                  />
+                  Unpublish Listings
+                </label>
+                <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="listingAction"
+                    value="delete"
+                    checked={listingAction === 'delete'}
+                    onChange={() => setListingAction('delete')}
+                  />
+                  Delete Entirely
+                </label>
+              </div>
+            </div>
+
+            <div className="pt-4 flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => handleDeleteUser(profileUserId)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {isDeleting ? 'Processing...' : 'Confirm & Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showReviewsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">

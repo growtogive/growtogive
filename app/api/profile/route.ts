@@ -1,3 +1,4 @@
+// app/api/profile/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -156,21 +157,19 @@ export async function PUT(req: Request) {
       finalLng = coords.lng;
     }
 
-    // Build base update payload
     let updateData: any = {
       name,
       email,
-      city,       // Saved independently
-      state,      // Saved independently
-      churchName, // Saved independently
-      address,    // Saved independently from taxonomy dropdowns
+      city,
+      state,
+      churchName,
+      address,
       latitude: finalLat,
       longitude: finalLng,
       bio,
       avatar,
     };
 
-    // Handle secure password update if newPassword was provided
     if (newPassword && newPassword.trim() !== '') {
       if (newPassword !== confirmPassword) {
         return NextResponse.json({ error: 'New passwords do not match.' }, { status: 400 });
@@ -184,7 +183,6 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'User not found.' }, { status: 404 });
       }
 
-      // If user registered through a provider like OAuth without a local password hash
       if (!dbUser.password || dbUser.password === 'oauth_or_session_user') {
         return NextResponse.json({ error: 'Password changes are not available for social login accounts.' }, { status: 400 });
       }
@@ -194,7 +192,6 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'Incorrect current password.' }, { status: 400 });
       }
 
-      // Hash new password and attach to update payload
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       updateData.password = hashedPassword;
     }
@@ -210,6 +207,87 @@ export async function PUT(req: Request) {
     });
   } catch (error: any) {
     console.error('Profile update error:', error);
+    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
+  }
+}
+
+// DELETE: Admin-only route to delete a user account, handle listings, and return GrowBucks to admin@growtogive.com
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    const adminEmail = (session?.user as any)?.email;
+
+    // Strict security check for admin email
+    if (!session || adminEmail !== 'admin@growtogive.com') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    const url = new URL(req.url);
+    const targetUserId = url.searchParams.get('userId');
+    const body = await req.json().catch(() => ({}));
+    const listingAction = body.listingAction || 'unpublish'; // 'unpublish' or 'delete'
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'Target user ID is required.' }, { status: 400 });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+    }
+
+    if (targetUser.email === 'admin@growtogive.com') {
+      return NextResponse.json({ error: 'Cannot delete the primary admin account.' }, { status: 400 });
+    }
+
+    const adminUser = await prisma.user.findUnique({
+      where: { email: 'admin@growtogive.com' },
+    });
+
+    const targetBalance = Number((targetUser as any).growbucks || 0);
+
+    // Perform atomic transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Transfer GrowBucks balance back to admin
+      if (targetBalance > 0 && adminUser) {
+        await tx.user.update({
+          where: { id: adminUser.id },
+          data: { growbucks: { increment: targetBalance } },
+        });
+      }
+
+      // 2. Handle listings based on choice
+      if (listingAction === 'unpublish') {
+        // Adjust field name depending on your schema (e.g., published: false or status: 'draft')
+        await tx.listing.updateMany({
+          where: { authorId: targetUserId },
+          data: { published: false },
+        });
+      } else if (listingAction === 'delete') {
+        await tx.listing.deleteMany({
+          where: { authorId: targetUserId },
+        });
+      }
+
+      // 3. Clean up related authentication and session records
+      await tx.account.deleteMany({ where: { userId: targetUserId } });
+      await tx.session.deleteMany({ where: { userId: targetUserId } });
+
+      // 4. Finally, delete the user record
+      await tx.user.delete({
+        where: { id: targetUserId },
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `User deleted successfully. Transferred ${targetBalance} GrowBucks to admin@growtogive.com.`,
+    });
+  } catch (error: any) {
+    console.error('Admin delete user error:', error);
     return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
   }
 }
