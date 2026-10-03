@@ -31,31 +31,30 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const fetchUserData = async () => {
     try {
       setLoading(true);
-      // Fetch user and their listings directly from a dedicated endpoint or filtered listings
-      const res = await fetch(`/api/listings`);
-      if (!res.ok) throw new Error('Failed to fetch listings');
+
+      // Fetch profile and listings directly using the correct userId query parameter
+      const res = await fetch(`/api/profile?userId=${id}`);
+      if (!res.ok) throw new Error('Failed to fetch profile');
       const data = await res.json();
-      const allListings = Array.isArray(data) ? data : (data.listings || []);
 
-      // Filter listings for this user
-      const userListings = allListings.filter((item: any) => {
-        const authorId = item.authorId || item.author?.id;
-        const authorSlug = (item.author?.name || item.authorName || '').toLowerCase().replace(/\s+/g, '-');
-        return String(authorId) === String(id) || authorSlug === String(id);
-      });
-
-      const foundAuthor = userListings.length > 0 ? userListings[0].author : null;
+      const foundUser = data.user;
+      if (!foundUser) {
+        setUserProfile(null);
+        setListings([]);
+        return;
+      }
 
       setUserProfile({
-        id: foundAuthor?.id || id,
-        name: foundAuthor?.name || userListings[0]?.authorName || 'Community Member',
-        churchName: foundAuthor?.churchName || userListings[0]?.churchName || 'Grace Family Church',
-        city: foundAuthor?.city || userListings[0]?.city || 'Bradenton',
-        state: foundAuthor?.state || userListings[0]?.state || 'FL',
-        createdAt: foundAuthor?.createdAt,
-        reviews: foundAuthor?.reviews || userListings.flatMap((l: any) => l.reviews || []),
+        id: foundUser.id,
+        name: foundUser.name || 'Community Member',
+        churchName: foundUser.churchName || 'Grace Family Church',
+        city: foundUser.city || 'Bradenton',
+        state: foundUser.state || 'FL',
+        image: foundUser.avatar || null, // Mapped to Prisma's 'avatar' column
+        createdAt: foundUser.createdAt,
+        reviews: foundUser.reviews || [],
       });
-      setListings(userListings);
+      setListings(data.listings || []);
     } catch (err) {
       console.error(err);
       setUserProfile(null);
@@ -120,10 +119,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         {/* Marketplace Title Row Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="space-y-0.5">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
-              User Profile
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+              Profile
             </h1>
-            <h2 className="text-sm sm:text-base font-medium text-gray-500">
+            <h2 className="text-sm sm:text-base font-medium text-slate-500">
               Member details and active listings portfolio
             </h2>
           </div>
@@ -141,8 +140,12 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
         <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 mb-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-xl bg-emerald-100 text-emerald-800 font-black text-2xl flex items-center justify-center border border-emerald-200 shrink-0 shadow-inner">
-              {userProfile.name ? userProfile.name.charAt(0) : 'U'}
+            <div className="w-20 h-20 rounded-xl bg-emerald-100 text-emerald-800 font-black text-2xl flex items-center justify-center border border-emerald-200 shrink-0 shadow-inner overflow-hidden">
+              {userProfile.image ? (
+                <img src={userProfile.image} alt={userProfile.name} className="w-full h-full object-cover" />
+              ) : (
+                userProfile.name ? userProfile.name.charAt(0) : 'U'
+              )}
             </div>
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 inline-block mb-2">
@@ -151,7 +154,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
               <p className="text-xs text-slate-500 mt-0.5">Member since {memberSinceFormatted} | {userProfile.city}, {userProfile.state}</p>
               
-              {/* Render Delete Button ONLY for admin viewing someone else's profile */}
               {isAdmin && loggedInUserId !== profileUserId && (
                 <div className="mt-3">
                   <button
@@ -207,7 +209,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   <Link href={`/listings/${item.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       <img
-                        src={item.imageUrl || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                        src={item.imageUrl || item.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e: any) => { 

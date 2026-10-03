@@ -1,3 +1,4 @@
+// app/api/profile/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -15,8 +16,8 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   return { lat: 27.5000, lng: -82.5500 };
 }
 
-// GET: Fetch current user profile details, Growbucks balance, transaction history, and listings
-export async function GET() {
+// GET: Fetch user profile details by optional userId query param, or fallback to current session user
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -24,8 +25,16 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get('userId');
+
+    let queryCondition = { email: session.user.email };
+    if (userId) {
+      queryCondition = { id: userId } as any;
+    }
+
     let user = await (prisma as any).user.findUnique({
-      where: { email: session.user.email },
+      where: queryCondition,
       select: {
         id: true,
         name: true,
@@ -38,8 +47,9 @@ export async function GET() {
         latitude: true,
         longitude: true,
         bio: true,
-        avatar: true,
+        avatar: true, // Prisma column for profile images
         growbucks: true,
+        createdAt: true,
         sentTx: {
           include: {
             sender: { select: { name: true, email: true } },
@@ -56,6 +66,10 @@ export async function GET() {
         },
       },
     });
+
+    if (!user && userId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     if (!user) {
       const defaultCity = 'Bradenton';
@@ -87,20 +101,7 @@ export async function GET() {
           bio: true,
           avatar: true,
           growbucks: true,
-          sentTx: {
-            include: {
-              sender: { select: { name: true, email: true } },
-              receiver: { select: { name: true, email: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-          receivedTx: {
-            include: {
-              sender: { select: { name: true, email: true } },
-              receiver: { select: { name: true, email: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-          },
+          createdAt: true,
         },
       });
     }
@@ -156,21 +157,19 @@ export async function PUT(req: Request) {
       finalLng = coords.lng;
     }
 
-    // Build base update payload
     let updateData: any = {
       name,
       email,
-      city,       // Saved independently
-      state,      // Saved independently
-      churchName, // Saved independently
-      address,    // Saved independently from taxonomy dropdowns
+      city,
+      state,
+      churchName,
+      address,
       latitude: finalLat,
       longitude: finalLng,
       bio,
       avatar,
     };
 
-    // Handle secure password update if newPassword was provided
     if (newPassword && newPassword.trim() !== '') {
       if (newPassword !== confirmPassword) {
         return NextResponse.json({ error: 'New passwords do not match.' }, { status: 400 });
@@ -184,7 +183,6 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'User not found.' }, { status: 404 });
       }
 
-      // If user registered through a provider like OAuth without a local password hash
       if (!dbUser.password || dbUser.password === 'oauth_or_session_user') {
         return NextResponse.json({ error: 'Password changes are not available for social login accounts.' }, { status: 400 });
       }
@@ -194,7 +192,6 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'Incorrect current password.' }, { status: 400 });
       }
 
-      // Hash new password and attach to update payload
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       updateData.password = hashedPassword;
     }
