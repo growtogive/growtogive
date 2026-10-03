@@ -154,26 +154,12 @@ export default function MarketplacePage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
-              DIRECTORY & MARKETPLACE
+              MARKETPLACE
             </h1>
             <h2 className="text-sm sm:text-base font-medium text-gray-500">
               for Church Members and Friends • Trade with GROWBUCKS not your bucks!
             </h2>
           </div>
-
-          <Link
-            href="/members"
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-bold transition-all shadow-xs ${
-              pathname?.startsWith('/members') 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <svg className={`w-4 h-4 shrink-0 ${pathname?.startsWith('/members') ? 'text-white' : 'text-blue-600'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-            <span>Members</span>
-          </Link>
         </div>
 
         {/* Control Bar */}

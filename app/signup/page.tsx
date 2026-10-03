@@ -212,7 +212,7 @@ export default function SignupPage() {
               SIGN UP FOR FREE
             </h1>
             <div className="text-sm sm:text-base font-medium text-gray-500 space-y-0.5">
-              <p>CONNECT WITH FRIENDS AND BUSINESSES IN YOUR CITY AND CHURCH.</p>
+              <p>TRADE WITH FRIENDS AND BUSINESSES IN YOUR CITY AND CHURCH.</p>
               <p>TRADE WITH GROWBUCKS NOT YOUR BUCKS!</p>
             </div>
           </div>

@@ -32,7 +32,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     try {
       setLoading(true);
 
-      // Fetch profile and listings directly using the correct userId query parameter
       const res = await fetch(`/api/profile?userId=${id}`);
       if (!res.ok) throw new Error('Failed to fetch profile');
       const data = await res.json();
@@ -44,17 +43,27 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         return;
       }
 
+      const userListings = data.listings || [];
+
+      // Combine author direct reviews + commercial listing reviews
+      const directReviews = foundUser.reviews || [];
+      const commercialReviews = userListings
+        .filter((item: any) => (item.type || '').toUpperCase() === 'COMMERCIAL')
+        .flatMap((item: any) => item.reviews || []);
+
+      const combinedReviews = [...directReviews, ...commercialReviews];
+
       setUserProfile({
         id: foundUser.id,
         name: foundUser.name || 'Community Member',
         churchName: foundUser.churchName || 'Grace Family Church',
         city: foundUser.city || 'Bradenton',
         state: foundUser.state || 'FL',
-        image: foundUser.avatar || null, // Mapped to Prisma's 'avatar' column
+        image: foundUser.avatar || null,
         createdAt: foundUser.createdAt,
-        reviews: foundUser.reviews || [],
+        reviews: combinedReviews,
       });
-      setListings(data.listings || []);
+      setListings(userListings);
     } catch (err) {
       console.error(err);
       setUserProfile(null);
@@ -229,7 +238,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                           {item.title}
                         </h3>
                         <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium mt-1 pb-2.5 border-b border-slate-100">
-                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝️</span>
+                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝</span>
                           <span>{displayCity} &gt; {displayChurch}</span>
                         </div>
                       </div>

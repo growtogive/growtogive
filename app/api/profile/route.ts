@@ -5,7 +5,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 
-// Precise regional coordinates helper for Florida cities fallback
 function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   const city = (cityName || '').toLowerCase();
   if (city.includes('bradenton')) return { lat: 27.4989, lng: -82.5748 };
@@ -16,7 +15,6 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
   return { lat: 27.5000, lng: -82.5500 };
 }
 
-// GET: Fetch user profile details by optional userId query param, or fallback to current session user
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -47,9 +45,10 @@ export async function GET(req: Request) {
         latitude: true,
         longitude: true,
         bio: true,
-        avatar: true, // Prisma column for profile images
+        avatar: true,
         growbucks: true,
         createdAt: true,
+        reviews: true, // <--- ADDED: Explicitly includes author reviews relation
         sentTx: {
           include: {
             sender: { select: { name: true, email: true } },
@@ -102,12 +101,16 @@ export async function GET(req: Request) {
           avatar: true,
           growbucks: true,
           createdAt: true,
+          reviews: true,
         },
       });
     }
 
     const listings = await prisma.listing.findMany({
       where: { authorId: user.id },
+      include: {
+        reviews: true, // <--- ADDED: Include listing reviews so commercial reviews follow the listing properly
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -118,7 +121,6 @@ export async function GET(req: Request) {
   }
 }
 
-// PUT: Update all user profile fields independently, along with optional password update verification
 export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
