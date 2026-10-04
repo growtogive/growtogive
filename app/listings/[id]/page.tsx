@@ -1,3 +1,4 @@
+// app/listings/[id]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -43,7 +44,6 @@ export default function ListingDetailPage() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [otherListings, setOtherListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeReviewsItem, setActiveReviewsItem] = useState<any>(null);
   const [error, setError] = useState('');
 
   // Active Image Index for Gallery Viewer
@@ -61,7 +61,7 @@ export default function ListingDetailPage() {
   const [upgradeError, setUpgradeError] = useState('');
   const [upgradeSuccess, setUpgradeSuccess] = useState('');
 
-  // Transfer Modal States (Fixed transferAmount to start as empty string '')
+  // Transfer Modal States
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferAmount, setTransferAmount] = useState<string>('');
   const [transferring, setTransferring] = useState(false);
@@ -111,11 +111,12 @@ export default function ListingDetailPage() {
   useEffect(() => {
     if (!mapLoaded || !listing) return;
 
-    const lat = listing.latitude || listing.author?.latitude;
-    const lng = listing.longitude || listing.author?.longitude;
+    const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
+    // Commercial listings use their own lat/lng; offers/requests can fallback to author
+    const lat = isCommercial ? listing.latitude : (listing.latitude || listing.author?.latitude);
+    const lng = isCommercial ? listing.longitude : (listing.longitude || listing.author?.longitude);
 
     if (lat && lng) {
-      const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
       let pinLat = Number(lat);
       let pinLng = Number(lng);
 
@@ -360,9 +361,11 @@ export default function ListingDetailPage() {
   const expDate = new Date(listing.expiresAt || createdDate);
   const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+  // Use listing's own distance if commercial, otherwise fallback or default
   const displayDistance = `${listing.distance !== undefined && listing.distance !== null ? listing.distance : 0} mi`;
   const priceDisplay = !isCommercial ? `GB: ${Number(listing.priceInBucks || 0).toFixed(2)}` : null;
-  const hasCoords = Boolean(listing.latitude || listing.author?.latitude);
+  // Check listing's own coordinates if commercial
+  const hasCoords = isCommercial ? Boolean(listing.latitude && listing.longitude) : Boolean(listing.latitude || listing.author?.latitude);
 
   const storefrontAddress = listing.location || '';
   const googleMapsSearchUrl = storefrontAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storefrontAddress)}` : '#';
@@ -570,6 +573,36 @@ export default function ListingDetailPage() {
                 {listing.description}
               </p>
             </div>
+
+            {/* Commercial Business Contact Info (Phone & Website) */}
+            {isCommercial && (listing.businessPhone || listing.websiteUrl) && (
+              <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-3">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800">Business Contact</h2>
+                <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-slate-800">
+                  {listing.businessPhone && (
+                    <div className="flex items-center gap-2">
+                      <span>📞</span>
+                      <a href={`tel:${listing.businessPhone}`} className="text-blue-600 hover:underline font-bold">
+                        {listing.businessPhone}
+                      </a>
+                    </div>
+                  )}
+                  {listing.websiteUrl && (
+                    <div className="flex items-center gap-2">
+                      <span>🌐</span>
+                      <a
+                        href={listing.websiteUrl.startsWith('http') ? listing.websiteUrl : `https://${listing.websiteUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline font-bold"
+                      >
+                        {listing.websiteUrl} ↗
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {isCommercial && listing.videoUrl && (
               <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-2">

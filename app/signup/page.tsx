@@ -4,6 +4,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+function formatPhoneNumber(value: string): string {
+  const cleaned = value.replace(/\D/g, '').substring(0, 10);
+  const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+  if (!match) return value;
+  if (!match[2]) return match[1] ? `(${match[1]}` : '';
+  if (!match[3]) return `(${match[1]}) ${match[2]}`;
+  return `(${match[1]}) ${match[2]}-${match[3]}`;
+}
+
 export default function SignupPage() {
   const router = useRouter();
 
@@ -11,6 +20,7 @@ export default function SignupPage() {
     name: '',
     email: '',
     password: '',
+    userPhone: '',
     address: '',
     latitude: '',
     longitude: '',
@@ -95,7 +105,12 @@ export default function SignupPage() {
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'userPhone') {
+      setFormData({ ...formData, [name]: formatPhoneNumber(value) });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   const handleCitySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -174,6 +189,12 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (formData.userPhone && formData.userPhone.replace(/\D/g, '').length < 10) {
+      setMessage({ type: 'error', text: 'Please enter a valid 10-digit phone number.' });
+      return;
+    }
+
     setLoading(true);
     setMessage({ type: '', text: '' });
 
@@ -328,6 +349,20 @@ export default function SignupPage() {
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Password</label>
               <input type="password" name="password" value={formData.password} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Phone Number *</label>
+              <input
+                type="tel"
+                name="userPhone"
+                required
+                maxLength={14}
+                value={formData.userPhone}
+                onChange={handleChange}
+                placeholder="(555) 000-0000"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
             </div>
 
             {/* Location / Address with Helper Description */}

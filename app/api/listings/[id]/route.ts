@@ -183,6 +183,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         latitude: targetType === 'COMMERCIAL' ? newLat : null,
         longitude: targetType === 'COMMERCIAL' ? newLng : null,
         businessHours: targetType === 'COMMERCIAL' ? (businessHours ?? listing.businessHours) : null,
+        businessPhone: body.businessPhone,
+        websiteUrl: body.websiteUrl,
       },
     });
 

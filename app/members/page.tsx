@@ -1,3 +1,4 @@
+// app/members/page.tsx
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -28,13 +29,11 @@ export default function MembersPage() {
     try {
       setLoading(true);
       setError('');
-      // Fetch directly from users endpoint so ALL registered members show up
       const res = await fetch('/api/users');
       if (!res.ok) throw new Error('Failed to fetch members data');
       const data = await res.json();
       const users = Array.isArray(data) ? data : (data.users || []);
 
-      // Map users directly from the database record
       const mappedMembers = users.map((user: any) => ({
         id: user.id,
         name: user.name || 'Community Member',
@@ -123,7 +122,7 @@ export default function MembersPage() {
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6">
         
-        {/* Gray Header & Subheading with Marketplace Button on Far Right */}
+        {/* Header & Marketplace Button */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
@@ -134,7 +133,6 @@ export default function MembersPage() {
             </h2>
           </div>
 
-          {/* Marketplace Button on far right end of title row */}
           <Link
             href="/marketplace"
             className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-bold transition-all shadow-xs ${
@@ -150,7 +148,7 @@ export default function MembersPage() {
           </Link>
         </div>
 
-        {/* Control Bar with 15px top/bottom padding & 2px Gray Underline */}
+        {/* Control Bar */}
         <div className="bg-white px-3 pt-[15px] pb-[15px] border-b-[2px] border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             <input
@@ -243,6 +241,7 @@ export default function MembersPage() {
 
               return (
                 <div key={user.id} className="bg-white rounded-xl border-2 border-slate-300 overflow-hidden shadow-xs flex flex-col justify-between hover:border-slate-400 transition-all group">
+                  {/* Updated link destination to point to public user profile route /users/[id] */}
                   <Link href={`/profile/${user.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       {user.image ? (

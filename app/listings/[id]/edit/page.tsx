@@ -28,6 +28,15 @@ function formatListingTitle(title: string): string {
     .join(' ');
 }
 
+function formatPhoneNumber(value: string): string {
+  const cleaned = value.replace(/\D/g, '').substring(0, 10);
+  const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+  if (!match) return value;
+  if (!match[2]) return match[1] ? `(${match[1]}` : '';
+  if (!match[3]) return `(${match[1]}) ${match[2]}`;
+  return `(${match[1]}) ${match[2]}-${match[3]}`;
+}
+
 export default function EditListingPage() {
   const router = useRouter();
   const params = useParams();
@@ -44,6 +53,8 @@ export default function EditListingPage() {
     isFeatured: false,
     location: '',
     businessHours: '',
+    businessPhone: '',
+    websiteUrl: '',
     latitude: 27.4989,
     longitude: -82.5648,
   });
@@ -138,6 +149,8 @@ export default function EditListingPage() {
         isFeatured: Boolean(listing.isFeatured),
         location: listing.location || '',
         businessHours: listing.businessHours || '',
+        businessPhone: listing.businessPhone ? formatPhoneNumber(listing.businessPhone) : '',
+        websiteUrl: listing.websiteUrl || '',
         latitude: listing.latitude ?? 27.4989,
         longitude: listing.longitude ?? -82.5648,
       });
@@ -178,7 +191,11 @@ export default function EditListingPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    if (name === 'businessPhone') {
+      setFormData({ ...formData, [name]: formatPhoneNumber(value) });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   const handleTitleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -264,6 +281,10 @@ export default function EditListingPage() {
         setError('Business hours are required for Commercial listings.');
         return;
       }
+      if (!formData.businessPhone || formData.businessPhone.replace(/\D/g, '').length < 10) {
+        setError('A valid 10-digit business phone number is required for Commercial listings.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -278,6 +299,8 @@ export default function EditListingPage() {
           ...formData,
           title: formattedTitle,
           priceInBucks: formData.type === 'COMMERCIAL' ? 0 : (parseFloat(formData.priceInBucks) || 0),
+          businessPhone: formData.type === 'COMMERCIAL' ? formData.businessPhone : null,
+          websiteUrl: formData.type === 'COMMERCIAL' ? formData.websiteUrl : null,
         }),
       });
 
@@ -427,6 +450,32 @@ export default function EditListingPage() {
                   onChange={handleChange}
                   className="w-full px-4 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                   placeholder="e.g. Mon-Fri 9am - 5pm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Business Phone Number *</label>
+                <input
+                  type="tel"
+                  name="businessPhone"
+                  required
+                  maxLength={14}
+                  value={formData.businessPhone}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  placeholder="(555) 000-0000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Website URL (Optional)</label>
+                <input
+                  type="url"
+                  name="websiteUrl"
+                  value={formData.websiteUrl}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  placeholder="https://example.com"
                 />
               </div>
             </div>

@@ -76,7 +76,7 @@ export async function GET(req: Request) {
     });
 
     const enrichedListings = listings.map((listing) => {
-      const isCommercial = listing.type === 'COMMERCIAL';
+      const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
       
       let targetLat: number | null = null;
       let targetLng: number | null = null;
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, description, type, category, priceInBucks, imageUrl, location, city, latitude, longitude, businessHours } = body;
+    const { title, description, type, category, priceInBucks, imageUrl, location, city, latitude, longitude, businessHours, businessPhone, websiteUrl } = body;
 
     if (!title || !description) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
@@ -194,6 +194,8 @@ export async function POST(req: Request) {
         latitude: listingLat,
         longitude: listingLng,
         businessHours: businessHours || null,
+        businessPhone: businessPhone || null,
+        websiteUrl: websiteUrl || null,
         authorId: user.id,
       },
     });
