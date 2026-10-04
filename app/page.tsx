@@ -44,15 +44,16 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium">
+      <div className="min-h-[60vh] bg-slate-50 flex items-center justify-center text-slate-500 font-medium">
         Loading GrowToGive...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16 pt-8">
-      <main className="max-w-6xl mx-auto px-4">
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] justify-between">
+      {/* Homepage Main Content */}
+      <main className="max-w-6xl mx-auto px-4 py-8 w-full flex-grow">
         {posts.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-3xl p-16 text-center text-slate-400 text-sm font-medium shadow-xs">
             No posts available right now. {status === 'authenticated' && isAdmin && 'Use the "+ New" button on any post card to create one!'}
@@ -87,7 +88,6 @@ export default function HomePage() {
                       </span>
                     </div>
 
-                    {/* Admin-Only Card Action Bar (New, Edit, Delete) */}
                     {status === 'authenticated' && isAdmin && (
                       <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
                         <Link
@@ -134,6 +134,37 @@ export default function HomePage() {
           </div>
         )}
       </main>
+
+      {/* Footer - Homepage Only (Reduced height, no directory link, 2012-Present) */}
+      <footer className="bg-slate-900 text-slate-300 py-6 border-t border-slate-800 mt-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-center md:text-left">
+            <span className="text-white font-bold text-lg tracking-wider">GTG</span>
+            <p className="text-[10px] text-emerald-400 font-semibold tracking-widest uppercase mt-0.5">
+              GROWING OURSELVES, GIVING TO OTHERS
+            </p>
+          </div>
+
+          <nav className="flex flex-wrap justify-center gap-6 text-sm font-medium">
+            <Link href="/" className="hover:text-emerald-400 transition-colors">
+              Home
+            </Link>
+            <Link href="/about" className="hover:text-emerald-400 transition-colors">
+              About
+            </Link>
+            <Link href="/marketplace" className="hover:text-emerald-400 transition-colors">
+              Marketplace
+            </Link>
+            <Link href="/contact" className="hover:text-emerald-400 transition-colors">
+              Contact
+            </Link>
+          </nav>
+
+          <div className="text-xs text-slate-500 text-center md:text-right">
+            <p>&copy; 2012-Present GTG (GrowToGive). All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
