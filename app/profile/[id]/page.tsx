@@ -81,10 +81,17 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         body: JSON.stringify({ listingAction }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to delete user');
+      // Safely parse JSON if content-type matches, avoiding empty body crashes
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      if (contentType && contentType.includes("application/json")) {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      }
 
-      alert(data.message);
+      if (!res.ok) throw new Error(data.error || data.message || 'Failed to delete user');
+
+      alert(data.message || 'User deleted successfully');
       window.location.href = '/marketplace';
     } catch (err: any) {
       alert(err.message);

@@ -19,6 +19,7 @@ model User {
   address          String?
   latitude         Float?
   longitude        Float?
+  userPhone        String?
   bio              String?
   avatar           String?
   growbucks        Float           @default(0.00)
@@ -57,15 +58,13 @@ model Listing {
   city          String?
   latitude      Float?
   longitude     Float?
-
+  businessPhone String?
+  websiteUrl    String?
   businessHours String?
-
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
   authorId      String
   author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  
   reviews       Review[]
   messages      Message[]
 }
@@ -76,13 +75,10 @@ model Review {
   comment      String
   reply        String?
   createdAt    DateTime @default(now())
-  
   authorId     String
   author       User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
-  
   targetUserId String
   targetUser   User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
-  
   listingId    String?
   listing      Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
 }
@@ -94,11 +90,9 @@ model Transaction {
   amount      Float    
   commission  Float?   
   netAmount   Float?   
-  type        String   @default("TRANSFER") 
-  
+  type        String   @default("TRANSFER")
   senderId    String?
-  sender      User?    @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade)
-  
+  sender      User?    @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade) 
   receiverId  String
   receiver    User     @relation("ReceivedTransactions", fields: [receiverId], references: [id], onDelete: Cascade)
 }

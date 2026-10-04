@@ -48,7 +48,7 @@ export async function GET(req: Request) {
         avatar: true,
         growbucks: true,
         createdAt: true,
-        reviews: true, // <--- ADDED: Explicitly includes author reviews relation
+        reviews: true, 
         sentTx: {
           include: {
             sender: { select: { name: true, email: true } },
@@ -109,7 +109,7 @@ export async function GET(req: Request) {
     const listings = await prisma.listing.findMany({
       where: { authorId: user.id },
       include: {
-        reviews: true, // <--- ADDED: Include listing reviews so commercial reviews follow the listing properly
+        reviews: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -210,5 +210,64 @@ export async function PUT(req: Request) {
   } catch (error: any) {
     console.error('Profile update error:', error);
     return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    const sessionUser = session?.user as any;
+
+    if (!sessionUser || sessionUser.email !== 'admin@growtogive.com') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const targetUserId = searchParams.get('userId');
+    const body = await req.json().catch(() => ({}));
+    const listingAction = body.listingAction || 'unpublish';
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'Target user ID is required' }, { status: 400 });
+    }
+
+    const targetUser = await (prisma as any).user.findUnique({ where: { id: targetUserId } });
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
+    }
+
+    if (targetUser.email === 'admin@growtogive.com') {
+      return NextResponse.json({ error: 'Cannot delete the admin user' }, { status: 400 });
+    }
+
+    const adminUser = await (prisma as any).user.findUnique({
+      where: { email: 'admin@growtogive.com' },
+    });
+
+    await prisma.$transaction(async (tx: any) => {
+      // Transfer GrowBucks back to admin if applicable
+      if (adminUser && targetUser.growbucks > 0) {
+        await tx.user.update({
+          where: { id: adminUser.id },
+          data: { growbucks: { increment: targetUser.growbucks } },
+        });
+      }
+
+      // Handle listing action (delete user's listings)
+      await tx.listing.deleteMany({ where: { authorId: targetUserId } });
+
+      // Delete target user
+      await tx.user.delete({
+        where: { id: targetUserId },
+      });
+    });
+
+    return NextResponse.json(
+      { success: true, message: 'User deleted successfully and records updated.' },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error('Delete user error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to delete user' }, { status: 500 });
   }
 }
