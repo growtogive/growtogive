@@ -81,7 +81,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         body: JSON.stringify({ listingAction }),
       });
 
-      // Safely parse JSON if content-type matches, avoiding empty body crashes
       const contentType = res.headers.get("content-type");
       let data: any = {};
       if (contentType && contentType.includes("application/json")) {
@@ -163,15 +162,24 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 userProfile.name ? userProfile.name.charAt(0) : 'U'
               )}
             </div>
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 inline-block mb-2">
-                ⛪ {userProfile.churchName || 'Grace Family Church'}
-              </span>
+            <div className="space-y-1">
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Member since {memberSinceFormatted} | {userProfile.city}, {userProfile.state}</p>
+              <p className="text-xs text-slate-500">Member since {memberSinceFormatted}</p>
+              
+              {/* City and Church Badges */}
+              <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                <span className="bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700 rounded-md">
+                  📍 {userProfile.city}, {userProfile.state}
+                </span>
+                {userProfile.churchName && (
+                  <span className="bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 rounded-md">
+                    ⛪ {userProfile.churchName}
+                  </span>
+                )}
+              </div>
               
               {isAdmin && loggedInUserId !== profileUserId && (
-                <div className="mt-3">
+                <div className="pt-2">
                   <button
                     onClick={() => setShowDeleteModal(true)}
                     className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"

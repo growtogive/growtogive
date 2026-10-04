@@ -11,6 +11,8 @@ export async function POST(req: Request) {
       name, 
       email, 
       password, 
+      userPhone, // Added userPhone
+      address,   // Added address
       city, 
       state, 
       churchName, 
@@ -29,9 +31,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !userPhone || !address || !city || !bio) {
       return NextResponse.json(
-        { error: 'Name, email, and password are required.' },
+        { error: 'Please fill out all required fields.' },
         { status: 400 }
       );
     }
@@ -50,16 +52,18 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with all profile attributes and geolocation coordinates
+    // Create user with all profile attributes, phone, address, and geolocation coordinates
     const newUser = await prisma.user.create({
       data: {
         name,
         email: email.toLowerCase().trim(),
         password: hashedPassword,
+        userPhone, // Saved to database
+        address,   // Saved to database
         role: 'subscriber',
         city: city || 'Bradenton',
         state: state || 'FL',
-        churchName: churchName || 'Grace Family Church',
+        churchName: churchName || null,
         latitude: latitude ? parseFloat(latitude) : 27.4989,
         longitude: longitude ? parseFloat(longitude) : -82.5648,
         bio: bio || null,
@@ -69,7 +73,7 @@ export async function POST(req: Request) {
 
     // --- REFERRAL SIGNUP BONUS PROCESSING (GB 50.00) ---
     try {
-      const cookieStore = await cookies(); // Fixed: Added await for Next.js async cookies
+      const cookieStore = await cookies();
       const referrerId = cookieStore.get('growtogive_ref')?.value;
 
       if (referrerId && referrerId !== newUser.id) {
@@ -107,6 +111,6 @@ export async function POST(req: Request) {
     );
   } catch (error: any) {
     console.error('Registration error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

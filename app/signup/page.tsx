@@ -45,6 +45,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [isAddressValid, setIsAddressValid] = useState(false);
 
   const addressInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +61,7 @@ export default function SignupPage() {
       });
   }, []);
 
-  // 2. Initialize Google Places Autocomplete safely (handles async script loading)
+  // 2. Initialize Google Places Autocomplete strictly
   useEffect(() => {
     let autocompleteInstance: google.maps.places.Autocomplete | null = null;
 
@@ -85,6 +86,10 @@ export default function SignupPage() {
               latitude: String(lat),
               longitude: String(lng),
             }));
+            setIsAddressValid(true);
+            setMessage({ type: '', text: '' });
+          } else {
+            setIsAddressValid(false);
           }
         });
         return true;
@@ -92,7 +97,6 @@ export default function SignupPage() {
       return false;
     };
 
-    // Try immediately, or poll/wait if script is still loading asynchronously
     if (!initAutocomplete()) {
       const interval = setInterval(() => {
         if (initAutocomplete()) {
@@ -107,9 +111,14 @@ export default function SignupPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'userPhone') {
-      setFormData({ ...formData, [name]: formatPhoneNumber(value) });
+      setFormData((prev) => ({ ...prev, [name]: formatPhoneNumber(value) }));
     } else {
-      setFormData({ ...formData, [name]: value });
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+
+    if (name === 'address') {
+      setIsAddressValid(false);
+      setFormData((prev) => ({ ...prev, latitude: '', longitude: '' }));
     }
   };
 
@@ -157,7 +166,6 @@ export default function SignupPage() {
     setIsAddingChurch(false);
   };
 
-  // Device file upload handler for avatar
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -195,6 +203,25 @@ export default function SignupPage() {
       return;
     }
 
+    if (!formData.city.trim()) {
+      setMessage({ type: 'error', text: 'Please select a city and state.' });
+      return;
+    }
+
+    if (!formData.bio.trim()) {
+      setMessage({ type: 'error', text: 'Please fill out the Description / Bio field.' });
+      return;
+    }
+
+    if (!isAddressValid || !formData.latitude || !formData.longitude) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Please select your valid street address from the Google Maps dropdown suggestions.' 
+      });
+      addressInputRef.current?.focus();
+      return;
+    }
+
     setLoading(true);
     setMessage({ type: '', text: '' });
 
@@ -225,8 +252,6 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6 max-w-xl mx-auto">
-        
-        {/* Gray Header & Subheading matching Marketplace & Members pages */}
         <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
@@ -246,73 +271,6 @@ export default function SignupPage() {
           </Link>
         </div>
 
-        {/* Custom Vector Storefront Banner */}
-        <div className="w-full h-56 rounded-xl overflow-hidden shadow-sm border border-slate-200 relative my-4 bg-slate-900 flex flex-col items-center justify-between p-4">
-          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 800 300" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="800" height="300" fill="#0f172a" />
-            <rect x="50" y="80" width="700" height="220" fill="#1e293b" rx="8" />
-            
-            <rect x="80" y="120" width="300" height="180" fill="#334155" opacity="0.4" rx="4" />
-            <rect x="420" y="120" width="300" height="180" fill="#334155" opacity="0.4" rx="4" />
-
-            <path d="M40 80 L760 80 L740 40 L60 40 Z" fill="#2563eb" />
-            <path d="M120 80 L140 40 M200 80 L220 40 M280 80 L300 40 M360 80 L380 40 M440 80 L460 40 M520 80 L540 40 M600 80 L620 40 M680 80 L700 40" stroke="#1d4ed8" strokeWidth="4" />
-
-            <rect x="250" y="15" width="300" height="35" fill="#f8fafc" rx="4" />
-            <text x="400" y="38" fontFamily="sans-serif" fontSize="20" fontWeight="bold" fill="#0f172a" textAnchor="middle">GrowToGive</text>
-
-            <rect x="270" y="90" width="260" height="30" fill="none" stroke="#38bdf8" strokeWidth="2" rx="6" />
-            <text x="400" y="111" fontFamily="sans-serif" fontSize="13" fontWeight="bold" fill="#38bdf8" textAnchor="middle" letterSpacing="1">GROWBUCKS ACCEPTED HERE</text>
-
-            <rect x="520" y="220" width="200" height="80" fill="#475569" rx="2" />
-
-            {/* Cashier */}
-            <circle cx="640" cy="190" r="10" fill="#854d0e" />
-            <line x1="640" y1="200" x2="640" y2="235" stroke="#854d0e" strokeWidth="3.5" />
-            <line x1="640" y1="210" x2="615" y2="225" stroke="#854d0e" strokeWidth="3" />
-            <line x1="640" y1="235" x2="630" y2="275" stroke="#854d0e" strokeWidth="3.5" />
-            <line x1="640" y1="235" x2="650" y2="275" stroke="#854d0e" strokeWidth="3.5" />
-
-            {/* Customer at counter */}
-            <circle cx="560" cy="190" r="10" fill="#1c1917" />
-            <line x1="560" y1="200" x2="560" y2="235" stroke="#1c1917" strokeWidth="3.5" />
-            <line x1="560" y1="210" x2="590" y2="220" stroke="#1c1917" strokeWidth="3" />
-            <line x1="560" y1="235" x2="550" y2="275" stroke="#1c1917" strokeWidth="3.5" />
-            <line x1="560" y1="235" x2="570" y2="275" stroke="#1c1917" strokeWidth="3.5" />
-
-            {/* GB Bill Pair 1 */}
-            <rect x="585" y="210" width="38" height="22" fill="#22c55e" rx="3" stroke="#15803d" strokeWidth="1" />
-            <text x="604" y="225" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#ffffff" textAnchor="middle">GB</text>
-
-            {/* Customer in line */}
-            <circle cx="360" cy="190" r="10" fill="#f8fafc" />
-            <line x1="360" y1="200" x2="360" y2="240" stroke="#f8fafc" strokeWidth="3.5" />
-            <line x1="360" y1="215" x2="335" y2="225" stroke="#f8fafc" strokeWidth="3" />
-            <line x1="360" y1="240" x2="350" y2="280" stroke="#f8fafc" strokeWidth="3.5" />
-            <line x1="360" y1="240" x2="370" y2="280" stroke="#f8fafc" strokeWidth="3.5" />
-
-            {/* Partner exchanging GB bill */}
-            <circle cx="280" cy="190" r="10" fill="#facc15" />
-            <line x1="280" y1="200" x2="280" y2="240" stroke="#facc15" strokeWidth="3.5" />
-            <line x1="280" y1="215" x2="310" y2="225" stroke="#facc15" strokeWidth="3" />
-            <line x1="280" y1="240" x2="270" y2="280" stroke="#facc15" strokeWidth="3.5" />
-            <line x1="280" y1="240" x2="290" y2="280" stroke="#facc15" strokeWidth="3.5" />
-
-            {/* GB Bill Pair 2 */}
-            <rect x="305" y="212" width="38" height="22" fill="#22c55e" rx="3" stroke="#15803d" strokeWidth="1" />
-            <text x="324" y="227" fontFamily="sans-serif" fontSize="11" fontWeight="bold" fill="#ffffff" textAnchor="middle">GB</text>
-
-            {/* Waiting customer */}
-            <circle cx="160" cy="190" r="10" fill="#a16207" />
-            <line x1="160" y1="200" x2="160" y2="240" stroke="#a16207" strokeWidth="3.5" />
-            <line x1="160" y1="215" x2="145" y2="230" stroke="#a16207" strokeWidth="3" />
-            <line x1="160" y1="215" x2="175" y2="230" stroke="#a16207" strokeWidth="3" />
-            <line x1="160" y1="240" x2="150" y2="280" stroke="#a16207" strokeWidth="3.5" />
-            <line x1="160" y1="240" x2="170" y2="280" stroke="#a16207" strokeWidth="3.5" />
-          </svg>
-        </div>
-
-        {/* Main Form Container */}
         <div className="p-8 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-900">
           {message.text && (
             <div className={`p-3 mb-4 rounded-xl text-xs font-medium ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
@@ -321,8 +279,6 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* --- HONEYPOT FIELD (Hidden from humans, trapped for bots) --- */}
             <div className="hidden" aria-hidden="true">
               <label htmlFor="website">Website</label>
               <input
@@ -337,17 +293,17 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Full Name</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Full Name *</label>
               <input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Email Address *</label>
               <input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Password</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Password *</label>
               <input type="password" name="password" value={formData.password} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
 
@@ -365,32 +321,33 @@ export default function SignupPage() {
               />
             </div>
 
-            {/* Location / Address with Helper Description */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Street Address / Location (Google Maps)</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Street Address / Location (Google Maps) *</label>
               <input
                 type="text"
                 name="address"
                 ref={addressInputRef}
                 value={formData.address}
                 onChange={handleChange}
-                placeholder="Type your address to capture location..."
+                placeholder="Start typing and select from the dropdown..."
                 required
-                className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className={`w-full border rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 ${
+                  isAddressValid ? 'border-emerald-400 focus:ring-emerald-400 bg-emerald-50/20' : 'border-slate-200 focus:ring-emerald-400'
+                }`}
               />
-              <p className="text-[11px] text-slate-500 mt-1 font-medium">For searching listings by mileage, this is not public</p>
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-[11px] text-slate-500 font-medium">For searching listings by mileage, this is not public</p>
+                <p className={`text-[11px] font-bold ${isAddressValid ? 'text-emerald-600' : 'text-rose-500'}`}>
+                  {isAddressValid ? '✓ Google Address Verified' : '⚠ Must select from dropdown'}
+                </p>
+              </div>
             </div>
 
-            <input type="hidden" name="latitude" value={formData.latitude} />
-            <input type="hidden" name="longitude" value={formData.longitude} />
-
-            {/* Border Wrapper for City > Church Hierarchy Section */}
             <div className="p-4 border border-slate-200 rounded-xl space-y-4 bg-slate-50/50">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Church Community (City &gt; Church)</span>
 
-              {/* City & State Selection + Add New City Option */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">City, State</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">City, State *</label>
                 {!isAddingCity ? (
                   <div className="flex gap-2">
                     <select
@@ -424,7 +381,6 @@ export default function SignupPage() {
                 )}
               </div>
 
-              {/* Church Affiliation Selection (Optional) + Add New Church Option */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Church Affiliation (Optional)</label>
                 {!isAddingChurch ? (
@@ -459,9 +415,8 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Device Avatar Upload */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">Profile Photo (Upload from Device)</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">Profile Photo (Optional)</label>
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 rounded-xl">
                   {formData.avatar ? <img src={formData.avatar} alt="Avatar Preview" className="w-full h-full object-cover" /> : <span className="text-2xl">👤</span>}
@@ -474,8 +429,16 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Description / Bio</label>
-              <textarea name="bio" rows={3} value={formData.bio} onChange={handleChange} className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Description / Bio *</label>
+              <textarea 
+                name="bio" 
+                rows={3} 
+                required 
+                value={formData.bio} 
+                onChange={handleChange} 
+                placeholder="Tell us a little bit about yourself..."
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" 
+              />
             </div>
 
             <div className="pt-2">

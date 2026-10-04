@@ -1,9 +1,19 @@
+// app/profile/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+
+function formatPhoneNumber(value: string): string {
+  const cleaned = value.replace(/\D/g, '').substring(0, 10);
+  const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+  if (!match) return value;
+  if (!match[2]) return match[1] ? `(${match[1]}` : '';
+  if (!match[3]) return `(${match[1]}) ${match[2]}`;
+  return `(${match[1]}) ${match[2]}-${match[3]}`;
+}
 
 export default function ProfilePage() {
   const { data: session, status } = useSession();
@@ -17,9 +27,12 @@ export default function ProfilePage() {
   const [successMessage, setSuccessMessage] = useState('');
   
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddressValid, setIsAddressValid] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    userPhone: '',
     address: '',
     latitude: '',
     longitude: '',
@@ -51,7 +64,7 @@ export default function ProfilePage() {
     }
   }, [status]);
 
-  // Initialize Google Places Autocomplete for independent street address lookup
+  // Initialize Google Places Autocomplete strictly
   useEffect(() => {
     if (!isEditing || !window.google || !addressInputRef.current) return;
 
@@ -73,6 +86,10 @@ export default function ProfilePage() {
           latitude: String(lat),
           longitude: String(lng),
         }));
+        setIsAddressValid(true);
+        setError('');
+      } else {
+        setIsAddressValid(false);
       }
     });
   }, [isEditing]);
@@ -106,6 +123,7 @@ export default function ProfilePage() {
       setFormData({
         name: currentUser.name || '',
         email: currentUser.email || '',
+        userPhone: currentUser.userPhone || '',
         address: currentUser.address || '',
         latitude: currentUser.latitude !== null && currentUser.latitude !== undefined ? String(currentUser.latitude) : '',
         longitude: currentUser.longitude !== null && currentUser.longitude !== undefined ? String(currentUser.longitude) : '',
@@ -118,6 +136,10 @@ export default function ProfilePage() {
         newPassword: '',
         confirmPassword: '',
       });
+
+      if (currentUser.address && currentUser.latitude) {
+        setIsAddressValid(true);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -126,7 +148,17 @@ export default function ProfilePage() {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'userPhone') {
+      setFormData((prev) => ({ ...prev, [name]: formatPhoneNumber(value) }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+
+    if (name === 'address') {
+      setIsAddressValid(false);
+      setFormData((prev) => ({ ...prev, latitude: '', longitude: '' }));
+    }
   };
 
   const handleCitySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -207,6 +239,27 @@ export default function ProfilePage() {
     setError('');
     setSuccessMessage('');
 
+    if (formData.userPhone && formData.userPhone.replace(/\D/g, '').length < 10) {
+      setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+
+    if (!formData.city.trim()) {
+      setError('Please select a city and state.');
+      return;
+    }
+
+    if (!formData.bio.trim()) {
+      setError('Please fill out the Description / Bio field.');
+      return;
+    }
+
+    if (!isAddressValid || !formData.latitude || !formData.longitude) {
+      setError('Please select your valid street address from the Google Maps dropdown suggestions.');
+      addressInputRef.current?.focus();
+      return;
+    }
+
     if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
       setError('New passwords do not match.');
       return;
@@ -252,7 +305,6 @@ export default function ProfilePage() {
     return <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
   }
 
-  // Combine and sort sent and received transactions, then deduplicate by tx.id to prevent key collisions
   const rawTransactions = profileData ? [
     ...(profileData.sentTx || []),
     ...(profileData.receivedTx || [])
@@ -262,12 +314,15 @@ export default function ProfilePage() {
     new Map(rawTransactions.map((tx: any) => [tx.id, tx])).values()
   );
 
+  const displayCity = profileData?.city || profileData?.user?.city || 'City not set';
+  const displayState = profileData?.state || profileData?.user?.state || 'FL';
+  const displayChurch = profileData?.churchName || profileData?.user?.churchName;
+
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6 max-w-5xl mx-auto">
         
-        {/* Marketplace-style Title Row with Balance on Far Right */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
               My Profile
@@ -290,7 +345,6 @@ export default function ProfilePage() {
         {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl">{error}</div>}
         {successMessage && <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl">{successMessage}</div>}
 
-        {/* Profile Card Header */}
         <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 rounded-2xl">
           {!isEditing ? (
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
@@ -303,17 +357,19 @@ export default function ProfilePage() {
                   )}
                 </div>
 
-                <div>
+                <div className="space-y-1">
                   <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{profileData?.name || 'Community Member'}</h1>
-                  <p className="text-slate-500 text-xs font-medium mt-0.5">{profileData?.email || session?.user?.email}</p>
+                  <p className="text-slate-500 text-xs font-medium">{profileData?.email || session?.user?.email}</p>
                   
-                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
                     <span className="bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700 rounded-md">
-                      📍 {profileData?.city || 'City not set'}, {profileData?.state || 'FL'}
+                      📍 {displayCity}, {displayState}
                     </span>
-                    <span className="bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 rounded-md">
-                      ⛪ {profileData?.churchName || 'Church not set'}
-                    </span>
+                    {displayChurch && (
+                      <span className="bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 rounded-md">
+                        ⛪ {displayChurch}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -338,18 +394,50 @@ export default function ProfilePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Full Name</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Full Name *</label>
                   <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Email</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Email *</label>
                   <input type="email" name="email" value={formData.email} onChange={handleInputChange} required className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Street Address (Google Maps)</label>
-                <input ref={addressInputRef} type="text" name="address" value={formData.address} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" placeholder="Start typing your address..." />
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Phone Number *</label>
+                <input
+                  type="tel"
+                  name="userPhone"
+                  required
+                  maxLength={14}
+                  value={formData.userPhone}
+                  onChange={handleInputChange}
+                  placeholder="(555) 000-0000"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+                <p className="text-[11px] text-slate-500 mt-1 font-medium">Your phone is not displayed to the public.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Street Address / Location (Google Maps) *</label>
+                <input
+                  ref={addressInputRef}
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="Start typing and select from the dropdown..."
+                  required
+                  className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                    isAddressValid ? 'border-emerald-400 focus:ring-emerald-400 bg-emerald-50/20' : 'border-slate-200 focus:ring-emerald-400'
+                  }`}
+                />
+                <div className="flex justify-between items-center mt-1">
+                  <p className="text-[11px] text-slate-500 font-medium">For searching listings by mileage, this is not public</p>
+                  <p className={`text-[11px] font-bold ${isAddressValid ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    {isAddressValid ? '✓ Google Address Verified' : '⚠ Must select from dropdown'}
+                  </p>
+                </div>
               </div>
 
               <input type="hidden" name="latitude" value={formData.latitude} />
@@ -359,12 +447,13 @@ export default function ProfilePage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Church Community (City &gt; Church)</span>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">City, State</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">City, State *</label>
                   {!isAddingCity ? (
                     <div className="flex gap-2">
                       <select
                         value={formData.city ? `${formData.city}|${formData.state}` : ''}
                         onChange={handleCitySelect}
+                        required
                         className="w-full border border-slate-200 rounded-xl p-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
                       >
                         <option value="">Select City, State</option>
@@ -393,7 +482,7 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Church Affiliation</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Church Affiliation (Optional)</label>
                   {!isAddingChurch ? (
                     <div className="flex gap-2">
                       <select
@@ -403,7 +492,7 @@ export default function ProfilePage() {
                         disabled={!formData.city}
                         className="w-full border border-slate-200 rounded-xl p-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-slate-100 cursor-pointer"
                       >
-                        <option value="">{formData.city ? 'Select Church' : 'Select a City first'}</option>
+                        <option value="">{formData.city ? 'Select Church (Optional)' : 'Select a City first'}</option>
                         {availableChurches.map((churchName: string) => (
                           <option key={churchName} value={churchName}>
                             {churchName}
@@ -426,7 +515,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Change Password Section */}
               <div className="p-4 border border-slate-200 rounded-xl space-y-4 bg-slate-50/50">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Change Password (Optional)</span>
                 
@@ -469,7 +557,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Profile Photo (Upload from Device)</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Profile Photo (Upload from Device - Optional)</label>
                 <div className="flex items-center gap-4">
                   <div className="w-32 h-32 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 rounded-xl shadow-inner">
                     {formData.avatar ? <img src={formData.avatar} alt="Avatar Preview" className="w-full h-full object-cover" /> : <span className="text-4xl">👤</span>}
@@ -482,8 +570,16 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Bio / About You</label>
-                <textarea name="bio" rows={3} value={formData.bio} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Description / Bio *</label>
+                <textarea 
+                  name="bio" 
+                  rows={3} 
+                  required 
+                  value={formData.bio} 
+                  onChange={handleInputChange} 
+                  placeholder="Tell us a little bit about yourself..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" 
+                />
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -525,8 +621,8 @@ export default function ProfilePage() {
                 expirationDate.setDate(expirationDate.getDate() + 14);
                 const isCommercial = (item.type || '').toUpperCase() === 'COMMERCIAL';
                 
-                const displayCity = (item.city || profileData?.city || '').trim() || 'General City';
-                const displayChurch = (item.churchName || profileData?.churchName || '').trim() || 'Grace Family Church';
+                const itemCity = item.city || displayCity;
+                const itemChurch = item.churchName || displayChurch || 'Grace Family Church';
                 const dateDisplay = isCommercial ? `Created: ${createdDate.toLocaleDateString()}` : `Expires: ${expirationDate.toLocaleDateString()}`;
 
                 return (
@@ -554,7 +650,7 @@ export default function ProfilePage() {
                         </h3>
                         <div className="mt-1.5 text-xs font-medium text-slate-500 flex items-center gap-1.5">
                           <span>⛪</span>
-                          <span>{displayCity} &gt; {displayChurch}</span>
+                          <span>{itemCity} &gt; {itemChurch}</span>
                         </div>
                       </div>
 
@@ -637,7 +733,7 @@ export default function ProfilePage() {
                           </span>
                         </div>
                         <span className="text-slate-500 font-medium block">
-                          {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
+                          {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
                         </span>
                       </div>
                       <div className="text-right">

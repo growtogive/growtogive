@@ -41,6 +41,7 @@ export async function GET(req: Request) {
         city: true,
         state: true,
         churchName: true,
+        userPhone: true,
         address: true,
         latitude: true,
         longitude: true,
@@ -82,6 +83,7 @@ export async function GET(req: Request) {
           city: defaultCity,
           state: 'FL',
           churchName: 'Grace Family Church',
+          userPhone: '(555) 000-0000', // Added default phone to prevent schema violations
           growbucks: 10.00,
           latitude: defaultCoords.lat,
           longitude: defaultCoords.lng,
@@ -94,6 +96,7 @@ export async function GET(req: Request) {
           city: true,
           state: true,
           churchName: true,
+          userPhone: true,
           address: true,
           latitude: true,
           longitude: true,
@@ -136,6 +139,7 @@ export async function PUT(req: Request) {
       city, 
       state, 
       churchName, 
+      userPhone, // Added userPhone extraction
       address, 
       latitude, 
       longitude, 
@@ -165,6 +169,7 @@ export async function PUT(req: Request) {
       city,
       state,
       churchName,
+      userPhone, // Added userPhone to update payload
       address,
       latitude: finalLat,
       longitude: finalLng,
