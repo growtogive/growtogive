@@ -21,6 +21,11 @@ export default function Navbar() {
   // Modal state for restricted access attempts on Share Link
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
 
+  // --- HIDE NAVBAR ON CHRISTMAS APPLY PAGE ---
+  if (pathname?.startsWith('/christmas/apply')) {
+    return null;
+  }
+
   useEffect(() => {
     if (session) {
       fetch('/api/messages')

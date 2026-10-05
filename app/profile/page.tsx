@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import FavoriteButton from '@/components/FavoriteButton';
 
 function formatPhoneNumber(value: string): string {
   const cleaned = value.replace(/\D/g, '').substring(0, 10);
@@ -21,6 +22,7 @@ export default function ProfilePage() {
 
   const [profileData, setProfileData] = useState<any>(null);
   const [userListings, setUserListings] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
@@ -111,9 +113,11 @@ export default function ProfilePage() {
       
       const currentUser = profileJson.user || profileJson;
       const currentListings = profileJson.listings || [];
+      const currentFavorites = profileJson.favorites || [];
 
       setProfileData(currentUser);
       setUserListings(currentListings);
+      setFavorites(currentFavorites);
       setTaxonomy(Array.isArray(taxonomyData) ? taxonomyData : []);
       
       const userCity = currentUser.city || '';
@@ -594,6 +598,75 @@ export default function ProfilePage() {
             <div className="mt-6 pt-6 border-t border-slate-100">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">About</h3>
               <p className="text-slate-600 text-sm leading-relaxed">{profileData.bio}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Saved Favorites Section */}
+        <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 rounded-2xl">
+          <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Saved Favorites ({favorites.length})</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Listings you have bookmarked for quick access.</p>
+            </div>
+          </div>
+
+          {favorites.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-sm font-medium">
+              You haven't favorited any listings yet. Click the heart icon on any listing card to save it here!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {favorites.map(({ listing }) => {
+                if (!listing) return null;
+                const createdDate = new Date(listing.createdAt || Date.now());
+                const expirationDate = new Date(createdDate);
+                expirationDate.setDate(expirationDate.getDate() + 14);
+                const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
+                const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+
+                return (
+                  <div key={listing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                    <div className="absolute top-3 right-3 z-10">
+                      <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
+                    </div>
+
+                    <Link href={`/listings/${listing.id}`} className="block">
+                      <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                        <img 
+                          src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+                          alt={listing.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                        />
+                        <span className={`absolute top-3 left-3 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
+                          isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
+                        }`}>
+                          {listing.type}
+                        </span>
+                      </div>
+
+                      <div className="p-5 pb-2">
+                        <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 leading-snug transition-colors">
+                          {listing.title}
+                        </h3>
+                      </div>
+
+                      <div className="p-5 pt-2">
+                        <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed font-normal mb-3">
+                          {listing.description}
+                        </p>
+                      </div>
+                    </Link>
+
+                    <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
+                      <span>{priceDisplay}</span>
+                      <span className="font-normal text-[11px] text-slate-500">
+                        Expires: {expirationDate.toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

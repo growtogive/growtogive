@@ -4,6 +4,7 @@
 import { useState, useEffect, use } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import FavoriteButton from '@/components/FavoriteButton';
 
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -11,9 +12,12 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const loggedInEmail = (session?.user as any)?.email;
   const loggedInUserId = (session?.user as any)?.id;
   const isAdmin = loggedInEmail === 'admin@growtogive.com';
+  const isOwnProfile = loggedInUserId === id;
 
   const [userProfile, setUserProfile] = useState<any>(null);
   const [listings, setListings] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [userFavoriteIds, setUserFavoriteIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
 
@@ -26,7 +30,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     if (id) {
       fetchUserData();
     }
-  }, [id]);
+  }, [id, loggedInUserId]);
 
   const fetchUserData = async () => {
     try {
@@ -40,10 +44,14 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       if (!foundUser) {
         setUserProfile(null);
         setListings([]);
+        setFavorites([]);
         return;
       }
 
       const userListings = data.listings || [];
+      const userFavorites = data.favorites || [];
+      setUserFavoriteIds(userFavorites.map((f: any) => f.listingId || f.listing?.id));
+      setFavorites(userFavorites);
 
       // Combine author direct reviews + commercial listing reviews
       const directReviews = foundUser.reviews || [];
@@ -131,7 +139,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8">
         
-        {/* Marketplace Title Row Header */}
+        {/* Header Row */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
@@ -153,6 +161,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </Link>
         </div>
 
+        {/* User Card */}
         <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 mb-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-xl bg-emerald-100 text-emerald-800 font-black text-2xl flex items-center justify-center border border-emerald-200 shrink-0 shadow-inner overflow-hidden">
@@ -166,7 +175,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
               <p className="text-xs text-slate-500">Member since {memberSinceFormatted}</p>
               
-              {/* City and Church Badges */}
               <div className="flex flex-wrap items-center gap-2 pt-1.5">
                 <span className="bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700 rounded-md">
                   📍 {userProfile.city}, {userProfile.state}
@@ -206,8 +214,75 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </button>
         </div>
 
+        {/* Saved Favorites Section (Visible if viewing own profile) */}
+        {isOwnProfile && (
+          <div className="mb-12">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-slate-900">Saved Favorites ({favorites.length})</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Listings you have bookmarked. Expired items (older than 14 days) are automatically cleaned up.</p>
+            </div>
+
+            {favorites.length === 0 ? (
+              <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
+                You haven&apos;t favorited any listings yet. Click the heart icon on any listing card to save it here!
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {favorites.map(({ listing }) => {
+                  if (!listing) return null;
+                  const createdDate = new Date(listing.createdAt || Date.now());
+                  const expirationDate = new Date(createdDate);
+                  expirationDate.setDate(expirationDate.getDate() + 14);
+                  const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
+                  const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+
+                  return (
+                    <div key={listing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                      <div className="absolute top-3 right-3 z-10">
+                        <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
+                      </div>
+
+                      <Link href={`/listings/${listing.id}`} className="block">
+                        <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                          <img
+                            src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                            alt={listing.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <span className={`absolute top-3 left-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
+                            isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
+                          }`}>
+                            {listing.type}
+                          </span>
+                        </div>
+
+                        <div className="p-5 space-y-3">
+                          <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors leading-snug">
+                            {listing.title}
+                          </h3>
+                          <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
+                            {listing.description}
+                          </p>
+                        </div>
+                      </Link>
+
+                      <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
+                        <span>{priceDisplay}</span>
+                        <span className="font-normal text-[11px] text-slate-500">
+                          Expires: {expirationDate.toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* User's Posted Listings */}
         <div className="mb-6">
-          <h2 className="text-lg font-bold text-slate-900">Listings by {userProfile.name} ({listings.length})</h2>
+          <h2 className="text-xl font-bold text-slate-900">Listings by {userProfile.name} ({listings.length})</h2>
           <p className="text-xs text-slate-500 mt-0.5">Explore offers, requests, and store items posted by this member.</p>
         </div>
 
@@ -227,9 +302,14 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               const displayChurch = (item.churchName || userProfile.churchName || '').trim() || 'Grace Family Church';
               const dateDisplay = isCommercial ? `Created: ${createdDate.toLocaleDateString()}` : `Expires: ${expirationDate.toLocaleDateString()}`;
               const priceDisplay = !isCommercial ? `GB ${Number(item.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+              const isFavorited = userFavoriteIds.includes(item.id);
 
               return (
-                <div key={item.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group">
+                <div key={item.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                  <div className="absolute top-3 right-3 z-10">
+                    <FavoriteButton listingId={item.id} initialIsFavorited={isFavorited} />
+                  </div>
+
                   <Link href={`/listings/${item.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       <img
@@ -240,7 +320,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                           e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
                         }}
                       />
-                      <span className={`absolute top-3 right-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
+                      <span className={`absolute top-3 left-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
                         isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
                       }`}>
                         {item.type}

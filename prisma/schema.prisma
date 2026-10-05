@@ -8,34 +8,35 @@ generator client {
 }
 
 model User {
-  id               String          @id @default(cuid())
-  email            String          @unique
-  password         String?
-  name             String?
-  role             String          @default("USER")
-  city             String?         @default("Bradenton")
-  state            String?         @default("FL")
-  churchName       String?         @default("Grace Family Church")
-  address          String?
-  latitude         Float?
-  longitude        Float?
-  userPhone        String?
-  bio              String?
-  avatar           String?
-  growbucks        Float           @default(0.00)
-  emailVerified    Boolean         @default(false)
-  basicTrainingPassed   Boolean         @default(false) // Second gate: required for listings & Growbucks
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  listings         Listing[]
-  reviews          Review[]        @relation("TargetUserReviews")
-  authReviews      Review[]        @relation("AuthorReviews")
-  sentTx           Transaction[]   @relation("SentTransactions")
-  receivedTx       Transaction[]   @relation("ReceivedTransactions")
-  sentMessages     Message[]       @relation("SentMessages")
-  receivedMessages Message[]       @relation("ReceivedMessages")
-  quizAttempts     QuizAttempt[]
-  eventAttendees   EventAttendee[]
+  id                  String          @id @default(cuid())
+  email               String          @unique
+  password            String?
+  name                String?
+  role                String          @default("USER")
+  city                String?         @default("Bradenton")
+  state               String?         @default("FL")
+  churchName          String?         @default("Grace Family Church")
+  address             String?
+  latitude            Float?
+  longitude           Float?
+  userPhone           String?
+  bio                 String?
+  avatar              String?
+  growbucks           Float           @default(0.00)
+  emailVerified       Boolean         @default(false)
+  basicTrainingPassed Boolean         @default(false)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  listings            Listing[]
+  reviews             Review[]        @relation("TargetUserReviews")
+  authReviews         Review[]        @relation("AuthorReviews")
+  sentTx              Transaction[]   @relation("SentTransactions")
+  receivedTx          Transaction[]   @relation("ReceivedTransactions")
+  sentMessages        Message[]       @relation("SentMessages")
+  receivedMessages    Message[]       @relation("ReceivedMessages")
+  quizAttempts        QuizAttempt[]
+  eventAttendees      EventAttendee[]
+  favorites           Favorite[]
 }
 
 model Listing {
@@ -47,12 +48,12 @@ model Listing {
   priceInBucks  Float    @default(0.00)
   
   imageUrl      String?  
-  images        String[] @default([])
+  images        String[]     @default([])
   videoUrl      String?
 
-  isFeatured    Boolean  @default(false)
-  isCommercial  Boolean  @default(false)
-  expiresAt     DateTime @default(dbgenerated("NOW() + INTERVAL '30 days'"))
+  isFeatured    Boolean      @default(false)
+  isCommercial  Boolean      @default(false)
+  expiresAt     DateTime     @default(dbgenerated("NOW() + INTERVAL '14 days'"))
   
   location      String?
   city          String?
@@ -61,12 +62,24 @@ model Listing {
   businessPhone String?
   websiteUrl    String?
   businessHours String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   authorId      String
-  author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author        User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   reviews       Review[]
   messages      Message[]
+  favorites     Favorite[]
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, listingId])
 }
 
 model Review {
@@ -185,9 +198,56 @@ model EventAttendee {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status    String   @default("ATTENDING") // "ATTENDING" or "NOT_ATTENDING"
+  status    String   @default("ATTENDING")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([eventId, userId])
+}
+
+// ==========================================
+// CHRISTMAS CHARITY EVENT TABLES
+// ==========================================
+
+model ChristmasApplication {
+  id         String   @id @default(uuid())
+  momName    String
+  phone      String
+  email      String?
+  address    String
+  referredBy String
+  donorNotes String?
+  createdAt  DateTime @default(now())
+  deletedAt  DateTime?
+  kids       ChristmasKid[]
+}
+
+model ChristmasKid {
+  id            String               @id @default(uuid())
+  applicationId String
+  application   ChristmasApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  tagNumber     String               @unique
+  name          String
+  age           Int
+  gender        String
+  giftOne       String
+  giftTwo       String
+  wishlist      String
+  status        String               @default("PENDING")
+  locationId    String?
+  location      Location?            @relation(fields: [locationId], references: [id])
+}
+
+model Location {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  kids      ChristmasKid[]
+}
+
+enum TagStatus {
+  PENDING
+  PLACED
+  CLAIMED
+  PICKED_UP
+  WRAPPED
 }

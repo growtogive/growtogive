@@ -50,6 +50,17 @@ export async function GET(req: Request) {
         growbucks: true,
         createdAt: true,
         reviews: true, 
+        favorites: {
+          where: {
+            listing: {
+              expiresAt: { gt: new Date() }, // Automatically exclude expired listings (14 days)
+            },
+          },
+          include: {
+            listing: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         sentTx: {
           include: {
             sender: { select: { name: true, email: true } },
@@ -83,7 +94,7 @@ export async function GET(req: Request) {
           city: defaultCity,
           state: 'FL',
           churchName: 'Grace Family Church',
-          userPhone: '(555) 000-0000', // Added default phone to prevent schema violations
+          userPhone: '(555) 000-0000',
           growbucks: 10.00,
           latitude: defaultCoords.lat,
           longitude: defaultCoords.lng,
@@ -105,6 +116,9 @@ export async function GET(req: Request) {
           growbucks: true,
           createdAt: true,
           reviews: true,
+          favorites: {
+            include: { listing: true },
+          },
         },
       });
     }
@@ -117,7 +131,11 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ user, listings });
+    return NextResponse.json({ 
+      user, 
+      listings, 
+      favorites: user.favorites || [] 
+    });
   } catch (error: any) {
     console.error('Fetch profile error:', error);
     return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
@@ -139,7 +157,7 @@ export async function PUT(req: Request) {
       city, 
       state, 
       churchName, 
-      userPhone, // Added userPhone extraction
+      userPhone, 
       address, 
       latitude, 
       longitude, 
@@ -169,7 +187,7 @@ export async function PUT(req: Request) {
       city,
       state,
       churchName,
-      userPhone, // Added userPhone to update payload
+      userPhone,
       address,
       latitude: finalLat,
       longitude: finalLng,
