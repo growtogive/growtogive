@@ -21,7 +21,8 @@ export default function ChristmasApplyPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
-  const [referredBy, setReferredBy] = useState("");
+  const [referredBy, setReferredBy] = useState("GrowToGive");
+  const [referredByOther, setReferredByOther] = useState("");
   const [donorNotes, setDonorNotes] = useState("");
 
   const [kids, setKids] = useState<KidInput[]>([
@@ -87,6 +88,12 @@ export default function ChristmasApplyPage() {
       return;
     }
 
+    if (referredBy === "Other" && !referredByOther.trim()) {
+      setErrorMessage("Please specify the organization or person under 'Referred By'.");
+      setLoading(false);
+      return;
+    }
+
     for (const kid of kids) {
       if (!kid.name.trim() || !kid.age || !kid.gender || !kid.giftOne.trim() || !kid.giftTwo.trim()) {
         setErrorMessage("All fields for every child (Name, Age, Gender, and both ~$25 Gifts) are mandatory.");
@@ -104,13 +111,15 @@ export default function ChristmasApplyPage() {
         giftTwo: cleanText(k.giftTwo),
       }));
 
+      const finalReferredBy = referredBy === "Other" ? cleanText(referredByOther) : referredBy;
+
       const res = await submitChristmasApplication({
         password: "CSMK2026",
         momName: cleanText(momName),
         phone: phone.trim(),
         email: email.trim() || undefined,
         address: cleanText(address),
-        referredBy: cleanText(referredBy),
+        referredBy: finalReferredBy,
         donorNotes: donorNotes.trim() ? cleanText(donorNotes) : undefined,
         kids: formattedKids,
       });
@@ -121,7 +130,8 @@ export default function ChristmasApplyPage() {
         setPhone("");
         setEmail("");
         setAddress("");
-        setReferredBy("");
+        setReferredBy("GrowToGive");
+        setReferredByOther("");
         setDonorNotes("");
         setKids([{ name: "", age: "", gender: "Boy", giftOne: "", giftTwo: "" }]);
       } else {
@@ -214,15 +224,29 @@ export default function ChristmasApplyPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Referred By</label>
-                <input
-                  type="text"
+                <select
                   value={referredBy}
                   onChange={(e) => setReferredBy(e.target.value)}
-                  onBlur={() => setReferredBy(cleanText(referredBy))}
                   required
-                  className="w-full px-4 py-2 border rounded-lg text-sm"
-                  placeholder="Agency or Person"
-                />
+                  className="w-full px-4 py-2 border rounded-lg text-sm bg-white font-medium"
+                >
+                  <option value="GrowToGive">GrowToGive</option>
+                  <option value="Ballard Elementary">Ballard Elementary</option>
+                  <option value="Bradenton Woman's Club">Bradenton Woman's Club</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                {referredBy === "Other" && (
+                  <input
+                    type="text"
+                    value={referredByOther}
+                    onChange={(e) => setReferredByOther(e.target.value)}
+                    onBlur={() => setReferredByOther(cleanText(referredByOther))}
+                    required
+                    className="w-full mt-2 px-4 py-2 border rounded-lg text-sm bg-white"
+                    placeholder="Specify organization or name..."
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Email Address</label>

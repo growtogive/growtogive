@@ -65,6 +65,36 @@ export async function updateKidStatusAndLocation(kidId: string, status: string, 
   }
 }
 
+// Update a kid/tag's details (name, age, gender, gifts, tag number)
+export async function updateKidDetails(
+  kidId: string, 
+  data: { 
+    name: string; 
+    age: number | string; 
+    gender: string; 
+    giftOne: string; 
+    giftTwo: string; 
+    tagNumber: number | string; 
+  }
+) {
+  try {
+    await prisma.christmasKid.update({
+      where: { id: kidId },
+      data: {
+        name: data.name.trim(),
+        age: Number(data.age),
+        gender: data.gender,
+        giftOne: data.giftOne.trim(),
+        giftTwo: data.giftTwo.trim(),
+        tagNumber: String(data.tagNumber),
+      },
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: "Failed to update tag details. Tag number may already be in use." };
+  }
+}
+
 // Soft delete application and automatically resequence remaining pending tags
 export async function deleteChristmasApplication(applicationId: string) {
   try {

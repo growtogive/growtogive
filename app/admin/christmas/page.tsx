@@ -6,6 +6,7 @@ import {
   createLocation, 
   getAdminChristmasData, 
   updateKidStatusAndLocation, 
+  updateKidDetails,
   deleteChristmasApplication 
 } from "@/actions/locations";
 
@@ -14,6 +15,16 @@ export default function ChristmasAdminPage() {
   const [locations, setLocations] = useState<any[]>([]);
   const [newLocationName, setNewLocationName] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Edit Kid Modal State (tagNumber removed from form fields)
+  const [editingKid, setEditingKid] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    age: "",
+    gender: "",
+    giftOne: "",
+    giftTwo: "",
+  });
 
   const loadData = async () => {
     setLoading(true);
@@ -57,6 +68,38 @@ export default function ChristmasAdminPage() {
       loadData();
     } else {
       alert(res.error || "Failed to add location");
+    }
+  };
+
+  const openEditModal = (kid: any) => {
+    setEditingKid(kid);
+    setEditForm({
+      name: kid.name || "",
+      age: kid.age?.toString() || "",
+      gender: kid.gender || "",
+      giftOne: kid.giftOne || "",
+      giftTwo: kid.giftTwo || "",
+    });
+  };
+
+  const handleSaveKid = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingKid) return;
+
+    const res = await updateKidDetails(editingKid.id, {
+      name: editForm.name,
+      age: Number(editForm.age),
+      gender: editForm.gender,
+      giftOne: editForm.giftOne,
+      giftTwo: editForm.giftTwo,
+      tagNumber: editingKid.tagNumber, // Keeps original tag number unchanged
+    });
+
+    if (res.success) {
+      setEditingKid(null);
+      loadData();
+    } else {
+      alert(res.error || "Failed to update tag details");
     }
   };
 
@@ -132,12 +175,20 @@ export default function ChristmasAdminPage() {
                   {/* Kids Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {app.kids.map((kid: any) => (
-                      <div key={kid.id} className="bg-white p-4 rounded-lg border shadow-xs space-y-2">
+                      <div key={kid.id} className="bg-white p-4 rounded-lg border shadow-xs space-y-2 relative">
                         <div className="flex justify-between items-center">
                           <span className="bg-red-600 text-white font-extrabold text-xs px-2 py-0.5 rounded">
                             Tag: {kid.tagNumber}
                           </span>
-                          <span className="text-xs font-semibold text-gray-600">{kid.gender} • Age {kid.age}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-600">{kid.gender} Age {kid.age}</span>
+                            <button 
+                              onClick={() => openEditModal(kid)}
+                              className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded font-semibold border"
+                            >
+                              Edit Tag
+                            </button>
+                          </div>
                         </div>
                         <p className="text-sm font-bold text-gray-800">{kid.name}</p>
                         
@@ -182,6 +233,102 @@ export default function ChristmasAdminPage() {
         </div>
 
       </div>
+
+      {/* Edit Kid Modal */}
+      {editingKid && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Edit Child Details</h3>
+                <p className="text-xs text-gray-500">Tag Number: <span className="font-semibold text-red-600">#{editingKid.tagNumber}</span> (Automatic)</p>
+              </div>
+              <button 
+                onClick={() => setEditingKid(null)}
+                className="text-gray-400 hover:text-gray-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveKid} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Child Name</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Age</label>
+                  <input
+                    type="number"
+                    value={editForm.age}
+                    onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Gender</label>
+                  <select
+                    value={editForm.gender}
+                    onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                    required
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Boy">Boy</option>
+                    <option value="Girl">Girl</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Gift Idea 1</label>
+                <input
+                  type="text"
+                  value={editForm.giftOne}
+                  onChange={(e) => setEditForm({ ...editForm, giftOne: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Gift Idea 2</label>
+                <input
+                  type="text"
+                  value={editForm.giftTwo}
+                  onChange={(e) => setEditForm({ ...editForm, giftTwo: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setEditingKid(null)}
+                  className="px-4 py-2 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

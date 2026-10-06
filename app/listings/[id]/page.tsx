@@ -46,6 +46,10 @@ export default function ListingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Favorite States
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
+
   // Active Image Index for Gallery Viewer
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -82,8 +86,45 @@ export default function ListingDetailPage() {
   useEffect(() => {
     if (id) {
       fetchListingDetail();
+      if (session) {
+        checkIfFavorited();
+      }
     }
-  }, [id]);
+  }, [id, session]);
+
+  const checkIfFavorited = async () => {
+    try {
+      const res = await fetch(`/api/favorites?listingId=${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setIsFavorited(data.isFavorited);
+      }
+    } catch (err) {
+      console.error('Failed to check favorite status', err);
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!session) {
+      router.push('/signup');
+      return;
+    }
+    setFavoriting(true);
+    try {
+      const res = await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId: id }),
+      });
+      if (!res.ok) throw new Error('Failed to update favorite');
+      const data = await res.json();
+      setIsFavorited(data.favorited);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setFavoriting(false);
+    }
+  };
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -112,7 +153,6 @@ export default function ListingDetailPage() {
     if (!mapLoaded || !listing) return;
 
     const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
-    // Commercial listings use their own lat/lng; offers/requests can fallback to author
     const lat = isCommercial ? listing.latitude : (listing.latitude || listing.author?.latitude);
     const lng = isCommercial ? listing.longitude : (listing.longitude || listing.author?.longitude);
 
@@ -361,10 +401,8 @@ export default function ListingDetailPage() {
   const expDate = new Date(listing.expiresAt || createdDate);
   const expirationDateFormatted = expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  // Use listing's own distance if commercial, otherwise fallback or default
   const displayDistance = `${listing.distance !== undefined && listing.distance !== null ? listing.distance : 0} mi`;
   const priceDisplay = !isCommercial ? `GB: ${Number(listing.priceInBucks || 0).toFixed(2)}` : null;
-  // Check listing's own coordinates if commercial
   const hasCoords = isCommercial ? Boolean(listing.latitude && listing.longitude) : Boolean(listing.latitude || listing.author?.latitude);
 
   const storefrontAddress = listing.location || '';
@@ -481,6 +519,20 @@ export default function ListingDetailPage() {
                   className="w-full h-full object-cover"
                   onError={(e: any) => { e.target.style.display = 'none'; }}
                 />
+                <div className="absolute top-4 left-4 z-10">
+                  <button
+                    onClick={handleToggleFavorite}
+                    disabled={favoriting}
+                    className={`p-2.5 rounded-full border shadow-md transition-all cursor-pointer flex items-center justify-center ${
+                      isFavorited 
+                        ? 'bg-rose-500 text-white border-rose-600' 
+                        : 'bg-white/90 hover:bg-white text-slate-700 border-slate-200'
+                    }`}
+                    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    <span className="text-base">{isFavorited ? '❤️' : '🤍'}</span>
+                  </button>
+                </div>
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                   <span className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border shadow-sm ${
                     isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-black border-slate-200'
@@ -513,16 +565,43 @@ export default function ListingDetailPage() {
               )}
             </div>
           ) : (
-            <div className="h-60 w-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm font-bold">
+            <div className="h-60 w-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm font-bold relative">
+              <div className="absolute top-4 left-4 z-10">
+                <button
+                  onClick={handleToggleFavorite}
+                  disabled={favoriting}
+                  className={`p-2.5 rounded-full border shadow-md transition-all cursor-pointer flex items-center justify-center ${
+                    isFavorited 
+                      ? 'bg-rose-500 text-white border-rose-600' 
+                      : 'bg-white/90 hover:bg-white text-slate-700 border-slate-200'
+                  }`}
+                  title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <span className="text-base">{isFavorited ? '❤️' : '🤍'}</span>
+                </button>
+              </div>
               No Image Available
             </div>
           )}
 
           <div className="p-8 space-y-6">
-            <div>
+            <div className="flex justify-between items-start gap-4">
               <h1 className="text-3xl font-black text-slate-900 leading-tight">
                 {listing.title}
               </h1>
+              {listingImages.length === 0 && (
+                <button
+                  onClick={handleToggleFavorite}
+                  disabled={favoriting}
+                  className={`p-2 rounded-xl border shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    isFavorited 
+                      ? 'bg-rose-500 text-white border-rose-600 font-bold text-xs' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 text-xs font-bold'
+                  }`}
+                >
+                  <span>{isFavorited ? '❤️ Favorited' : '🤍 Favorite'}</span>
+                </button>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 py-3 border-y border-slate-100 text-xs font-semibold text-slate-600">
@@ -574,7 +653,6 @@ export default function ListingDetailPage() {
               </p>
             </div>
 
-            {/* Commercial Business Contact Info (Phone & Website) */}
             {isCommercial && (listing.businessPhone || listing.websiteUrl) && (
               <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-3">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800">Business Contact</h2>
