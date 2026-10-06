@@ -519,20 +519,6 @@ export default function ListingDetailPage() {
                   className="w-full h-full object-cover"
                   onError={(e: any) => { e.target.style.display = 'none'; }}
                 />
-                <div className="absolute top-4 left-4 z-10">
-                  <button
-                    onClick={handleToggleFavorite}
-                    disabled={favoriting}
-                    className={`p-2.5 rounded-full border shadow-md transition-all cursor-pointer flex items-center justify-center ${
-                      isFavorited 
-                        ? 'bg-rose-500 text-white border-rose-600' 
-                        : 'bg-white/90 hover:bg-white text-slate-700 border-slate-200'
-                    }`}
-                    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-                  >
-                    <span className="text-base">{isFavorited ? '❤️' : '🤍'}</span>
-                  </button>
-                </div>
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                   <span className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border shadow-sm ${
                     isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-black border-slate-200'
@@ -586,23 +572,23 @@ export default function ListingDetailPage() {
 
           <div className="p-8 space-y-6">
             <div className="flex justify-between items-start gap-4">
-              <h1 className="text-3xl font-black text-slate-900 leading-tight">
-                {listing.title}
-              </h1>
-              {listingImages.length === 0 && (
-                <button
-                  onClick={handleToggleFavorite}
-                  disabled={favoriting}
-                  className={`p-2 rounded-xl border shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    isFavorited 
-                      ? 'bg-rose-500 text-white border-rose-600 font-bold text-xs' 
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 text-xs font-bold'
-                  }`}
-                >
-                  <span>{isFavorited ? '❤️ Favorited' : '🤍 Favorite'}</span>
-                </button>
-              )}
-            </div>
+  <h1 className="text-3xl font-black text-slate-900 leading-tight">
+    {listing.title}
+  </h1>
+  <button
+    onClick={handleToggleFavorite}
+    disabled={favoriting}
+    className={`p-2.5 rounded-xl border shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+      isFavorited 
+        ? 'bg-rose-500 text-white border-rose-600 font-bold text-xs' 
+        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 text-xs font-bold'
+    }`}
+    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+  >
+    <span className="text-base">{isFavorited ? '❤️' : '🤍'}</span>
+    <span>{isFavorited ? 'Favorited' : 'Favorite'}</span>
+  </button>
+</div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 py-3 border-y border-slate-100 text-xs font-semibold text-slate-600">
               <div className="flex flex-wrap items-center gap-2">

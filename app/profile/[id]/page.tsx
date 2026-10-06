@@ -228,40 +228,41 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {favorites.map(({ listing }) => {
-                  if (!listing) return null;
-                  const createdDate = new Date(listing.createdAt || Date.now());
+                {favorites.map((favItem: any) => {
+                  const itemListing = favItem.listing || favItem;
+                  if (!itemListing) return null;
+                  const createdDate = new Date(itemListing.createdAt || Date.now());
                   const expirationDate = new Date(createdDate);
                   expirationDate.setDate(expirationDate.getDate() + 14);
-                  const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
-                  const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+                  const isCommercial = (itemListing.type || '').toUpperCase() === 'COMMERCIAL';
+                  const priceDisplay = !isCommercial ? `GB ${Number(itemListing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
 
                   return (
-                    <div key={listing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                    <div key={itemListing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
                       <div className="absolute top-3 right-3 z-10">
-                        <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
+                        <FavoriteButton listingId={itemListing.id} initialIsFavorited={true} />
                       </div>
 
-                      <Link href={`/listings/${listing.id}`} className="block">
+                      <Link href={`/listings/${itemListing.id}`} className="block">
                         <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                           <img
-                            src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
-                            alt={listing.title}
+                            src={itemListing.imageUrl || itemListing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                            alt={itemListing.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
                           <span className={`absolute top-3 left-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
                             isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
                           }`}>
-                            {listing.type}
+                            {itemListing.type}
                           </span>
                         </div>
 
                         <div className="p-5 space-y-3">
                           <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors leading-snug">
-                            {listing.title}
+                            {itemListing.title}
                           </h3>
                           <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
-                            {listing.description}
+                            {itemListing.description}
                           </p>
                         </div>
                       </Link>
