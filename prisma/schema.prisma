@@ -1,78 +1,254 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
+@ -1,253 +1,247 @@
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id              String        @id @default(cuid())
-  email           String        @unique
-  name            String?
-  password        String?
-  city            String?
-  state           String?
-  churchName      String?
-  userPhone       String?
-  growbucks       Float         @default(0.0)
-  latitude        Float?
-  longitude       Float?
-  avatar          String?
-  bio             String?
-  address         String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+generator client {
+  provider = "prisma-client-js"
+}
 
-  listings        Listing[]
-  reviews         Review[]      @relation("UserReviews")
-  authoredReviews Review[]      @relation("ReviewAuthor")
-  favorites       Favorite[]    @relation("UserFavorites")
-  targetFavorites Favorite[]    @relation("TargetUserFavorites")
-  sentTx          Transaction[] @relation("SentTransactions")
-  receivedTx      Transaction[] @relation("ReceivedTransactions")
+model User {
+  id                  String          @id @default(cuid())
+  email               String          @unique
+  password            String?
+  name                String?
+  role                String          @default("USER")
+  city                String?         @default("Bradenton")
+  state               String?         @default("FL")
+  churchName          String?         @default("Grace Family Church")
+  address             String?
+  latitude            Float?
+  longitude           Float?
+  userPhone           String?
+  bio                 String?
+  avatar              String?
+  growbucks           Float           @default(0.00)
+  emailVerified       Boolean         @default(false)
+  basicTrainingPassed Boolean         @default(false)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  listings            Listing[]
+  reviews             Review[]        @relation("TargetUserReviews")
+  authReviews         Review[]        @relation("AuthorReviews")
+  sentTx              Transaction[]   @relation("SentTransactions")
+  receivedTx          Transaction[]   @relation("ReceivedTransactions")
+  sentMessages        Message[]       @relation("SentMessages")
+  receivedMessages    Message[]       @relation("ReceivedMessages")
+  quizAttempts        QuizAttempt[]
+  eventAttendees      EventAttendee[]
+  favorites           Favorite[]
 }
 
 model Listing {
-  id          String     @id @default(cuid())
-  userId      String
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt   DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
+  category      String   
+  priceInBucks  Float    @default(0.00)
+  
+  imageUrl      String?  
+  images        String[]     @default([])
+  videoUrl      String?
 
-  reviews     Review[]
-  favorites   Favorite[]
-}
-
-model Review {
-  id          String   @id @default(cuid())
-  authorId    String
-  author      User     @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  userId      String?
-  user        User?    @relation("UserReviews", fields: [userId], references: [id], onDelete: Cascade)
-  listingId   String?
-  listing     Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  isFeatured    Boolean      @default(false)
+  isCommercial  Boolean      @default(false)
+  expiresAt     DateTime     @default(dbgenerated("NOW() + INTERVAL '14 days'"))
+  
+  location      String?
+  city          String?
+  latitude      Float?
+  longitude     Float?
+  businessPhone String?
+  websiteUrl    String?
+  businessHours String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  authorId      String
+  author        User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reviews       Review[]
+  messages      Message[]
+  favorites     Favorite[]
 }
 
 model Favorite {
-  id           String    @id @default(cuid())
-  userId       String
-  user         User      @relation("UserFavorites", fields: [userId], references: [id], onDelete: Cascade)
-  targetUserId String?
-  targetUser   User?     @relation("TargetUserFavorites", fields: [targetUserId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, listingId])
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  rating       Int      @default(5)
+  comment      String
+  reply        String?
+  createdAt    DateTime @default(now())
+  authorId     String
+  author       User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
+  targetUserId String
+  targetUser   User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
   listingId    String?
-  listing      Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  createdAt    DateTime  @default(now())
+  listing      Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
 }
 
 model Transaction {
   id          String   @id @default(cuid())
-  senderId    String
-  sender      User     @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  reason      String   
+  amount      Float    
+  commission  Float?   
+  netAmount   Float?   
+  type        String   @default("TRANSFER")
+  senderId    String?
+  sender      User?    @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade) 
   receiverId  String
   receiver    User     @relation("ReceivedTransactions", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content     String   @db.Text
+  isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+
+  @@index([listingId])
+  @@index([receiverId])
+}
+
+model PostCategory {
+  id    String @id @default(uuid())
+  name  String @unique
+  posts Post[]
+}
+
+model Post {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  images      String[]     
+  videoUrl    String?
+  price       Float?       
+  categoryId  String
+  category    PostCategory @relation(fields: [categoryId], references: [id])
+  quiz        Quiz?
+  event       Event?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Quiz {
+  id                String         @id @default(uuid())
+  postId            String?        @unique
+  post              Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
+  rewardAmount      Float          @default(0.00) 
+  passingPercentage Int            @default(70)    
+  questions         QuizQuestion[]
+  attempts          QuizAttempt[]
+}
+
+model QuizQuestion {
+  id            String   @id @default(uuid())
+  quizId        String
+  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionText  String
+  options       String[] 
+  correctAnswer Int      
+}
+
+model QuizAttempt {
+  id        String   @id @default(uuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passed    Boolean  @default(false)
+  score     Float    @default(0.00)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([quizId, userId])
+}
+
+model Event {
+  id           String          @id @default(uuid())
+  postId       String?         @unique
+  post         Post?           @relation(fields: [postId], references: [id], onDelete: SetNull)
+  title        String
+  description  String?
+  eventDate    DateTime
+  location     String?
+  rewardAmount Float           @default(0.00)
+  attendees    EventAttendee[]
+}
+
+model EventAttendee {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String   @default("ATTENDING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+}
+
+// ==========================================
+// CHRISTMAS CHARITY EVENT TABLES
+// ==========================================
+
+model ChristmasApplication {
+  id         String   @id @default(uuid())
+  momName    String
+  phone      String
+  email      String?
+  address    String
+  referredBy String
+  donorNotes String?
+  createdAt  DateTime @default(now())
+  deletedAt  DateTime?
+  kids       ChristmasKid[]
+}
+
+model ChristmasKid {
+  id            String               @id @default(uuid())
+  applicationId String
+  application   ChristmasApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  tagNumber     String               @unique
+  name          String
+  age           Int
+  gender        String
+  giftOne       String
+  giftTwo       String
+  wishlist      String
+  status        String               @default("PENDING")
+  locationId    String?
+  location      Location?            @relation(fields: [locationId], references: [id])
+}
+
+model Location {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  kids      ChristmasKid[]
+}
+
+enum TagStatus {
+  PENDING
+  PLACED
+  CLAIMED
+  PICKED_UP
+  WRAPPED
 }

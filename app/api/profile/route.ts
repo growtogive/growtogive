@@ -1,3 +1,4 @@
+// app/api/profile/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Resolve the logged-in user's database ID
     const loggedInDbUser = await prisma.user.findUnique({
       where: { email: sessionEmail },
       select: { id: true },
@@ -32,6 +34,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const paramUserId = searchParams.get('userId');
 
+    // Safely assign targetUserId as string | null
     const targetUserId: string | null = paramUserId || loggedInUserId;
 
     if (!targetUserId) {
@@ -40,6 +43,7 @@ export async function GET(req: Request) {
 
     const isOwnProfile = loggedInUserId !== null && loggedInUserId === targetUserId;
 
+    // Build the query include object dynamically
     const includeQuery: any = {
       listings: {
         include: { reviews: true },
@@ -105,6 +109,7 @@ export async function GET(req: Request) {
       include: includeQuery,
     });
 
+    // Fallback: If user doesn't exist yet for this email, create them
     if (!foundUser && isOwnProfile) {
       const defaultCity = 'Bradenton';
       const defaultCoords = getCoordsForCity(defaultCity);
@@ -239,7 +244,10 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
     }
 
-    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@growtogive.com' } });
+    const adminUser = await prisma.user.findFirst({ 
+      where: { email: 'admin@growtogive.com' } 
+    });
+
     if (!adminUser) {
       return NextResponse.json({ error: 'Admin user not found' }, { status: 403 });
     }
@@ -249,7 +257,7 @@ export async function DELETE(req: Request) {
     }
 
     if (listingAction === 'delete') {
-      await prisma.listing.deleteMany({ where: { userId: targetUserId } });
+      await prisma.listing.deleteMany({ where: { userId: targetUserId } as any });
     }
 
     await prisma.user.delete({
