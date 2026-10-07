@@ -1,4 +1,4 @@
-// app/users/[id]/page.tsx
+// app/profile/[id]/page.tsx
 'use client';
 
 import { useState, useEffect, use } from 'react';
@@ -10,10 +10,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const { data: session } = useSession();
   const loggedInEmail = (session?.user as any)?.email;
-  const loggedInUserId = (session?.user as any)?.id;
+  const loggedInId = (session?.user as any)?.id;
   const isAdmin = loggedInEmail === 'admin@growtogive.com';
-  const isOwnProfile = loggedInUserId === id;
 
+  // 1. Declare state hooks first
   const [userProfile, setUserProfile] = useState<any>(null);
   const [listings, setListings] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
@@ -26,11 +26,17 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [listingAction, setListingAction] = useState<'unpublish' | 'delete'>('unpublish');
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // 2. Declare derived variables after state hooks
+  const isOwnProfile = Boolean(
+    (loggedInEmail && userProfile?.email && loggedInEmail.toLowerCase().trim() === userProfile.email.toLowerCase().trim()) ||
+    (loggedInId && userProfile?.id && loggedInId === userProfile.id)
+  );
+
   useEffect(() => {
     if (id) {
       fetchUserData();
     }
-  }, [id, loggedInUserId]);
+  }, [id, loggedInEmail]);
 
   const fetchUserData = async () => {
     try {
@@ -63,6 +69,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
       setUserProfile({
         id: foundUser.id,
+        email: foundUser.email,
         name: foundUser.name || 'Community Member',
         churchName: foundUser.churchName || 'Grace Family Church',
         city: foundUser.city || 'Bradenton',
@@ -70,6 +77,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         image: foundUser.avatar || null,
         createdAt: foundUser.createdAt,
         reviews: combinedReviews,
+        isFavorited: foundUser.isFavorited || false,
       });
       setListings(userListings);
     } catch (err) {
@@ -172,7 +180,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               )}
             </div>
             <div className="space-y-1">
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{userProfile.name}</h1>
+                {!isOwnProfile && <FavoriteButton userId={profileUserId} initialIsFavorited={userProfile.isFavorited} />}
+              </div>
               <p className="text-xs text-slate-500">Member since {memberSinceFormatted}</p>
               
               <div className="flex flex-wrap items-center gap-2 pt-1.5">
@@ -186,7 +197,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 )}
               </div>
               
-              {isAdmin && loggedInUserId !== profileUserId && (
+              {isAdmin && !isOwnProfile && (
                 <div className="pt-2">
                   <button
                     onClick={() => setShowDeleteModal(true)}
@@ -214,70 +225,112 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </button>
         </div>
 
-        {/* Saved Favorites Section (Visible if viewing own profile) */}
+        {/* Saved Favorites Section (Visible if viewing own profile - handles both Listings & Users) */}
         {isOwnProfile && (
-          <div className="mb-12">
-            <div className="mb-4">
-              <h2 className="text-xl font-bold text-slate-900">Saved Favorites ({favorites.length})</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Listings you have bookmarked. Expired items (older than 14 days) are automatically cleaned up.</p>
-            </div>
-
-            {favorites.length === 0 ? (
-              <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
-                You haven&apos;t favorited any listings yet. Click the heart icon on any listing card to save it here!
+          <div className="mb-12 space-y-8">
+            <div>
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-slate-900">Saved Favorites ({favorites.length})</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Listings and users you have bookmarked for quick access.</p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {favorites.map((favItem: any) => {
-                  const itemListing = favItem.listing || favItem;
-                  if (!itemListing) return null;
-                  const createdDate = new Date(itemListing.createdAt || Date.now());
-                  const expirationDate = new Date(createdDate);
-                  expirationDate.setDate(expirationDate.getDate() + 14);
-                  const isCommercial = (itemListing.type || '').toUpperCase() === 'COMMERCIAL';
-                  const priceDisplay = !isCommercial ? `GB ${Number(itemListing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
 
-                  return (
-                    <div key={itemListing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
-                      <div className="absolute top-3 right-3 z-10">
-                        <FavoriteButton listingId={itemListing.id} initialIsFavorited={true} />
-                      </div>
+              {favorites.length === 0 ? (
+                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
+                  You haven&apos;t favorited any listings or users yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {favorites.map((favItem: any) => {
+                    // Handle favorite user cards explicitly
+                    const targetUser = favItem.targetUser || favItem.user;
+                    if (targetUser) {
+                      const isTargetUserSelf = loggedInEmail && targetUser.email && loggedInEmail.toLowerCase() === targetUser.email.toLowerCase();
+                      return (
+                        <div key={favItem.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                          <div className="absolute top-3 right-3 z-10">
+                            <FavoriteButton userId={targetUser.id} initialIsFavorited={true} />
+                          </div>
 
-                      <Link href={`/listings/${itemListing.id}`} className="block">
-                        <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
-                          <img
-                            src={itemListing.imageUrl || itemListing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
-                            alt={itemListing.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                          <span className={`absolute top-3 left-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
-                            isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
-                          }`}>
-                            {itemListing.type}
+                          <Link href={`/profile/${targetUser.id}`} className="block p-5 space-y-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center overflow-hidden shrink-0">
+                                {targetUser.avatar ? (
+                                  <img src={targetUser.avatar} alt={targetUser.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  targetUser.name?.charAt(0) || 'U'
+                                )}
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                                  {targetUser.name}
+                                </h3>
+                                <p className="text-[11px] text-slate-500">📍 {targetUser.city || 'Bradenton'}, {targetUser.state || 'FL'}</p>
+                              </div>
+                            </div>
+                            <p className="text-slate-600 text-xs line-clamp-2">
+                              {targetUser.bio || 'Community member profile.'}
+                            </p>
+                          </Link>
+
+                          <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 font-medium">
+                            Saved User Profile
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Handle favorite listing cards explicitly
+                    const itemListing = favItem.listing;
+                    if (!itemListing || !itemListing.id) return null;
+
+                    const createdDate = new Date(itemListing.createdAt || Date.now());
+                    const expirationDate = new Date(createdDate);
+                    expirationDate.setDate(expirationDate.getDate() + 14);
+                    const isCommercial = (itemListing.type || '').toUpperCase() === 'COMMERCIAL';
+                    const priceDisplay = !isCommercial ? `GB ${Number(itemListing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+
+                    return (
+                      <div key={itemListing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                        <div className="absolute top-3 right-3 z-10">
+                          <FavoriteButton listingId={itemListing.id} initialIsFavorited={true} />
+                        </div>
+
+                        <Link href={`/listings/${itemListing.id}`} className="block">
+                          <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                            <img
+                              src={itemListing.imageUrl || itemListing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                              alt={itemListing.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                            <span className={`absolute top-3 left-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
+                              isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
+                            }`}>
+                              {itemListing.type}
+                            </span>
+                          </div>
+
+                          <div className="p-5 space-y-3">
+                            <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors leading-snug">
+                              {itemListing.title}
+                            </h3>
+                            <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
+                              {itemListing.description}
+                            </p>
+                          </div>
+                        </Link>
+
+                        <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
+                          <span>{priceDisplay}</span>
+                          <span className="font-normal text-[11px] text-slate-500">
+                            Expires: {expirationDate.toLocaleDateString()}
                           </span>
                         </div>
-
-                        <div className="p-5 space-y-3">
-                          <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors leading-snug">
-                            {itemListing.title}
-                          </h3>
-                          <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
-                            {itemListing.description}
-                          </p>
-                        </div>
-                      </Link>
-
-                      <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
-                        <span>{priceDisplay}</span>
-                        <span className="font-normal text-[11px] text-slate-500">
-                          Expires: {expirationDate.toLocaleDateString()}
-                        </span>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -292,74 +345,39 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             This user has no active listings at the moment.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {listings.map((item: any) => {
-              const createdDate = new Date(item.createdAt || Date.now());
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {listings.map((listing: any) => {
+              const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
+              const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+              const createdDate = new Date(listing.createdAt || Date.now());
               const expirationDate = new Date(createdDate);
               expirationDate.setDate(expirationDate.getDate() + 14);
-              const isCommercial = (item.type || '').toUpperCase() === 'COMMERCIAL';
-              
-              const displayCity = (item.city || userProfile.city || '').trim() || 'General City';
-              const displayChurch = (item.churchName || userProfile.churchName || '').trim() || 'Grace Family Church';
-              const dateDisplay = isCommercial ? `Created: ${createdDate.toLocaleDateString()}` : `Expires: ${expirationDate.toLocaleDateString()}`;
-              const priceDisplay = !isCommercial ? `GB ${Number(item.priceInBucks || 0).toFixed(2)}` : 'Storefront';
-              const isFavorited = userFavoriteIds.includes(item.id);
 
               return (
-                <div key={item.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
-                  <div className="absolute top-3 right-3 z-10">
-                    <FavoriteButton listingId={item.id} initialIsFavorited={isFavorited} />
-                  </div>
-
-                  <Link href={`/listings/${item.id}`} className="block">
-                    <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                <div key={listing.id} className="border border-slate-200 bg-white rounded-2xl overflow-hidden shadow-sm hover:border-slate-300 transition-all">
+                  <Link href={`/listings/${listing.id}`} className="block">
+                    <div className="relative h-52 bg-slate-100 overflow-hidden">
                       <img
-                        src={item.imageUrl || item.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={(e: any) => { 
-                          e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
-                        }}
+                        src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                        alt={listing.title}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                       />
                       <span className={`absolute top-3 left-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
                         isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
                       }`}>
-                        {item.type}
+                        {listing.type}
                       </span>
                     </div>
 
                     <div className="p-5 space-y-3">
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors leading-snug">
-                          {item.title}
-                        </h3>
-                        <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium mt-1 pb-2.5 border-b border-slate-100">
-                          <span className="text-blue-600 inline-block filter hue-rotate-15">✝</span>
-                          <span>{displayCity} &gt; {displayChurch}</span>
-                        </div>
-                      </div>
-
-                      <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
-                        {item.description}
-                      </p>
+                      <h3 className="text-base font-bold text-slate-900 leading-snug">{listing.title}</h3>
+                      <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">{listing.description}</p>
                     </div>
                   </Link>
 
                   <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
                     <span>{priceDisplay}</span>
-                    <span className="font-normal text-[11px] text-slate-500">
-                      {dateDisplay}
-                    </span>
-                  </div>
-
-                  <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <span>👤</span>
-                      <span>{userProfile.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] font-medium">
-                      <span className="text-slate-500">📍 {item.distance ?? 0} mi</span>
-                    </div>
+                    <span className="font-normal text-[11px] text-slate-500">Expires: {expirationDate.toLocaleDateString()}</span>
                   </div>
                 </div>
               );
@@ -367,115 +385,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
-
-      {/* Warning Modal Popup */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
-            <h3 className="text-xl font-black text-slate-900">Confirm User Deletion</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              This action will wipe all connected records, transfer any remaining GrowBucks balance back to <span className="font-semibold text-slate-900">admin@growtogive.com</span>, and remove the user.
-            </p>
-
-            <div className="space-y-2 pt-2">
-              <label className="text-xs font-bold text-slate-700 block">Listing Action:</label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="listingAction"
-                    value="unpublish"
-                    checked={listingAction === 'unpublish'}
-                    onChange={() => setListingAction('unpublish')}
-                  />
-                  Unpublish Listings
-                </label>
-                <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="listingAction"
-                    value="delete"
-                    checked={listingAction === 'delete'}
-                    onChange={() => setListingAction('delete')}
-                  />
-                  Delete Entirely
-                </label>
-              </div>
-            </div>
-
-            <div className="pt-4 flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => handleDeleteUser(profileUserId)}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {isDeleting ? 'Processing...' : 'Confirm & Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showReviewsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-lg w-full shadow-2xl relative max-h-[85vh] overflow-y-auto">
-            <button
-              onClick={() => setShowReviewsModal(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
-            >
-              ×
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div>
-                <h3 className="text-2xl font-black text-slate-900">{userProfile.name}&apos;s Reviews</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Community feedback tied to this user profile</p>
-              </div>
-              <div className="ml-auto bg-amber-50 border border-amber-200 text-amber-800 px-3.5 py-1.5 rounded-xl font-black text-sm shrink-0">
-                ★ {avgRating}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {reviewsList.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-6">No reviews submitted for this user yet.</p>
-              ) : (
-                reviewsList.map((rev: any) => (
-                  <div key={rev.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-bold text-slate-900 text-sm">{rev.author?.name || rev.author || 'Member'}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-amber-500 font-bold text-xs">{'★'.repeat(rev.rating)}</span>
-                        <span className="text-slate-400 text-xs">
-                          {new Date(rev.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-slate-600 text-sm leading-relaxed">{rev.comment}</p>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="mt-8 pt-4 border-t border-slate-200 text-center">
-              <button
-                onClick={() => setShowReviewsModal(false)}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors cursor-pointer"
-              >
-                Close Reviews
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

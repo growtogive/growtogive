@@ -1,253 +1,247 @@
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+// app/api/profile/route.ts
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcrypt';
+
+function getCoordsForCity(cityName: string): { lat: number; lng: number } {
+  const city = (cityName || '').toLowerCase();
+  if (city.includes('bradenton')) return { lat: 27.4989, lng: -82.5748 };
+  if (city.includes('tampa')) return { lat: 27.9506, lng: -82.4572 };
+  if (city.includes('clearwater')) return { lat: 27.9659, lng: -82.8001 };
+  if (city.includes('sarasota')) return { lat: 27.3364, lng: -82.5307 };
+  if (city.includes('st. petersburg') || city.includes('saint petersburg')) return { lat: 27.7676, lng: -82.6403 };
+  return { lat: 27.5000, lng: -82.5500 };
 }
 
-generator client {
-  provider = "prisma-client-js"
+export async function GET(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    const sessionEmail = session?.user?.email;
+
+    if (!sessionEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Resolve the logged-in user's database ID
+    const loggedInDbUser = await prisma.user.findUnique({
+      where: { email: sessionEmail },
+      select: { id: true },
+    });
+    const loggedInUserId = loggedInDbUser?.id || null;
+
+    const { searchParams } = new URL(req.url);
+    const paramUserId = searchParams.get('userId');
+
+    // Safely assign targetUserId as string | null
+    const targetUserId: string | null = paramUserId || loggedInUserId;
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const isOwnProfile = loggedInUserId !== null && loggedInUserId === targetUserId;
+
+    // Build the query include object dynamically
+    const includeQuery: any = {
+      listings: {
+        include: { reviews: true },
+        orderBy: { createdAt: 'desc' },
+      },
+      reviews: {
+        include: { author: { select: { name: true } } },
+      },
+    };
+
+    if (isOwnProfile) {
+      includeQuery.favorites = {
+        where: {
+          OR: [
+            {
+              targetUserId: { not: null },
+            },
+            {
+              listingId: { not: null },
+              listing: {
+                expiresAt: { gt: new Date() },
+              },
+            },
+          ],
+        },
+        include: {
+          listing: true,
+          targetUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatar: true,
+              city: true,
+              state: true,
+              bio: true,
+              churchName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      };
+
+      includeQuery.sentTx = {
+        include: {
+          sender: { select: { name: true, email: true } },
+          receiver: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      };
+
+      includeQuery.receivedTx = {
+        include: {
+          sender: { select: { name: true, email: true } },
+          receiver: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      };
+    }
+
+    let foundUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      include: includeQuery,
+    });
+
+    // Fallback: If user doesn't exist yet for this email, create them
+    if (!foundUser && isOwnProfile) {
+      const defaultCity = 'Bradenton';
+      const defaultCoords = getCoordsForCity(defaultCity);
+
+      foundUser = await prisma.user.create({
+        data: {
+          email: sessionEmail,
+          name: session.user?.name || 'Community Member',
+          password: 'oauth_or_session_user',
+          city: defaultCity,
+          state: 'FL',
+          churchName: 'Grace Family Church',
+          userPhone: '(555) 000-0000',
+          growbucks: 10.00,
+          latitude: defaultCoords.lat,
+          longitude: defaultCoords.lng,
+        },
+        include: includeQuery,
+      });
+    }
+
+    if (!foundUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    let isFavorited = false;
+    if (loggedInUserId !== null && !isOwnProfile) {
+      const fav = await prisma.favorite.findFirst({
+        where: {
+          userId: loggedInUserId,
+          targetUserId: targetUserId,
+        },
+      });
+      isFavorited = !!fav;
+    }
+
+    return NextResponse.json({
+      user: { ...foundUser, isFavorited },
+      listings: foundUser.listings || [],
+      favorites: isOwnProfile ? (foundUser as any).favorites || [] : [],
+    });
+  } catch (error: any) {
+    console.error('Fetch profile error:', error);
+    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
+  }
 }
 
-model User {
-  id                  String          @id @default(cuid())
-  email               String          @unique
-  password            String?
-  name                String?
-  role                String          @default("USER")
-  city                String?         @default("Bradenton")
-  state               String?         @default("FL")
-  churchName          String?         @default("Grace Family Church")
-  address             String?
-  latitude            Float?
-  longitude           Float?
-  userPhone           String?
-  bio                 String?
-  avatar              String?
-  growbucks           Float           @default(0.00)
-  emailVerified       Boolean         @default(false)
-  basicTrainingPassed Boolean         @default(false)
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  listings            Listing[]
-  reviews             Review[]        @relation("TargetUserReviews")
-  authReviews         Review[]        @relation("AuthorReviews")
-  sentTx              Transaction[]   @relation("SentTransactions")
-  receivedTx          Transaction[]   @relation("ReceivedTransactions")
-  sentMessages        Message[]       @relation("SentMessages")
-  receivedMessages    Message[]       @relation("ReceivedMessages")
-  quizAttempts        QuizAttempt[]
-  eventAttendees      EventAttendee[]
-  favorites           Favorite[]
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { 
+      name, email, city, state, churchName, userPhone, address, 
+      latitude, longitude, bio, avatar, currentPassword, newPassword, confirmPassword 
+    } = body;
+
+    if (!name || !email) {
+      return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
+    }
+
+    let finalLat = latitude !== '' && latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+    let finalLng = longitude !== '' && longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
+
+    if (!finalLat || !finalLng || finalLat === 0) {
+      const coords = getCoordsForCity(city || 'Bradenton');
+      finalLat = coords.lat;
+      finalLng = coords.lng;
+    }
+
+    let updateData: any = {
+      name, email, city, state, churchName, userPhone, address,
+      latitude: finalLat, longitude: finalLng, bio, avatar,
+    };
+
+    if (newPassword && newPassword.trim() !== '') {
+      if (newPassword !== confirmPassword) {
+        return NextResponse.json({ error: 'New passwords do not match.' }, { status: 400 });
+      }
+      if (!currentPassword) {
+        return NextResponse.json({ error: 'Current password is required to set a new password.' }, { status: 400 });
+      }
+
+      const dbUser = await prisma.user.findUnique({ where: { email: session.user.email } });
+      if (!dbUser || !dbUser.password || dbUser.password === 'oauth_or_session_user') {
+        return NextResponse.json({ error: 'Password changes are not available for this account.' }, { status: 400 });
+      }
+
+      const passwordMatch = await bcrypt.compare(currentPassword, dbUser.password);
+      if (!passwordMatch) {
+        return NextResponse.json({ error: 'Incorrect current password.' }, { status: 400 });
+      }
+
+      updateData.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { email: session.user.email },
+      data: updateData,
+    });
+
+    return NextResponse.json({ success: true, user: updatedUser });
+  } catch (error: any) {
+    console.error('Profile update error:', error);
+    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
+  }
 }
 
-model Listing {
-  id            String   @id @default(cuid())
-  title         String
-  description   String
-  type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
-  category      String   
-  priceInBucks  Float    @default(0.00)
-  
-  imageUrl      String?  
-  images        String[]     @default([])
-  videoUrl      String?
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    const sessionUser = session?.user as any;
 
-  isFeatured    Boolean      @default(false)
-  isCommercial  Boolean      @default(false)
-  expiresAt     DateTime     @default(dbgenerated("NOW() + INTERVAL '14 days'"))
-  
-  location      String?
-  city          String?
-  latitude      Float?
-  longitude     Float?
-  businessPhone String?
-  websiteUrl    String?
-  businessHours String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  authorId      String
-  author        User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  reviews       Review[]
-  messages      Message[]
-  favorites     Favorite[]
-}
+    if (!sessionUser || sessionUser.email !== 'admin@growtogive.com') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-model Favorite {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listingId String
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+    const { searchParams } = new URL(req.url);
+    const targetUserId = searchParams.get('userId');
+    const body = await req.json().catch(() => ({}));
+    const listingAction = body.listingAction || 'unpublish';
 
-  @@unique([userId, listingId])
-}
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'Target user ID is required' }, { status: 400 });
+    }
 
-model Review {
-  id           String   @id @default(cuid())
-  rating       Int      @default(5)
-  comment      String
-  reply        String?
-  createdAt    DateTime @default(now())
-  authorId     String
-  author       User     @relation("AuthorReviews", fields: [authorId], references: [id], onDelete: Cascade)
-  targetUserId String
-  targetUser   User     @relation("TargetUserReviews", fields: [targetUserId], references: [id], onDelete: Cascade)
-  listingId    String?
-  listing      Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
-}
+    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
+    }
 
-model Transaction {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  reason      String   
-  amount      Float    
-  commission  Float?   
-  netAmount   Float?   
-  type        String   @default("TRANSFER")
-  senderId    String?
-  sender      User?    @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade) 
-  receiverId  String
-  receiver    User     @relation("ReceivedTransactions", fields: [receiverId], references: [id], onDelete: Cascade)
-}
-
-model Message {
-  id          String   @id @default(uuid())
-  listingId   String
-  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  senderId    String
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiverId  String
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
-  content     String   @db.Text
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  @@index([listingId])
-  @@index([receiverId])
-}
-
-model PostCategory {
-  id    String @id @default(uuid())
-  name  String @unique
-  posts Post[]
-}
-
-model Post {
-  id          String       @id @default(uuid())
-  title       String
-  description String
-  images      String[]     
-  videoUrl    String?
-  price       Float?       
-  categoryId  String
-  category    PostCategory @relation(fields: [categoryId], references: [id])
-  quiz        Quiz?
-  event       Event?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-}
-
-model Quiz {
-  id                String         @id @default(uuid())
-  postId            String?        @unique
-  post              Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
-  rewardAmount      Float          @default(0.00) 
-  passingPercentage Int            @default(70)    
-  questions         QuizQuestion[]
-  attempts          QuizAttempt[]
-}
-
-model QuizQuestion {
-  id            String   @id @default(uuid())
-  quizId        String
-  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  questionText  String
-  options       String[] 
-  correctAnswer Int      
-}
-
-model QuizAttempt {
-  id        String   @id @default(uuid())
-  quizId    String
-  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  passed    Boolean  @default(false)
-  score     Float    @default(0.00)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([quizId, userId])
-}
-
-model Event {
-  id           String          @id @default(uuid())
-  postId       String?         @unique
-  post         Post?           @relation(fields: [postId], references: [id], onDelete: SetNull)
-  title        String
-  description  String?
-  eventDate    DateTime
-  location     String?
-  rewardAmount Float           @default(0.00)
-  attendees    EventAttendee[]
-}
-
-model EventAttendee {
-  id        String   @id @default(uuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status    String   @default("ATTENDING")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([eventId, userId])
-}
-
-// ==========================================
-// CHRISTMAS CHARITY EVENT TABLES
-// ==========================================
-
-model ChristmasApplication {
-  id         String   @id @default(uuid())
-  momName    String
-  phone      String
-  email      String?
-  address    String
-  referredBy String
-  donorNotes String?
-  createdAt  DateTime @default(now())
-  deletedAt  DateTime?
-  kids       ChristmasKid[]
-}
-
-model ChristmasKid {
-  id            String               @id @default(uuid())
-  applicationId String
-  application   ChristmasApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  tagNumber     String               @unique
-  name          String
-  age           Int
-  gender        String
-  giftOne       String
-  giftTwo       String
-  wishlist      String
-  status        String               @default("PENDING")
-  locationId    String?
-  location      Location?            @relation(fields: [locationId], references: [id])
-}
-
-model Location {
-  id        String         @id @default(cuid())
-  name      String         @unique
-  kids      ChristmasKid[]
-}
-
-enum TagStatus {
-  PENDING
-  PLACED
-  CLAIMED
-  PICKED_UP
-  WRAPPED
-}
+    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@growtog

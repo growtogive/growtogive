@@ -617,55 +617,93 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {favorites.map(({ listing }) => {
-                if (!listing) return null;
-                const createdDate = new Date(listing.createdAt || Date.now());
-                const expirationDate = new Date(createdDate);
-                expirationDate.setDate(expirationDate.getDate() + 14);
-                const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
-                const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+              {favorites.map((favItem: any) => {
+  // 1. Handle favorite user cards explicitly
+  const targetUser = favItem.targetUser || favItem.user;
+  if (targetUser) {
+    return (
+      <div key={favItem.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+        <div className="absolute top-3 right-3 z-10">
+          <FavoriteButton userId={targetUser.id} initialIsFavorited={true} />
+        </div>
+        <Link href={`/profile/${targetUser.id}`} className="block p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center overflow-hidden shrink-0">
+              {targetUser.avatar ? (
+                <img src={targetUser.avatar} alt={targetUser.name} className="w-full h-full object-cover" />
+              ) : (
+                targetUser.name?.charAt(0) || 'U'
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                {targetUser.name}
+              </h3>
+              <p className="text-[11px] text-slate-500">📍 {targetUser.city || 'Bradenton'}, {targetUser.state || 'FL'}</p>
+            </div>
+          </div>
+          <p className="text-slate-600 text-xs line-clamp-2">
+            {targetUser.bio || 'Community member profile.'}
+          </p>
+        </Link>
+        <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 font-medium">
+          Saved User Profile
+        </div>
+      </div>
+    );
+  }
 
-                return (
-                  <div key={listing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
-                    <div className="absolute top-3 right-3 z-10">
-                      <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
-                    </div>
+  // 2. Handle favorite listing cards
+  const listing = favItem.listing;
+  if (!listing || !listing.id) return null;
+  
+  const createdDate = new Date(listing.createdAt || Date.now());
+  const expirationDate = new Date(createdDate);
+  expirationDate.setDate(expirationDate.getDate() + 14);
+  const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
+  const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
 
-                    <Link href={`/listings/${listing.id}`} className="block">
-                      <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
-                        <img 
-                          src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
-                          alt={listing.title} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                        />
-                        <span className={`absolute top-3 left-3 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
-                          isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
-                        }`}>
-                          {listing.type}
-                        </span>
-                      </div>
+  return (
+    <div key={listing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+      <div className="absolute top-3 right-3 z-10">
+        <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
+      </div>
 
-                      <div className="p-5 pb-2">
-                        <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 leading-snug transition-colors">
-                          {listing.title}
-                        </h3>
-                      </div>
+      <Link href={`/listings/${listing.id}`} className="block">
+        <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
+          <img 
+            src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+            alt={listing.title} 
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+          />
+          <span className={`absolute top-3 left-3 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
+            isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
+          }`}>
+            {listing.type}
+          </span>
+        </div>
 
-                      <div className="p-5 pt-2">
-                        <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed font-normal mb-3">
-                          {listing.description}
-                        </p>
-                      </div>
-                    </Link>
+        <div className="p-5 pb-2">
+          <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 leading-snug transition-colors">
+            {listing.title}
+          </h3>
+        </div>
 
-                    <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
-                      <span>{priceDisplay}</span>
-                      <span className="font-normal text-[11px] text-slate-500">
-                        Expires: {expirationDate.toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                );
+        <div className="p-5 pt-2">
+          <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed font-normal mb-3">
+            {listing.description}
+          </p>
+        </div>
+      </Link>
+
+      <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
+        <span>{priceDisplay}</span>
+        <span className="font-normal text-[11px] text-slate-500">
+          Expires: {expirationDate.toLocaleDateString()}
+        </span>
+      </div>
+    </div>
+  );
               })}
             </div>
           )}

@@ -18,78 +18,105 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+    const sessionEmail = session?.user?.email;
 
-    if (!session || !session.user?.email) {
+    if (!sessionEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
-
-    let queryCondition = { email: session.user.email };
-    if (userId) {
-      queryCondition = { id: userId } as any;
-    }
-
-    let user = await (prisma as any).user.findUnique({
-      where: queryCondition,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        city: true,
-        state: true,
-        churchName: true,
-        userPhone: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-        bio: true,
-        avatar: true,
-        growbucks: true,
-        createdAt: true,
-        reviews: true, 
-        favorites: {
-          where: {
-            listing: {
-              expiresAt: { gt: new Date() }, // Automatically exclude expired listings (14 days)
-            },
-          },
-          include: {
-            listing: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-        sentTx: {
-          include: {
-            sender: { select: { name: true, email: true } },
-            receiver: { select: { name: true, email: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-        receivedTx: {
-          include: {
-            sender: { select: { name: true, email: true } },
-            receiver: { select: { name: true, email: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+    // Resolve the logged-in user's database ID
+    const loggedInDbUser = await prisma.user.findUnique({
+      where: { email: sessionEmail },
+      select: { id: true },
     });
+    const loggedInUserId = loggedInDbUser?.id || null;
 
-    if (!user && userId) {
+    const { searchParams } = new URL(req.url);
+    const paramUserId = searchParams.get('userId');
+
+    // Safely assign targetUserId as string | null
+    const targetUserId: string | null = paramUserId || loggedInUserId;
+
+    if (!targetUserId) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!user) {
+    const isOwnProfile = loggedInUserId !== null && loggedInUserId === targetUserId;
+
+    // Build the query include object dynamically
+    const includeQuery: any = {
+      listings: {
+        include: { reviews: true },
+        orderBy: { createdAt: 'desc' },
+      },
+      reviews: {
+        include: { author: { select: { name: true } } },
+      },
+    };
+
+    if (isOwnProfile) {
+      includeQuery.favorites = {
+        where: {
+          OR: [
+            {
+              targetUserId: { not: null },
+            },
+            {
+              listingId: { not: null },
+              listing: {
+                expiresAt: { gt: new Date() },
+              },
+            },
+          ],
+        },
+        include: {
+          listing: true,
+          targetUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatar: true,
+              city: true,
+              state: true,
+              bio: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      };
+
+      includeQuery.sentTx = {
+        include: {
+          sender: { select: { name: true, email: true } },
+          receiver: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      };
+
+      includeQuery.receivedTx = {
+        include: {
+          sender: { select: { name: true, email: true } },
+          receiver: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      };
+    }
+
+    let foundUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      include: includeQuery,
+    });
+
+    // Fallback: If user doesn't exist yet for this email, create them
+    if (!foundUser && isOwnProfile) {
       const defaultCity = 'Bradenton';
       const defaultCoords = getCoordsForCity(defaultCity);
 
-      user = await (prisma as any).user.create({
+      foundUser = await prisma.user.create({
         data: {
-          email: session.user.email,
-          name: session.user.name || 'Community Member',
+          email: sessionEmail,
+          name: session.user?.name || 'Community Member',
           password: 'oauth_or_session_user',
           city: defaultCity,
           state: 'FL',
@@ -99,42 +126,29 @@ export async function GET(req: Request) {
           latitude: defaultCoords.lat,
           longitude: defaultCoords.lng,
         },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          city: true,
-          state: true,
-          churchName: true,
-          userPhone: true,
-          address: true,
-          latitude: true,
-          longitude: true,
-          bio: true,
-          avatar: true,
-          growbucks: true,
-          createdAt: true,
-          reviews: true,
-          favorites: {
-            include: { listing: true },
-          },
-        },
+        include: includeQuery,
       });
     }
 
-    const listings = await prisma.listing.findMany({
-      where: { authorId: user.id },
-      include: {
-        reviews: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    if (!foundUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
-    return NextResponse.json({ 
-      user, 
-      listings, 
-      favorites: user.favorites || [] 
+    let isFavorited = false;
+    if (loggedInUserId !== null && !isOwnProfile) {
+      const fav = await prisma.favorite.findFirst({
+        where: {
+          userId: loggedInUserId,
+          targetUserId: targetUserId,
+        },
+      });
+      isFavorited = !!fav;
+    }
+
+    return NextResponse.json({
+      user: { ...foundUser, isFavorited },
+      listings: foundUser.listings || [],
+      favorites: isOwnProfile ? (foundUser as any).favorites || [] : [],
     });
   } catch (error: any) {
     console.error('Fetch profile error:', error);
@@ -145,27 +159,14 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-
     if (!session || !session.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
     const { 
-      name, 
-      email, 
-      city, 
-      state, 
-      churchName, 
-      userPhone, 
-      address, 
-      latitude, 
-      longitude, 
-      bio, 
-      avatar, 
-      currentPassword, 
-      newPassword, 
-      confirmPassword 
+      name, email, city, state, churchName, userPhone, address, 
+      latitude, longitude, bio, avatar, currentPassword, newPassword, confirmPassword 
     } = body;
 
     if (!name || !email) {
@@ -182,17 +183,8 @@ export async function PUT(req: Request) {
     }
 
     let updateData: any = {
-      name,
-      email,
-      city,
-      state,
-      churchName,
-      userPhone,
-      address,
-      latitude: finalLat,
-      longitude: finalLng,
-      bio,
-      avatar,
+      name, email, city, state, churchName, userPhone, address,
+      latitude: finalLat, longitude: finalLng, bio, avatar,
     };
 
     if (newPassword && newPassword.trim() !== '') {
@@ -203,13 +195,9 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'Current password is required to set a new password.' }, { status: 400 });
       }
 
-      const dbUser = await (prisma as any).user.findUnique({ where: { email: session.user.email } });
-      if (!dbUser) {
-        return NextResponse.json({ error: 'User not found.' }, { status: 404 });
-      }
-
-      if (!dbUser.password || dbUser.password === 'oauth_or_session_user') {
-        return NextResponse.json({ error: 'Password changes are not available for social login accounts.' }, { status: 400 });
+      const dbUser = await prisma.user.findUnique({ where: { email: session.user.email } });
+      if (!dbUser || !dbUser.password || dbUser.password === 'oauth_or_session_user') {
+        return NextResponse.json({ error: 'Password changes are not available for this account.' }, { status: 400 });
       }
 
       const passwordMatch = await bcrypt.compare(currentPassword, dbUser.password);
@@ -217,19 +205,15 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'Incorrect current password.' }, { status: 400 });
       }
 
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      updateData.password = hashedPassword;
+      updateData.password = await bcrypt.hash(newPassword, 10);
     }
 
-    const updatedUser = await (prisma as any).user.update({
+    const updatedUser = await prisma.user.update({
       where: { email: session.user.email },
       data: updateData,
     });
 
-    return NextResponse.json({
-      success: true,
-      user: updatedUser,
-    });
+    return NextResponse.json({ success: true, user: updatedUser });
   } catch (error: any) {
     console.error('Profile update error:', error);
     return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
@@ -254,21 +238,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Target user ID is required' }, { status: 400 });
     }
 
-    const targetUser = await (prisma as any).user.findUnique({ where: { id: targetUserId } });
+    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
     if (!targetUser) {
       return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
     }
 
-    if (targetUser.email === 'admin@growtogive.com') {
-      return NextResponse.json({ error: 'Cannot delete the admin user' }, { status: 400 });
-    }
+    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@growtogive.com' } });
 
-    const adminUser = await (prisma as any).user.findUnique({
-      where: { email: 'admin@growtogive.com' },
-    });
-
-    await prisma.$transaction(async (tx: any) => {
-      // Transfer GrowBucks back to admin if applicable
+    await prisma.$transaction(async (tx) => {
       if (adminUser && targetUser.growbucks > 0) {
         await tx.user.update({
           where: { id: adminUser.id },
@@ -276,19 +253,14 @@ export async function DELETE(req: Request) {
         });
       }
 
-      // Handle listing action (delete user's listings)
-      await tx.listing.deleteMany({ where: { authorId: targetUserId } });
+      if (listingAction === 'delete') {
+        await tx.listing.deleteMany({ where: { authorId: targetUserId } });
+      }
 
-      // Delete target user
-      await tx.user.delete({
-        where: { id: targetUserId },
-      });
+      await tx.user.delete({ where: { id: targetUserId } });
     });
 
-    return NextResponse.json(
-      { success: true, message: 'User deleted successfully and records updated.' },
-      { status: 200 }
-    );
+    return NextResponse.json({ success: true, message: 'User deleted successfully.' });
   } catch (error: any) {
     console.error('Delete user error:', error);
     return NextResponse.json({ error: error.message || 'Failed to delete user' }, { status: 500 });
