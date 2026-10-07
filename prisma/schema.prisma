@@ -244,4 +244,26 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
     }
 
-    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@growtog
+    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@growtogive.com' } });
+    if (!adminUser) {
+      return NextResponse.json({ error: 'Admin user not found' }, { status: 403 });
+    }
+
+    if (targetUserId === adminUser.id) {
+      return NextResponse.json({ error: 'Cannot delete the admin account' }, { status: 400 });
+    }
+
+    if (listingAction === 'delete') {
+      await prisma.listing.deleteMany({ where: { userId: targetUserId } });
+    }
+
+    await prisma.user.delete({
+      where: { id: targetUserId },
+    });
+
+    return NextResponse.json({ success: true, message: 'User deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete user error:', error);
+    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
+  }
+}
