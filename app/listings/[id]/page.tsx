@@ -554,17 +554,16 @@ export default function ListingDetailPage() {
             <div className="h-60 w-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm font-bold relative">
               <div className="absolute top-4 left-4 z-10">
                 <button
-                  onClick={handleToggleFavorite}
-                  disabled={favoriting}
-                  className={`p-2.5 rounded-full border shadow-md transition-all cursor-pointer flex items-center justify-center ${
-                    isFavorited 
-                      ? 'bg-rose-500 text-white border-rose-600' 
-                      : 'bg-white/90 hover:bg-white text-slate-700 border-slate-200'
-                  }`}
-                  title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-                >
-                  <span className="text-base">{isFavorited ? '❤️' : '🤍'}</span>
-                </button>
+  type="button"
+  onClick={handleToggleFavorite}
+  disabled={loading}
+  className="p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm transition-all text-white cursor-pointer disabled:opacity-50"
+  title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+>
+  <span className="text-base leading-none drop-shadow-sm">
+    {isFavorited ? '❤️' : '🤍'}
+  </span>
+</button>
               </div>
               No Image Available
             </div>

@@ -41,13 +41,15 @@ export default function FavoriteButton({ listingId, userId, initialIsFavorited =
 
   return (
     <button
-      type="button"
-      onClick={handleToggleFavorite}
-      disabled={loading}
-      className="p-2 rounded-full bg-white/80 hover:bg-white shadow-sm border border-slate-200 transition-all text-slate-600 hover:text-rose-500 cursor-pointer"
-      title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-    >
-      <span className="text-base">{isFavorited ? '❤️' : '🤍'}</span>
-    </button>
+  type="button"
+  onClick={handleToggleFavorite}
+  disabled={loading}
+  className="p-2.5 rounded-full bg-white/90 hover:bg-white shadow-md border border-slate-100 transition-all text-slate-700 hover:scale-105 cursor-pointer disabled:opacity-50"
+  title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+>
+  <span className="text-base leading-none">
+    {isFavorited ? '❤️' : '♡'}
+  </span>
+</button>
   );
 }
