@@ -1,4 +1,3 @@
-// app/api/profile/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -24,7 +23,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Resolve the logged-in user's database ID
     const loggedInDbUser = await prisma.user.findUnique({
       where: { email: sessionEmail },
       select: { id: true },
@@ -34,7 +32,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const paramUserId = searchParams.get('userId');
 
-    // Safely assign targetUserId as string | null
     const targetUserId: string | null = paramUserId || loggedInUserId;
 
     if (!targetUserId) {
@@ -43,7 +40,6 @@ export async function GET(req: Request) {
 
     const isOwnProfile = loggedInUserId !== null && loggedInUserId === targetUserId;
 
-    // Build the query include object dynamically
     const includeQuery: any = {
       listings: {
         include: { reviews: true },
@@ -80,6 +76,7 @@ export async function GET(req: Request) {
               city: true,
               state: true,
               bio: true,
+              churchName: true,
             },
           },
         },
@@ -108,7 +105,6 @@ export async function GET(req: Request) {
       include: includeQuery,
     });
 
-    // Fallback: If user doesn't exist yet for this email, create them
     if (!foundUser && isOwnProfile) {
       const defaultCity = 'Bradenton';
       const defaultCoords = getCoordsForCity(defaultCity);
@@ -244,25 +240,25 @@ export async function DELETE(req: Request) {
     }
 
     const adminUser = await prisma.user.findUnique({ where: { email: 'admin@growtogive.com' } });
+    if (!adminUser) {
+      return NextResponse.json({ error: 'Admin user not found' }, { status: 403 });
+    }
 
-    await prisma.$transaction(async (tx) => {
-      if (adminUser && targetUser.growbucks > 0) {
-        await tx.user.update({
-          where: { id: adminUser.id },
-          data: { growbucks: { increment: targetUser.growbucks } },
-        });
-      }
+    if (targetUserId === adminUser.id) {
+      return NextResponse.json({ error: 'Cannot delete the admin account' }, { status: 400 });
+    }
 
-      if (listingAction === 'delete') {
-        await tx.listing.deleteMany({ where: { authorId: targetUserId } });
-      }
+    if (listingAction === 'delete') {
+      await prisma.listing.deleteMany({ where: { userId: targetUserId } });
+    }
 
-      await tx.user.delete({ where: { id: targetUserId } });
+    await prisma.user.delete({
+      where: { id: targetUserId },
     });
 
-    return NextResponse.json({ success: true, message: 'User deleted successfully.' });
+    return NextResponse.json({ success: true, message: 'User deleted successfully' });
   } catch (error: any) {
     console.error('Delete user error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to delete user' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
   }
 }
