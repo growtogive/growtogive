@@ -24,7 +24,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Resolve the logged-in user's database ID
     const loggedInDbUser = await prisma.user.findUnique({
       where: { email: sessionEmail },
       select: { id: true },
@@ -33,8 +32,6 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const paramUserId = searchParams.get('userId');
-
-    // Safely assign targetUserId as string | null
     const targetUserId: string | null = paramUserId || loggedInUserId;
 
     if (!targetUserId) {
@@ -43,7 +40,6 @@ export async function GET(req: Request) {
 
     const isOwnProfile = loggedInUserId !== null && loggedInUserId === targetUserId;
 
-    // Build the query include object dynamically
     const includeQuery: any = {
       listings: {
         include: { reviews: true },
@@ -58,30 +54,17 @@ export async function GET(req: Request) {
       includeQuery.favorites = {
         where: {
           OR: [
-            {
-              targetUserId: { not: null },
-            },
+            { targetUserId: { not: null } },
             {
               listingId: { not: null },
-              listing: {
-                expiresAt: { gt: new Date() },
-              },
+              listing: { expiresAt: { gt: new Date() } },
             },
           ],
         },
         include: {
           listing: true,
           targetUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              avatar: true,
-              city: true,
-              state: true,
-              bio: true,
-              churchName: true,
-            },
+            select: { id: true, name: true, email: true, avatar: true, city: true, state: true, bio: true, churchName: true },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -109,7 +92,6 @@ export async function GET(req: Request) {
       include: includeQuery,
     });
 
-    // Fallback: If user doesn't exist yet for this email, create them
     if (!foundUser && isOwnProfile) {
       const defaultCity = 'Bradenton';
       const defaultCoords = getCoordsForCity(defaultCity);
@@ -138,10 +120,7 @@ export async function GET(req: Request) {
     let isFavorited = false;
     if (loggedInUserId !== null && !isOwnProfile) {
       const fav = await prisma.favorite.findFirst({
-        where: {
-          userId: loggedInUserId,
-          targetUserId: targetUserId,
-        },
+        where: { userId: loggedInUserId, targetUserId: targetUserId },
       });
       isFavorited = !!fav;
     }

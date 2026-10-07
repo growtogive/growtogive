@@ -749,6 +749,18 @@ export default function ListingDetailPage() {
                 </button>
               </div>
             </div>
+            {/* Report Listing Flag Button */}
+<div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+  <Link
+    href={`/contact?subject=${encodeURIComponent(`[Report Listing] ${listing.title}`)}&message=${encodeURIComponent(`I would like to report this listing for the following reason:\n\nListing Title: ${listing.title}\nLink:${typeof window !== 'undefined' ? window.location.href : `/listings/${listing.id}`}\n\nReason details:`)}`}
+    className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-rose-600 transition-colors"
+  >
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+    </svg>
+    <span>Report this listing</span>
+  </Link>
+</div>
           </div>
 
           {hasCoords ? (

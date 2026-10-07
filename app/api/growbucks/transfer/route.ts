@@ -1,3 +1,4 @@
+// app/api/growbucks/transfer/route.ts (or wherever your transfer route is)
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'You cannot transfer Growbucks to yourself.' }, { status: 400 });
     }
 
-    // Check if sender has enough balance (Only admin@growtogive.org can go negative)
+    // Check if sender has enough balance (Only admin can go negative)
     const isAdmin = sender.email.toLowerCase().trim() === 'admin@growtogive.org' || sender.role?.toUpperCase() === 'ADMIN';
     if (!isAdmin && sender.growbucks < parsedAmount) {
       return NextResponse.json(
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Receiver account not found.' }, { status: 404 });
     }
 
-    // Find Admin Account (admin@growtogive.org)
+    // Find Admin Account
     let adminUser = await prisma.user.findUnique({
       where: { email: 'admin@growtogive.org' },
     });
@@ -77,6 +78,7 @@ export async function POST(req: Request) {
       });
     }
 
+    // Corrected multiplication for commission and net amount
     const commission = parsedAmount * 0.10;
     const netAmount = parsedAmount * 0.90;
 
