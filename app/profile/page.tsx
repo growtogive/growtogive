@@ -30,6 +30,7 @@ export default function ProfilePage() {
   
   const [isEditing, setIsEditing] = useState(false);
   const [isAddressValid, setIsAddressValid] = useState(false);
+  const [visibleTransactionsCount, setVisibleTransactionsCount] = useState(10);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -317,6 +318,9 @@ export default function ProfilePage() {
   const allTransactions = Array.from(
     new Map(rawTransactions.map((tx: any) => [tx.id, tx])).values()
   );
+
+  const displayedTransactions = allTransactions.slice(0, visibleTransactionsCount);
+  const hasMoreTransactions = visibleTransactionsCount < allTransactions.length;
 
   const displayCity = profileData?.city || profileData?.user?.city || 'City not set';
   const displayState = profileData?.state || profileData?.user?.state || 'FL';
@@ -607,103 +611,101 @@ export default function ProfilePage() {
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Saved Favorites ({favorites.length})</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Listings you have bookmarked for quick access.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Listings and users you have bookmarked for quick access.</p>
             </div>
           </div>
 
           {favorites.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-sm font-medium">
-              You haven't favorited any listings yet. Click the heart icon on any listing card to save it here!
+              You haven't favorited any listings or users yet.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {favorites.map((favItem: any) => {
-  // 1. Handle favorite user cards explicitly
-  const targetUser = favItem.targetUser || favItem.user;
-  if (targetUser) {
-    return (
-      <div key={favItem.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
-        <div className="absolute top-3 right-3 z-10">
-          <FavoriteButton userId={targetUser.id} initialIsFavorited={true} />
-        </div>
-        <Link href={`/profile/${targetUser.id}`} className="block p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center overflow-hidden shrink-0">
-              {targetUser.avatar ? (
-                <img src={targetUser.avatar} alt={targetUser.name} className="w-full h-full object-cover" />
-              ) : (
-                targetUser.name?.charAt(0) || 'U'
-              )}
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
-                {targetUser.name}
-              </h3>
-              <p className="text-[11px] text-slate-500">📍 {targetUser.city || 'Bradenton'}, {targetUser.state || 'FL'}</p>
-            </div>
-          </div>
-          <p className="text-slate-600 text-xs line-clamp-2">
-            {targetUser.bio || 'Community member profile.'}
-          </p>
-        </Link>
-        <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 font-medium">
-          Saved User Profile
-        </div>
-      </div>
-    );
-  }
+                const targetUser = favItem.targetUser || favItem.user;
+                if (targetUser) {
+                  return (
+                    <div key={favItem.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                      <div className="absolute top-3 right-3 z-10">
+                        <FavoriteButton userId={targetUser.id} initialIsFavorited={true} />
+                      </div>
+                      <Link href={`/profile/${targetUser.id}`} className="block p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center overflow-hidden shrink-0">
+                            {targetUser.avatar ? (
+                              <img src={targetUser.avatar} alt={targetUser.name} className="w-full h-full object-cover" />
+                            ) : (
+                              targetUser.name?.charAt(0) || 'U'
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                              {targetUser.name}
+                            </h3>
+                            <p className="text-[11px] text-slate-500">📍 {targetUser.city || 'Bradenton'}, {targetUser.state || 'FL'}</p>
+                          </div>
+                        </div>
+                        <p className="text-slate-600 text-xs line-clamp-2">
+                          {targetUser.bio || 'Community member profile.'}
+                        </p>
+                      </Link>
+                      <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 font-medium">
+                        Saved User Profile
+                      </div>
+                    </div>
+                  );
+                }
 
-  // 2. Handle favorite listing cards
-  const listing = favItem.listing;
-  if (!listing || !listing.id) return null;
-  
-  const createdDate = new Date(listing.createdAt || Date.now());
-  const expirationDate = new Date(createdDate);
-  expirationDate.setDate(expirationDate.getDate() + 14);
-  const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
-  const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+                const listing = favItem.listing;
+                if (!listing || !listing.id) return null;
+                
+                const createdDate = new Date(listing.createdAt || Date.now());
+                const expirationDate = new Date(createdDate);
+                expirationDate.setDate(expirationDate.getDate() + 14);
+                const isCommercial = (listing.type || '').toUpperCase() === 'COMMERCIAL';
+                const priceDisplay = !isCommercial ? `GB ${Number(listing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
 
-  return (
-    <div key={listing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
-      <div className="absolute top-3 right-3 z-10">
-        <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
-      </div>
+                return (
+                  <div key={listing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
+                    <div className="absolute top-3 right-3 z-10">
+                      <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
+                    </div>
 
-      <Link href={`/listings/${listing.id}`} className="block">
-        <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
-          <img 
-            src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
-            alt={listing.title} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-          />
-          <span className={`absolute top-3 left-3 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
-            isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
-          }`}>
-            {listing.type}
-          </span>
-        </div>
+                    <Link href={`/listings/${listing.id}`} className="block">
+                      <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                        <img 
+                          src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+                          alt={listing.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                        />
+                        <span className={`absolute top-3 left-3 px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
+                          isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
+                        }`}>
+                          {listing.type}
+                        </span>
+                      </div>
 
-        <div className="p-5 pb-2">
-          <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 leading-snug transition-colors">
-            {listing.title}
-          </h3>
-        </div>
+                      <div className="p-5 pb-2">
+                        <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 leading-snug transition-colors">
+                          {listing.title}
+                        </h3>
+                      </div>
 
-        <div className="p-5 pt-2">
-          <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed font-normal mb-3">
-            {listing.description}
-          </p>
-        </div>
-      </Link>
+                      <div className="p-5 pt-2">
+                        <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed font-normal mb-3">
+                          {listing.description}
+                        </p>
+                      </div>
+                    </Link>
 
-      <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
-        <span>{priceDisplay}</span>
-        <span className="font-normal text-[11px] text-slate-500">
-          Expires: {expirationDate.toLocaleDateString()}
-        </span>
-      </div>
-    </div>
-  );
+                    <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
+                      <span>{priceDisplay}</span>
+                      <span className="font-normal text-[11px] text-slate-500">
+                        Expires: {expirationDate.toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                );
               })}
             </div>
           )}
@@ -813,53 +815,66 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-3 pt-4 border-t border-slate-100">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Transaction History</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Transaction History ({allTransactions.length})</h3>
             {allTransactions.length === 0 ? (
               <p className="text-xs text-slate-400">No Growbucks transactions yet.</p>
             ) : (
-              <div className="space-y-2">
-                {allTransactions.map((tx: any) => {
-                  const isSelfTransfer = tx.senderId === tx.receiverId;
-                  const isSender = isSelfTransfer ? false : (tx.senderId === profileData?.id);
-                  const txType = tx.type || 'Trade';
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  {displayedTransactions.map((tx: any) => {
+                    const isSelfTransfer = tx.senderId === tx.receiverId;
+                    const isSender = isSelfTransfer ? false : (tx.senderId === profileData?.id);
+                    const txType = tx.type || 'Trade';
 
-                  let typeBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
-                  if (txType === 'Trade') {
-                    typeBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                  } else if (txType === 'Referral') {
-                    typeBadgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
-                  } else if (txType === 'Activity') {
-                    typeBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
-                  }
+                    let typeBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                    if (txType === 'Trade') {
+                      typeBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                    } else if (txType === 'Referral') {
+                      typeBadgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
+                    } else if (txType === 'Activity') {
+                      typeBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
+                    }
 
-                  const isOutflow = isSender || Number(tx.amount) < 0;
+                    const isOutflow = isSender || Number(tx.amount) < 0;
 
-                  return (
-                    <div key={tx.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 text-sm">{tx.reason}</span>
-                          <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-md border ${typeBadgeClass}`}>
-                            {txType}
+                    return (
+                      <div key={tx.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">{tx.reason}</span>
+                            <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-md border ${typeBadgeClass}`}>
+                              {txType}
+                            </span>
+                          </div>
+                          <span className="text-slate-500 font-medium block">
+                            {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
                           </span>
                         </div>
-                        <span className="text-slate-500 font-medium block">
-                          {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className={`font-black text-sm block ${isOutflow ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          GB {Math.abs(Number(isSender ? tx.amount : (tx.netAmount ?? tx.amount))).toFixed(2)}
-                        </span>
-                        {tx.commission !== null && tx.commission !== undefined && (
-                          <span className="text-[10px] text-slate-400 font-medium block">
-                            Commission: GB {tx.commission.toFixed(2)}
+                        <div className="text-right">
+                          <span className={`font-black text-sm block ${isOutflow ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {isOutflow ? '-' : '+'}{Math.abs(Number(isSender ? tx.amount : (tx.netAmount ?? tx.amount))).toFixed(2)} GB
                           </span>
-                        )}
+                          {tx.commission !== null && tx.commission !== undefined && (
+                            <span className="text-[10px] text-slate-400 font-medium block">
+                              Commission: GB {tx.commission.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                {hasMoreTransactions && (
+                  <div className="pt-2 text-center">
+                    <button
+                      onClick={() => setVisibleTransactionsCount(prev => prev + 10)}
+                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors shadow-xs cursor-pointer border border-slate-200"
+                    >
+                      Load Another 10 Transactions ({allTransactions.length - visibleTransactionsCount} remaining)
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -16,8 +16,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   // 1. Declare state hooks first
   const [userProfile, setUserProfile] = useState<any>(null);
   const [listings, setListings] = useState<any[]>([]);
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [userFavoriteIds, setUserFavoriteIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
 
@@ -26,7 +24,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [listingAction, setListingAction] = useState<'unpublish' | 'delete'>('unpublish');
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 2. Declare derived variables after state hooks
+  // Derived check to see if viewing own profile (used for hiding favorite button on self)
   const isOwnProfile = Boolean(
     (loggedInEmail && userProfile?.email && loggedInEmail.toLowerCase().trim() === userProfile.email.toLowerCase().trim()) ||
     (loggedInId && userProfile?.id && loggedInId === userProfile.id)
@@ -50,14 +48,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       if (!foundUser) {
         setUserProfile(null);
         setListings([]);
-        setFavorites([]);
         return;
       }
 
       const userListings = data.listings || [];
-      const userFavorites = data.favorites || [];
-      setUserFavoriteIds(userFavorites.map((f: any) => f.listingId || f.listing?.id));
-      setFavorites(userFavorites);
 
       // Combine author direct reviews + commercial listing reviews
       const directReviews = foundUser.reviews || [];
@@ -225,115 +219,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </button>
         </div>
 
-        {/* Saved Favorites Section (Visible if viewing own profile - handles both Listings & Users) */}
-        {isOwnProfile && (
-          <div className="mb-12 space-y-8">
-            <div>
-              <div className="mb-4">
-                <h2 className="text-xl font-bold text-slate-900">Saved Favorites ({favorites.length})</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Listings and users you have bookmarked for quick access.</p>
-              </div>
-
-              {favorites.length === 0 ? (
-                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs font-medium">
-                  You haven&apos;t favorited any listings or users yet.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {favorites.map((favItem: any) => {
-                    // Handle favorite user cards explicitly
-                    const targetUser = favItem.targetUser || favItem.user;
-                    if (targetUser) {
-                      const isTargetUserSelf = loggedInEmail && targetUser.email && loggedInEmail.toLowerCase() === targetUser.email.toLowerCase();
-                      return (
-                        <div key={favItem.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
-                          <div className="absolute top-3 right-3 z-10">
-                            <FavoriteButton userId={targetUser.id} initialIsFavorited={true} />
-                          </div>
-
-                          <Link href={`/profile/${targetUser.id}`} className="block p-5 space-y-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center overflow-hidden shrink-0">
-                                {targetUser.avatar ? (
-                                  <img src={targetUser.avatar} alt={targetUser.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  targetUser.name?.charAt(0) || 'U'
-                                )}
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
-                                  {targetUser.name}
-                                </h3>
-                                <p className="text-[11px] text-slate-500">📍 {targetUser.city || 'Bradenton'}, {targetUser.state || 'FL'}</p>
-                              </div>
-                            </div>
-                            <p className="text-slate-600 text-xs line-clamp-2">
-                              {targetUser.bio || 'Community member profile.'}
-                            </p>
-                          </Link>
-
-                          <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 font-medium">
-                            Saved User Profile
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Handle favorite listing cards explicitly
-                    const itemListing = favItem.listing;
-                    if (!itemListing || !itemListing.id) return null;
-
-                    const createdDate = new Date(itemListing.createdAt || Date.now());
-                    const expirationDate = new Date(createdDate);
-                    expirationDate.setDate(expirationDate.getDate() + 14);
-                    const isCommercial = (itemListing.type || '').toUpperCase() === 'COMMERCIAL';
-                    const priceDisplay = !isCommercial ? `GB ${Number(itemListing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
-
-                    return (
-                      <div key={itemListing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
-                        <div className="absolute top-3 right-3 z-10">
-                          <FavoriteButton listingId={itemListing.id} initialIsFavorited={true} />
-                        </div>
-
-                        <Link href={`/listings/${itemListing.id}`} className="block">
-                          <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
-                            <img
-                              src={itemListing.imageUrl || itemListing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
-                              alt={itemListing.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            />
-                            <span className={`absolute top-3 left-3 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider border shadow-xs ${
-                              isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-slate-800 border-slate-200'
-                            }`}>
-                              {itemListing.type}
-                            </span>
-                          </div>
-
-                          <div className="p-5 space-y-3">
-                            <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-600 transition-colors leading-snug">
-                              {itemListing.title}
-                            </h3>
-                            <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
-                              {itemListing.description}
-                            </p>
-                          </div>
-                        </Link>
-
-                        <div className="px-5 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-900">
-                          <span>{priceDisplay}</span>
-                          <span className="font-normal text-[11px] text-slate-500">
-                            Expires: {expirationDate.toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* User's Posted Listings */}
         <div className="mb-6">
           <h2 className="text-xl font-bold text-slate-900">Listings by {userProfile.name} ({listings.length})</h2>
@@ -385,6 +270,106 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      {/* Reviews Modal */}
+      {showReviewsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Member Reviews ({reviewsList.length})</h3>
+              <button 
+                onClick={() => setShowReviewsModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {reviewsList.length === 0 ? (
+              <p className="text-center py-8 text-slate-400 text-xs font-medium">No reviews yet for this member.</p>
+            ) : (
+              <div className="space-y-4 divide-y divide-slate-100">
+                {reviewsList.map((rev: any, idx: number) => (
+                  <div key={rev.id || idx} className="pt-4 first:pt-0 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900">
+                        {rev.author?.name || rev.reviewerName || 'Community Member'}
+                      </span>
+                      <span className="text-amber-500 font-bold text-xs">
+                        {'★'.repeat(rev.rating || 5)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">{rev.comment || rev.text}</p>
+                    <span className="text-[10px] text-slate-400 block">
+                      {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Recent'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-2 text-right border-t border-slate-100">
+              <button
+                onClick={() => setShowReviewsModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Delete User Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Delete User Account</h3>
+            <p className="text-xs text-slate-600">
+              What would you like to do with active listings created by <span className="font-bold">{userProfile.name}</span>?
+            </p>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="listingAction"
+                  value="unpublish"
+                  checked={listingAction === 'unpublish'}
+                  onChange={() => setListingAction('unpublish')}
+                />
+                Unpublish listings (keep records)
+              </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name="listingAction"
+                  value="delete"
+                  checked={listingAction === 'delete'}
+                  onChange={() => setListingAction('delete')}
+                />
+                Permanently delete listings
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteUser(profileUserId)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
