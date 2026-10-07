@@ -36,7 +36,8 @@ model User {
   receivedMessages    Message[]       @relation("ReceivedMessages")
   quizAttempts        QuizAttempt[]
   eventAttendees      EventAttendee[]
-  favorites           Favorite[]
+  favorites         Favorite[] @relation("UserFavorites")
+  favoritedUsers    Favorite[] @relation("FavoritedUsers")
 }
 
 model Listing {
