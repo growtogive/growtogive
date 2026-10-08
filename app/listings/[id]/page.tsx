@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import FavoriteButton from '@/components/FavoriteButton';
 
 function formatListingTitle(title: string): string {
   if (!title) return '';
@@ -46,10 +47,6 @@ export default function ListingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Favorite States
-  const [isFavorited, setIsFavorited] = useState(false);
-  const [favoriting, setFavoriting] = useState(false);
-
   // Active Image Index for Gallery Viewer
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -86,45 +83,8 @@ export default function ListingDetailPage() {
   useEffect(() => {
     if (id) {
       fetchListingDetail();
-      if (session) {
-        checkIfFavorited();
-      }
     }
-  }, [id, session]);
-
-  const checkIfFavorited = async () => {
-    try {
-      const res = await fetch(`/api/favorites?listingId=${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setIsFavorited(data.isFavorited);
-      }
-    } catch (err) {
-      console.error('Failed to check favorite status', err);
-    }
-  };
-
-  const handleToggleFavorite = async () => {
-    if (!session) {
-      router.push('/signup');
-      return;
-    }
-    setFavoriting(true);
-    try {
-      const res = await fetch('/api/favorites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId: id }),
-      });
-      if (!res.ok) throw new Error('Failed to update favorite');
-      const data = await res.json();
-      setIsFavorited(data.favorited);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setFavoriting(false);
-    }
-  };
+  }, [id]);
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -553,17 +513,7 @@ export default function ListingDetailPage() {
           ) : (
             <div className="h-60 w-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm font-bold relative">
               <div className="absolute top-4 left-4 z-10">
-                <button
-  type="button"
-  onClick={handleToggleFavorite}
-  disabled={loading}
-  className="p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm transition-all text-white cursor-pointer disabled:opacity-50"
-  title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
->
-  <span className="text-base leading-none drop-shadow-sm">
-    {isFavorited ? '❤️' : '🤍'}
-  </span>
-</button>
+                <FavoriteButton listingId={id} />
               </div>
               No Image Available
             </div>
@@ -571,23 +521,11 @@ export default function ListingDetailPage() {
 
           <div className="p-8 space-y-6">
             <div className="flex justify-between items-start gap-4">
-  <h1 className="text-3xl font-black text-slate-900 leading-tight">
-    {listing.title}
-  </h1>
-  <button
-    onClick={handleToggleFavorite}
-    disabled={favoriting}
-    className={`p-2.5 rounded-xl border shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-      isFavorited 
-        ? 'bg-rose-500 text-white border-rose-600 font-bold text-xs' 
-        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 text-xs font-bold'
-    }`}
-    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-  >
-    <span className="text-base">{isFavorited ? '❤️' : '🤍'}</span>
-    <span>{isFavorited ? 'Favorited' : 'Favorite'}</span>
-  </button>
-</div>
+              <h1 className="text-3xl font-black text-slate-900 leading-tight">
+                {listing.title}
+              </h1>
+              <FavoriteButton listingId={id} />
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 py-3 border-y border-slate-100 text-xs font-semibold text-slate-600">
               <div className="flex flex-wrap items-center gap-2">
@@ -603,30 +541,7 @@ export default function ListingDetailPage() {
                 {isCommercial ? (
                   <span>Member Since: {memberSinceDate}</span>
                 ) : (
-                  <>
-                    <span>Expires: {expirationDateFormatted}</span>
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-slate-900 font-bold">{priceDisplay}</span>
-                      {session && !isAuthor && (
-                        <button
-                          onClick={() => {
-                            if (!basicTrainingPassed) {
-                              setTransferError('You must complete Basic Training before trading or sending Growbucks.');
-                            } else {
-                              setTransferError('');
-                            }
-                            setTransferAmount(listing.priceInBucks ? String(listing.priceInBucks) : '');
-                            setTransferSuccess('');
-                            setShowTransferModal(true);
-                          }}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1"
-                          title="Transfer Growbucks for this offer/request"
-                        >
-                          <span>💸</span> Transfer GB
-                        </button>
-                      )}
-                    </div>
-                  </>
+                  <span>Expires: {expirationDateFormatted}</span>
                 )}
               </div>
             </div>
@@ -748,18 +663,45 @@ export default function ListingDetailPage() {
                 </button>
               </div>
             </div>
-            {/* Report Listing Flag Button */}
-<div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
-  <Link
-    href={`/contact?subject=${encodeURIComponent(`[Report Listing] ${listing.title}`)}&message=${encodeURIComponent(`I would like to report this listing for the following reason:\n\nListing Title: ${listing.title}\nLink:${typeof window !== 'undefined' ? window.location.href : `/listings/${listing.id}`}\n\nReason details:`)}`}
-    className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-rose-600 transition-colors"
-  >
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-    </svg>
-    <span>Report this listing</span>
-  </Link>
-</div>
+
+            {/* Report Listing Flag Button & Growbuck Price/Transfer Row */}
+            <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap justify-between items-center gap-4">
+              <div className="flex items-center gap-3">
+                {!isCommercial && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-slate-900 text-base font-black">{priceDisplay}</span>
+                    {session && !isAuthor && (
+                      <button
+                        onClick={() => {
+                          if (!basicTrainingPassed) {
+                            setTransferError('You must complete Basic Training before trading or sending Growbucks.');
+                          } else {
+                            setTransferError('');
+                          }
+                          setTransferAmount(listing.priceInBucks ? String(listing.priceInBucks) : '');
+                          setTransferSuccess('');
+                          setShowTransferModal(true);
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                        title="Transfer Growbucks for this offer/request"
+                      >
+                        <span>💸</span> Transfer GB
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <Link
+                href={`/contact?subject=${encodeURIComponent(`[Report Listing] ${listing.title}`)}&message=${encodeURIComponent(`I would like to report this listing for the following reason:\n\nListing Title: ${listing.title}\nLink:${typeof window !== 'undefined' ? window.location.href : `/listings/${listing.id}`}\n\nReason details:`)}`}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-rose-600 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                </svg>
+                <span>Report this listing</span>
+              </Link>
+            </div>
           </div>
 
           {hasCoords ? (
@@ -1069,115 +1011,20 @@ export default function ListingDetailPage() {
           <div className="mt-2 space-y-4">
             <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Community Reviews ({reviews.length})</h4>
             {reviews.length === 0 ? (
-              <p className="text-xs text-slate-400">No reviews yet for this listing.</p>
+              <p className="text-sm text-slate-500">No reviews yet.</p>
             ) : (
-              reviews.map((rev: any) => {
-                const revAuthorEmail = (rev.author?.email || rev.authorEmail || '').toLowerCase().trim();
-                const isReviewAuthor = Boolean(
-                  (currentUserEmail && revAuthorEmail && revAuthorEmail === currentUserEmail) ||
-                  (rev.authorId && session?.user && (rev.authorId === (session.user as any).id))
-                );
-                const isEditing = editingReviewId === rev.id;
-
-                return (
-                  <div key={rev.id} className="p-4 border border-slate-200 bg-slate-50 rounded-2xl space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-xs text-slate-900">{rev.author?.name || 'Member'}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-amber-500 font-black">{'★'.repeat(rev.rating)}</span>
-                        {session && isReviewAuthor && !isEditing && (
-                          <button
-                            onClick={() => {
-                              setEditingReviewId(rev.id);
-                              setEditRating(rev.rating);
-                              setEditComment(rev.comment);
-                            }}
-                            className="text-[11px] font-bold text-emerald-600 hover:underline ml-2"
-                          >
-                            Edit
-                          </button>
-                        )}
-                      </div>
+              <div className="space-y-4">
+                {reviews.map((review: any) => (
+                  <div key={review.id} className="border-t border-slate-100 pt-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-bold text-slate-800">{review.author?.name || 'Community Member'}</span>
+                      <span className="text-amber-500 font-bold">★ {review.rating}</span>
                     </div>
-
-                    {isEditing ? (
-                      <div className="space-y-3 pt-2">
-                        <select
-                          value={editRating}
-                          onChange={(e) => setEditRating(Number(e.target.value))}
-                          className="px-2 py-1 border border-slate-200 bg-white text-xs rounded-lg font-bold"
-                        >
-                          <option value="5">5 - Excellent</option>
-                          <option value="4">4 - Very Good</option>
-                          <option value="3">3 - Average</option>
-                          <option value="2">2 - Fair</option>
-                          <option value="1">1 - Poor</option>
-                        </select>
-                        <textarea
-                          rows={2}
-                          value={editComment}
-                          onChange={(e) => setEditComment(e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-200 bg-white text-xs rounded-xl"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={async () => {
-                              try {
-                                const res = await fetch(`/api/listings/${id}/reviews`, {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ reviewId: rev.id, rating: editRating, comment: editComment }),
-                                });
-                                if (!res.ok) throw new Error('Failed to update review');
-                                setEditingReviewId(null);
-                                fetchListingDetail();
-                              } catch (err: any) {
-                                alert(err.message);
-                              }
-                            }}
-                            className="px-3 py-1 bg-emerald-600 text-white font-bold text-xs rounded-lg"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => setEditingReviewId(null)}
-                            className="px-3 py-1 bg-slate-200 text-slate-700 font-bold text-xs rounded-lg"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-slate-600 text-xs">{rev.comment}</p>
-                    )}
-
-                    {rev.reply && !isEditing && (
-                      <div className="mt-2 p-3 bg-white border-l-4 border-emerald-600 rounded-xl text-xs">
-                        <strong className="text-slate-900 block mb-0.5">Author Reply:</strong>
-                        <p className="text-slate-600">{rev.reply}</p>
-                      </div>
-                    )}
-
-                    {session && isAuthor && !rev.reply && !isEditing && (
-                      <div className="mt-3 pt-3 border-t border-slate-200 flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Write a reply as author..."
-                          value={replyText[rev.id] || ''}
-                          onChange={(e) => setReplyText({ ...replyText, [rev.id]: e.target.value })}
-                          className="flex-1 px-3 py-1.5 border border-slate-200 rounded-xl text-xs bg-white"
-                        />
-                        <button
-                          onClick={() => handleReplySubmit(rev.id)}
-                          className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer"
-                        >
-                          Reply
-                        </button>
-                      </div>
-                    )}
+                    {review.comment && <p className="mt-2 text-sm text-slate-600 whitespace-pre-line">{review.comment}</p>}
+                    {review.reply && <p className="mt-3 text-sm text-slate-600"><span className="font-bold">Author reply:</span> {review.reply}</p>}
                   </div>
-                );
-              })
+                ))}
+              </div>
             )}
           </div>
         </div>
