@@ -1,4 +1,4 @@
-// app/api/growbucks/transfer/route.ts (or wherever your transfer route is)
+// app/api/growbucks/transfer/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -17,6 +17,11 @@ export async function POST(req: Request) {
 
     if (!receiverId || !amount || amount <= 0) {
       return NextResponse.json({ error: 'Invalid transfer details or amount.' }, { status: 400 });
+    }
+
+    // Strictly validate that reason/memo is provided and not empty
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      return NextResponse.json({ error: 'A memo or reason is required for this transfer.' }, { status: 400 });
     }
 
     const parsedAmount = parseFloat(amount);
@@ -78,7 +83,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Corrected multiplication for commission and net amount
+    // Correct multiplication for commission and net amount
     const commission = parsedAmount * 0.10;
     const netAmount = parsedAmount * 0.90;
 
@@ -104,10 +109,11 @@ export async function POST(req: Request) {
         });
       }
 
-      // 4. Create Transaction Log
+      // 4. Create Transaction Log with type 'Trade'
       await tx.transaction.create({
         data: {
-          reason: reason || 'Marketplace Transfer',
+          type: 'Trade',
+          reason: reason.trim(),
           amount: parsedAmount,
           commission,
           netAmount,

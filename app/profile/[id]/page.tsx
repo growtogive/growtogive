@@ -11,20 +11,27 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const { data: session } = useSession();
   const loggedInEmail = (session?.user as any)?.email;
   const loggedInId = (session?.user as any)?.id;
+  const basicTrainingPassed = (session?.user as any)?.basicTrainingPassed;
   const isAdmin = loggedInEmail === 'admin@growtogive.com';
 
-  // 1. Declare state hooks first
   const [userProfile, setUserProfile] = useState<any>(null);
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
+
+  // Transfer Modal States
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferAmount, setTransferAmount] = useState<string>('');
+  const [transferReason, setTransferReason] = useState<string>('');
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [transferSuccess, setTransferSuccess] = useState('');
 
   // Admin delete modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [listingAction, setListingAction] = useState<'unpublish' | 'delete'>('unpublish');
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Derived check to see if viewing own profile (used for hiding favorite button on self)
   const isOwnProfile = Boolean(
     (loggedInEmail && userProfile?.email && loggedInEmail.toLowerCase().trim() === userProfile.email.toLowerCase().trim()) ||
     (loggedInId && userProfile?.id && loggedInId === userProfile.id)
@@ -53,7 +60,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
       const userListings = data.listings || [];
 
-      // Combine author direct reviews + commercial listing reviews
       const directReviews = foundUser.reviews || [];
       const commercialReviews = userListings
         .filter((item: any) => (item.type || '').toUpperCase() === 'COMMERCIAL')
@@ -190,6 +196,28 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   </span>
                 )}
               </div>
+
+              {/* Transfer Growbucks Button for other users */}
+              {!isOwnProfile && session && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      if (!basicTrainingPassed) {
+                        setTransferError('You must complete Basic Training before trading or sending Growbucks.');
+                      } else {
+                        setTransferError('');
+                      }
+                      setTransferAmount('');
+                      setTransferReason('');
+                      setTransferSuccess('');
+                      setShowTransferModal(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1 inline-flex"
+                  >
+                    <span>💸</span> Transfer Growbucks
+                  </button>
+                </div>
+              )}
               
               {isAdmin && !isOwnProfile && (
                 <div className="pt-2">
@@ -270,6 +298,136 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      {/* Transfer Growbucks Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
+            <button
+              onClick={() => setShowTransferModal(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+            >
+              ×
+            </button>
+            
+            <h3 className="text-xl font-black text-slate-900">Growbucks Transfer</h3>
+            <p className="text-xs text-slate-500">Send Growbucks securely to <span className="font-bold text-slate-700">{userProfile.name}</span>.</p>
+
+            {transferError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                {transferError}
+              </div>
+            )}
+
+            {transferSuccess ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl space-y-3 text-center">
+                <p className="font-bold text-sm">🎉 {transferSuccess}</p>
+                <button
+                  onClick={() => { setShowTransferModal(false); window.location.reload(); }}
+                  className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                
+                if (!basicTrainingPassed) {
+                  setTransferError('You must complete Basic Training before trading or sending Growbucks.');
+                  return;
+                }
+
+                const numericAmount = parseFloat(transferAmount);
+                if (isNaN(numericAmount) || numericAmount <= 0) {
+                  setTransferError('Transfer amount must be greater than zero.');
+                  return;
+                }
+
+                if (!transferReason || !transferReason.trim()) {
+                  setTransferError('A memo or reason is required for this transfer.');
+                  return;
+                }
+
+                setTransferring(true);
+                setTransferError('');
+                try {
+                  const res = await fetch('/api/growbucks/transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      receiverId: profileUserId,
+                      amount: numericAmount,
+                      reason: transferReason.trim(),
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || 'Transfer failed.');
+                  setTransferSuccess('Transfer completed! 90% sent to receiver, 10% platform commission logged.');
+                } catch (err: any) {
+                  setTransferError(err.message);
+                } finally {
+                  setTransferring(false);
+                }
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Recipient</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={userProfile.name}
+                    className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 text-slate-600 text-xs rounded-xl font-bold cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Transfer Amount (GB)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={transferAmount}
+                    onChange={(e) => setTransferAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl font-bold focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Memo / Reason (Required)</label>
+                  <input
+                    type="text"
+                    required
+                    value={transferReason}
+                    onChange={(e) => setTransferReason(e.target.value)}
+                    placeholder="e.g. Thanks for the help!"
+                    className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl font-bold focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">90% goes to recipient, 10% platform commission applies.</p>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferModal(false)}
+                    className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={transferring}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all"
+                  >
+                    {transferring ? 'Processing...' : 'Confirm Transfer'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Reviews Modal */}
       {showReviewsModal && (

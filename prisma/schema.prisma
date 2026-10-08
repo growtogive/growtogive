@@ -115,7 +115,7 @@ model Transaction {
   amount      Float    
   commission  Float?   
   netAmount   Float?   
-  type        String   @default("TRANSFER")
+  type        String   @default("TRADE")
   senderId    String?
   sender      User?    @relation("SentTransactions", fields: [senderId], references: [id], onDelete: Cascade) 
   receiverId  String
