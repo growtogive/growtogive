@@ -1,9 +1,25 @@
 // app/api/users/route.ts
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma'; // Adjust this import if your prisma client is located elsewhere
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    const currentUserEmail = session?.user?.email;
+
+    let currentUserCoords = null;
+    if (currentUserEmail) {
+      const currentUser = await prisma.user.findUnique({
+        where: { email: currentUserEmail },
+        select: { latitude: true, longitude: true },
+      });
+      if (currentUser && currentUser.latitude && currentUser.longitude) {
+        currentUserCoords = { lat: currentUser.latitude, lng: currentUser.longitude };
+      }
+    }
+
     const users = await prisma.user.findMany({
       orderBy: {
         createdAt: 'desc',
@@ -17,30 +33,25 @@ export async function GET() {
         state: true,
         churchName: true,
         bio: true,
+        latitude: true,
+        longitude: true,
         createdAt: true,
-        reviews: true,
-        // --- ADDED REFERRAL TRACKING DATA ---
-        referrer: {
+        reviews: {
           select: {
             id: true,
-            name: true,
-            email: true,
-          },
-        },
-        referrals: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            createdAt: true,
+            rating: true,
+            comment: true,
           },
         },
       },
     });
 
-    return NextResponse.json(users, { status: 200 });
+    return NextResponse.json({ users, currentUserCoords }, { status: 200 });
   } catch (error: any) {
     console.error('Error fetching users:', error);
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch users' }, 
+      { status: 500 }
+    );
   }
 }

@@ -38,7 +38,11 @@ model User {
   eventAttendees      EventAttendee[]
   favorites           Favorite[] @relation("UserFavorites")
   favoritedUsers      Favorite[] @relation("FavoritedUsers")
-  referralLogs        ReferralLog[]
+  // Referral tracking relations
+  referredById  String?
+  referrer      User?    @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals     User[]   @relation("UserReferrals")
+  referralLogs  ReferralLog[]
 }
 
 model Listing {

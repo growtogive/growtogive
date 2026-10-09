@@ -6,6 +6,22 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
+// Haversine formula to calculate distance in miles between two coordinate pairs
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+  const R = 3958.8; // Radius of the Earth in miles
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
 export default function MembersPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -23,28 +39,59 @@ export default function MembersPage() {
 
   useEffect(() => {
     fetchMembers();
-  }, []);
+  }, [session]);
 
   const fetchMembers = async () => {
     try {
       setLoading(true);
       setError('');
+      
       const res = await fetch('/api/users');
       if (!res.ok) throw new Error('Failed to fetch members data');
       const data = await res.json();
+      
       const users = Array.isArray(data) ? data : (data.users || []);
 
-      const mappedMembers = users.map((user: any) => ({
-        id: user.id,
-        name: user.name || 'Community Member',
-        city: user.city || '',
-        churchName: user.churchName || user.church || '',
-        createdAt: user.createdAt || Date.now(),
-        distance: user.distance ?? 0,
-        reviews: user.reviews || [],
-        image: user.avatar || user.image || '',
-        bio: user.bio || 'Community participant and member.',
-      }));
+      // Find the logged-in user's coordinates directly from the fetched users array
+      const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
+      const currentDbUser = currentUserEmail 
+        ? users.find((u: any) => u.email?.toLowerCase()?.trim() === currentUserEmail)
+        : null;
+
+      const userCoords = currentDbUser && currentDbUser.latitude && currentDbUser.longitude
+        ? { lat: Number(currentDbUser.latitude), lng: Number(currentDbUser.longitude) }
+        : null;
+
+      const mappedMembers = users.map((user: any) => {
+        let computedDistance = 0;
+        
+        if (
+          userCoords &&
+          userCoords.lat &&
+          userCoords.lng &&
+          user.latitude &&
+          user.longitude
+        ) {
+          computedDistance = calculateDistance(
+            userCoords.lat,
+            userCoords.lng,
+            Number(user.latitude),
+            Number(user.longitude)
+          );
+        }
+
+        return {
+          id: user.id,
+          name: user.name || 'Community Member',
+          city: user.city || '',
+          churchName: user.churchName || user.church || '',
+          createdAt: user.createdAt || Date.now(),
+          distance: computedDistance,
+          reviews: user.reviews || [],
+          image: user.avatar || user.image || '',
+          bio: user.bio || 'Community participant and member.',
+        };
+      });
 
       setMembers(mappedMembers);
     } catch (err: any) {
@@ -122,7 +169,7 @@ export default function MembersPage() {
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
       <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6">
         
-        {/* Header & Marketplace Button */}
+        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
@@ -132,20 +179,6 @@ export default function MembersPage() {
               Connect with fellow church members and community participants
             </h2>
           </div>
-
-          <Link
-            href="/marketplace"
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-bold transition-all shadow-xs ${
-              pathname?.startsWith('/marketplace') 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <svg className={`w-4 h-4 shrink-0 ${pathname?.startsWith('/marketplace') ? 'text-white' : 'text-blue-600'}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-            <span>Marketplace</span>
-          </Link>
         </div>
 
         {/* Control Bar */}
@@ -241,7 +274,6 @@ export default function MembersPage() {
 
               return (
                 <div key={user.id} className="bg-white rounded-xl border-2 border-slate-300 overflow-hidden shadow-xs flex flex-col justify-between hover:border-slate-400 transition-all group">
-                  {/* Updated link destination to point to public user profile route /users/[id] */}
                   <Link href={`/profile/${user.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       {user.image ? (
