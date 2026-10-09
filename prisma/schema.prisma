@@ -36,8 +36,9 @@ model User {
   receivedMessages    Message[]       @relation("ReceivedMessages")
   quizAttempts        QuizAttempt[]
   eventAttendees      EventAttendee[]
-  favorites         Favorite[] @relation("UserFavorites")
-  favoritedUsers    Favorite[] @relation("FavoritedUsers")
+  favorites           Favorite[] @relation("UserFavorites")
+  favoritedUsers      Favorite[] @relation("FavoritedUsers")
+  referralLogs        ReferralLog[]
 }
 
 model Listing {
@@ -155,6 +156,7 @@ model Post {
   category    PostCategory @relation(fields: [categoryId], references: [id])
   quiz        Quiz?
   event       Event?
+  isSticky Boolean @default(false)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -262,4 +264,13 @@ enum TagStatus {
   CLAIMED
   PICKED_UP
   WRAPPED
+}
+
+model ReferralLog {
+  id            String   @id @default(cuid())
+  referrerId    String
+  referredEmail String   @unique
+  createdAt     DateTime @default(now())
+
+  referrer      User     @relation(fields: [referrerId], references: [id], onDelete: Cascade)
 }

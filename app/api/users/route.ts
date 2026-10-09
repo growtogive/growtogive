@@ -19,6 +19,22 @@ export async function GET() {
         bio: true,
         createdAt: true,
         reviews: true,
+        // --- ADDED REFERRAL TRACKING DATA ---
+        referrer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        referrals: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            createdAt: true,
+          },
+        },
       },
     });
 

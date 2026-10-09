@@ -25,6 +25,7 @@ export default function AdminEditPostPage() {
   const [videoUrl, setVideoUrl] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageUrlInput, setImageUrlInput] = useState('');
+  const [isSticky, setIsSticky] = useState(false); // 📌 Sticky Option State
 
   // Quiz fields
   const [hasQuiz, setHasQuiz] = useState(false);
@@ -90,6 +91,7 @@ export default function AdminEditPostPage() {
       setPrice(p.price !== null && p.price !== undefined ? p.price.toString() : '');
       setVideoUrl(p.videoUrl || '');
       setImages(p.images || []);
+      setIsSticky(Boolean(p.isSticky)); // 📌 Load sticky status
 
       if (p.quiz) {
         setHasQuiz(true);
@@ -179,10 +181,6 @@ export default function AdminEditPostPage() {
     setQuestions(updated);
   };
 
-  const handleRemoveQuestion = (idx: number) => {
-    setQuestions(questions.filter((_, i) => i !== idx));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -204,6 +202,7 @@ export default function AdminEditPostPage() {
         price: price ? parseFloat(price) : null,
         videoUrl: videoUrl || null,
         images,
+        isSticky, // 📌 Include sticky status in payload
         quiz: hasQuiz ? {
           rewardAmount: parseFloat(rewardAmount) || 0,
           passingPercentage: parseInt(passingPercentage) || 70,
@@ -289,7 +288,21 @@ export default function AdminEditPostPage() {
             <input type="url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold" />
           </div>
 
-          {/* Image Upload Manager (URL + Device File Selection) */}
+          {/* 📌 Sticky Post Option Toggle */}
+          <div className="flex items-center gap-3 p-4 bg-amber-50/60 border border-amber-200 rounded-2xl">
+            <input 
+              type="checkbox" 
+              id="isStickyToggle"
+              checked={isSticky} 
+              onChange={(e) => setIsSticky(e.target.checked)} 
+              className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer" 
+            />
+            <label htmlFor="isStickyToggle" className="text-xs font-bold text-amber-900 cursor-pointer">
+              📌 Pin to Top (Sticky Post) - Keeps this post at the very top of your feed.
+            </label>
+          </div>
+
+          {/* Image Upload Manager */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Images (Up to 5)</label>
             <div className="flex gap-2">
@@ -303,7 +316,7 @@ export default function AdminEditPostPage() {
               <button
                 type="button"
                 onClick={handleAddImageUrl}
-                className="px-4 py-3 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800"
+                className="px-4 py-3 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 cursor-pointer"
               >
                 Add URL
               </button>
@@ -324,7 +337,7 @@ export default function AdminEditPostPage() {
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(idx)}
-                      className="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold"
+                      className="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold cursor-pointer"
                     >
                       ×
                     </button>
@@ -339,7 +352,7 @@ export default function AdminEditPostPage() {
             <textarea rows={5} required value={description} onChange={(e) => setDescription(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold" />
           </div>
 
-          {/* Event Config with Google Places Autocomplete */}
+          {/* Event Config */}
           <div className="pt-4 border-t space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black text-blue-900 uppercase tracking-wider">📅 Enable Event Details</label>
@@ -372,13 +385,13 @@ export default function AdminEditPostPage() {
                   <input type="number" value={rewardAmount} onChange={(e) => setRewardAmount(e.target.value)} placeholder="Reward GB" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold" />
                   <input type="number" value={passingPercentage} onChange={(e) => setPassingPercentage(e.target.value)} placeholder="Passing %" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold" />
                 </div>
-                <button type="button" onClick={handleAddQuestion} className="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-xl">+ Add Question</button>
+                <button type="button" onClick={handleAddQuestion} className="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-xl cursor-pointer">+ Add Question</button>
                 {questions.map((q, qIdx) => (
                   <div key={qIdx} className="p-4 bg-white border border-amber-200 rounded-xl space-y-3">
                     <input type="text" value={q.questionText} onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)} placeholder="Question text" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                     {q.options.map((opt, oIdx) => (
                       <div key={oIdx} className="flex items-center gap-2">
-                        <input type="radio" name={`correct-${qIdx}`} checked={q.correctAnswer === oIdx} onChange={() => handleCorrectAnswerChange(qIdx, oIdx)} className="accent-amber-600" />
+                        <input type="radio" name={`correct-${qIdx}`} checked={q.correctAnswer === oIdx} onChange={() => handleCorrectAnswerChange(qIdx, oIdx)} className="accent-amber-600 cursor-pointer" />
                         <input type="text" value={opt} onChange={(e) => handleOptionChange(qIdx, oIdx, e.target.value)} placeholder={`Option ${oIdx + 1}`} className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                       </div>
                     ))}

@@ -11,8 +11,8 @@ export async function POST(req: Request) {
       name, 
       email, 
       password, 
-      userPhone, // Added userPhone
-      address,   // Added address
+      userPhone, 
+      address,   
       city, 
       state, 
       churchName, 
@@ -38,9 +38,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -50,56 +52,105 @@ export async function POST(req: Request) {
       );
     }
 
+    // --- FETCH REFERRER FROM COOKIE (if present) ---
+    const cookieStore = await cookies();
+    const rawReferrerId = cookieStore.get('growtogive_ref')?.value;
+    
+    // Validate that referrer exists and isn't self-referencing
+    let validReferrerId: string | null = null;
+    if (rawReferrerId) {
+      const referrerCheck = await prisma.user.findUnique({
+        where: { id: rawReferrerId },
+      });
+      if (referrerCheck) {
+        validReferrerId = referrerCheck.id;
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with all profile attributes, phone, address, and geolocation coordinates
+    // Create user with all profile attributes AND the referredById link
     const newUser = await prisma.user.create({
       data: {
         name,
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         password: hashedPassword,
-        userPhone, // Saved to database
-        address,   // Saved to database
-        role: 'subscriber',
-        city: city || 'Bradenton',
-        state: state || 'FL',
+        userPhone, 
+        address,   
+        role: 'Subscriber',
+        city: city || null,
+        state: state || null,
         churchName: churchName || null,
         latitude: latitude ? parseFloat(latitude) : 27.4989,
         longitude: longitude ? parseFloat(longitude) : -82.5648,
         bio: bio || null,
         avatar: avatar || null,
+        referredById: validReferrerId, // Links user to their referrer!
       },
     });
 
     // --- REFERRAL SIGNUP BONUS PROCESSING (GB 50.00) ---
     try {
-      const cookieStore = await cookies();
-      const referrerId = cookieStore.get('growtogive_ref')?.value;
-
-      if (referrerId && referrerId !== newUser.id) {
-        const referrer = await prisma.user.findUnique({
-          where: { id: referrerId },
+      if (validReferrerId && validReferrerId !== newUser.id) {
+        // 1. Check if this email has EVER claimed a signup bonus before (survives account deletion)
+        const existingLog = await prisma.referralLog.findUnique({
+          where: { referredEmail: normalizedEmail },
         });
 
-        if (referrer) {
+        // 2. Find the admin/growtogive account for the deduction
+        const adminUser = await prisma.user.findFirst({
+          where: { 
+            OR: [
+              { email: 'admin@growtogive.com' },
+              { role: 'ADMIN' }
+            ]
+          },
+        });
+
+        // Only process if no prior log exists for this email and admin exists
+        if (!existingLog && adminUser && adminUser.id !== validReferrerId) {
           await prisma.$transaction([
+            // Increment referrer's Growbucks
             prisma.user.update({
-              where: { id: referrerId },
+              where: { id: validReferrerId },
               data: { growbucks: { increment: 50.00 } },
             }),
+            // Decrement admin/growtogive account's Growbucks
+            prisma.user.update({
+              where: { id: adminUser.id },
+              data: { growbucks: { decrement: 50.00 } },
+            }),
+            // Transaction log for referrer (Incoming reward)
             prisma.transaction.create({
               data: {
-                receiverId: referrerId,
+                receiverId: validReferrerId,
                 amount: 50.00,
-                type: 'REFERRAL_SIGNUP',
+                type: 'REFERRAL',
                 reason: `Bonus for referred user signup (${newUser.email})`,
               },
             }),
+            // Transaction log for admin (Outgoing deduction)
+            prisma.transaction.create({
+              data: {
+                senderId: adminUser.id,
+                receiverId: validReferrerId,
+                amount: 50.00,
+                type: 'REFERRAL',
+                reason: `referral signup (${newUser.email})`,
+              },
+            }),
+            // Permanently lock this email out from ever triggering another signup bonus
+            prisma.referralLog.create({
+              data: {
+                referrerId: validReferrerId,
+                referredEmail: normalizedEmail,
+              },
+            }),
           ]);
-
-          // Clear the referral cookie
-          cookieStore.set('growtogive_ref', '', { maxAge: 0, path: '/' });
         }
+
+        // Clear the referral cookie
+        cookieStore.set('growtogive_ref', '', { maxAge: 0, path: '/' });
       }
     } catch (refError) {
       console.error('Referral signup reward error:', refError);

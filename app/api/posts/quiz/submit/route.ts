@@ -57,10 +57,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Quiz not found.' }, { status: 404 });
     }
 
-    // --- BASIC TRAINING PREREQUISITE CHECK ---
-    // Determine if this specific quiz is the Basic Training quiz (by title or identifier check)
-    const quizTitleLower = (quiz.post?.title || quiz.id || '').toLowerCase();
-    const isBasicTrainingQuiz = quizTitleLower.includes('basic training') || quizTitleLower.includes('onboarding');
+    // --- BASIC TRAINING PREREQUISITE & IDENTIFICATION CHECK ---
+    const postTitle = (quiz.post?.title || '').trim().toLowerCase();
+    const isIntroToGrowToGive = postTitle === 'introduction to growtogive';
+    const isBasicTrainingQuiz = isIntroToGrowToGive || postTitle.includes('basic training') || postTitle.includes('onboarding');
 
     // If the user has NOT passed basic training, and they are trying to take any OTHER quiz, block them!
     if (!currentUser?.basicTrainingPassed && !isBasicTrainingQuiz) {
@@ -102,8 +102,9 @@ export async function POST(request: Request) {
       });
     }
 
-    const postTitle = quiz.post?.title || 'Quiz Completion';
-    const reward = Number(quiz.rewardAmount) > 0 ? Number(quiz.rewardAmount) : 1;
+    // Determine reward amount: 100 Growbucks specifically for Introduction To GrowToGive, otherwise standard quiz reward
+    const reward = isIntroToGrowToGive ? 100 : (Number(quiz.rewardAmount) > 0 ? Number(quiz.rewardAmount) : 1);
+    const displayTitle = quiz.post?.title || 'Quiz Completion';
 
     const adminUser = await prisma.user.findUnique({
       where: { email: 'admin@growtogive.com' },
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
         create: { quizId, userId, passed: true, score },
       });
 
-      // If this was the Basic Training quiz and they passed, update their basicTrainingPassed status to true!
+      // If this was the Basic Training quiz / Intro To GrowToGive, mark basicTrainingPassed as true
       if (isBasicTrainingQuiz) {
         await tx.user.update({
           where: { id: userId },
@@ -161,14 +162,14 @@ export async function POST(request: Request) {
             receiverId: userId,
             amount: reward,
             type: 'Activity',
-            reason: `Passed Quiz: ${postTitle}`,
+            reason: `Passed Quiz: ${displayTitle}`,
           },
           {
             senderId: adminUser.id,
             receiverId: userId,
             amount: -reward,
             type: 'Activity',
-            reason: `Distributed reward for Quiz: ${postTitle}`,
+            reason: `Distributed reward for Quiz: ${displayTitle}`,
           },
         ],
       });
