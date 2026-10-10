@@ -108,15 +108,11 @@ export async function POST(request: Request) {
 
     const adminUser = await prisma.user.findUnique({
       where: { email: 'admin@growtogive.com' },
-      select: { id: true, growbucks: true },
+      select: { id: true },
     });
 
     if (!adminUser) {
       return NextResponse.json({ error: 'Admin account (admin@growtogive.com) not found.' }, { status: 500 });
-    }
-
-    if ((adminUser.growbucks || 0) < reward) {
-      return NextResponse.json({ error: 'Admin GrowBuck pool is insufficient to reward this quiz.' }, { status: 400 });
     }
 
     await prisma.$transaction(async (tx) => {
@@ -148,30 +144,21 @@ export async function POST(request: Request) {
         data: { growbucks: { increment: reward } },
       });
 
-      // 2. Decrement admin balance
+      // 2. Decrement admin balance (can drop below zero)
       await tx.user.update({
         where: { id: adminUser.id },
         data: { growbucks: { decrement: reward } },
       });
 
-      // 3. Create transaction records
-      await tx.transaction.createMany({
-        data: [
-          {
-            senderId: adminUser.id,
-            receiverId: userId,
-            amount: reward,
-            type: 'Activity',
-            reason: `Passed Quiz: ${displayTitle}`,
-          },
-          {
-            senderId: adminUser.id,
-            receiverId: userId,
-            amount: -reward,
-            type: 'Activity',
-            reason: `Distributed reward for Quiz: ${displayTitle}`,
-          },
-        ],
+      // 3. Create a valid transaction record with a positive amount representing the transfer
+      await tx.transaction.create({
+        data: {
+          senderId: adminUser.id,
+          receiverId: userId,
+          amount: reward,
+          type: 'Activity',
+          reason: `Passed Quiz: ${displayTitle}`,
+        },
       });
 
       return { success: true };

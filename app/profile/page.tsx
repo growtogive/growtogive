@@ -823,40 +823,34 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   {displayedTransactions.map((tx: any) => {
                     const isSelfTransfer = tx.senderId === tx.receiverId;
-                    const isSender = isSelfTransfer ? false : (tx.senderId === profileData?.id);
-                    const txType = tx.type || 'Trade';
+  const isSender = isSelfTransfer ? false : (tx.senderId === profileData?.id);
+  const isOutflow = isSender || Number(tx.amount) < 0;
+  const absAmount = Math.abs(Number(tx.amount) || 0).toFixed(2);
 
-                    let typeBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
-                    if (txType === 'Trade') {
-                      typeBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                    } else if (txType === 'Referral') {
-                      typeBadgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
-                    } else if (txType === 'Activity') {
-                      typeBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
-                    }
-
-                    const isOutflow = isSender || Number(tx.amount) < 0;
-
-                    return (
-                      <div key={tx.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 text-sm">{tx.reason}</span>
-                            <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-md border ${typeBadgeClass}`}>
-                              {txType}
-                            </span>
-                          </div>
-                          <span className="text-slate-500 font-medium block">
-                            {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className={`font-black text-sm block ${isOutflow ? 'text-rose-600' : 'text-emerald-600'}`}>
-                            {isOutflow ? '-' : '+'}{Math.abs(Number(isSender ? tx.amount : (tx.netAmount ?? tx.amount))).toFixed(2)} GB
-                          </span>
-                          {tx.commission !== null && tx.commission !== undefined && (
-                            <span className="text-[10px] text-slate-400 font-medium block">
-                              Commission: GB {tx.commission.toFixed(2)}
+  return (
+    <div key={tx.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-900 text-sm">{tx.reason}</span>
+          <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-md border ${
+            tx.type === 'Trade' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+            tx.type === 'Referral' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+            tx.type === 'Activity' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-slate-100 text-slate-700 border-slate-200'
+          }`}>
+            {tx.type || 'Trade'}
+          </span>
+        </div>
+        <span className="text-slate-500 font-medium block">
+          {new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — {isSender ? `Sent to ${tx.receiver?.name || 'Member'}` : `Received from ${tx.sender?.name || 'Member'}`}
+        </span>
+      </div>
+      <div className="text-right">
+        <span className={`font-black text-sm block ${isOutflow ? 'text-rose-600' : 'text-emerald-600'}`}>
+          {isOutflow ? `-${absAmount}` : `+${absAmount}`} GB
+        </span>
+        {tx.commission !== null && tx.commission !== undefined && (
+          <span className="text-[10px] text-slate-400 font-medium block">
+            Commission: GB {Number(tx.commission).toFixed(2)}
                             </span>
                           )}
                         </div>

@@ -1,4 +1,3 @@
-// app/api/signup/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import * as bcrypt from 'bcrypt';
@@ -56,6 +55,8 @@ export async function POST(req: Request) {
     const cookieStore = await cookies();
     const rawReferrerId = cookieStore.get('growtogive_ref')?.value;
     
+    console.log('Signup Debug - Raw Referrer ID from Cookie:', rawReferrerId);
+
     // Validate that referrer exists and isn't self-referencing
     let validReferrerId: string | null = null;
     if (rawReferrerId) {
@@ -64,6 +65,9 @@ export async function POST(req: Request) {
       });
       if (referrerCheck) {
         validReferrerId = referrerCheck.id;
+        console.log('Signup Debug - Valid Referrer Found:', referrerCheck.email);
+      } else {
+        console.log('Signup Debug - Referrer ID in cookie not found in DB:', rawReferrerId);
       }
     }
 
@@ -102,25 +106,30 @@ export async function POST(req: Request) {
           where: { 
             OR: [
               { email: 'admin@growtogive.com' },
-              { role: 'ADMIN' }
+              { role: 'ADMIN' },
+              { role: 'admin' }
             ]
           },
         });
 
+        if (!adminUser) {
+          console.warn('Referral Warning: Admin account not found for Growbucks deduction.');
+        }
+
         // Only process if no prior log exists for this email and admin exists
-        if (!existingLog && adminUser && adminUser.id !== validReferrerId) {
+        if (!existingLog && adminUser) {
           await prisma.$transaction([
-            // Increment referrer's Growbucks
+            // Increment referrer's Growbucks (works whether referrer is admin or regular user)
             prisma.user.update({
               where: { id: validReferrerId },
               data: { growbucks: { increment: 50.00 } },
             }),
-            // Decrement admin/growtogive account's Growbucks
+            // Decrement admin/growtogive account's Growbucks (if admin is referrer, this balances the increment out to net 0)
             prisma.user.update({
               where: { id: adminUser.id },
               data: { growbucks: { decrement: 50.00 } },
             }),
-            // Transaction log for referrer (Incoming reward)
+            // Transaction log for referrer (Incoming reward - Credit)
             prisma.transaction.create({
               data: {
                 receiverId: validReferrerId,
@@ -129,14 +138,14 @@ export async function POST(req: Request) {
                 reason: `Bonus for referred user signup (${newUser.email})`,
               },
             }),
-            // Transaction log for admin (Outgoing deduction)
+            // Transaction log for admin (Outgoing deduction - Debit)
             prisma.transaction.create({
               data: {
                 senderId: adminUser.id,
                 receiverId: validReferrerId,
                 amount: 50.00,
                 type: 'REFERRAL',
-                reason: `referral signup (${newUser.email})`,
+                reason: `referral signup payout (${newUser.email})`,
               },
             }),
             // Permanently lock this email out from ever triggering another signup bonus
@@ -147,13 +156,17 @@ export async function POST(req: Request) {
               },
             }),
           ]);
+
+          console.log('Referral successfully processed with dual credit/debit transaction logs.');
+        } else {
+          console.log('Referral skipped:', { existingLog: !!existingLog, adminFound: !!adminUser });
         }
 
         // Clear the referral cookie
         cookieStore.set('growtogive_ref', '', { maxAge: 0, path: '/' });
       }
     } catch (refError) {
-      console.error('Referral signup reward error:', refError);
+      console.error('CRITICAL Referral signup reward error:', refError);
     }
 
     return NextResponse.json(
