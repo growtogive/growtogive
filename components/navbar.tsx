@@ -213,7 +213,11 @@ export default function Navbar() {
 
               {/* Sign Out */}
               <button
-                onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
+                onClick={() =>
+                  signOut({
+                    callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://growtogive.com'}/login`,
+                  })
+                }
                 className="group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-rose-600 hover:border-b-2 hover:border-slate-900 transition-all cursor-pointer"
                 title="Sign Out"
               >

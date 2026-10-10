@@ -236,7 +236,7 @@ export async function DELETE(req: Request) {
     }
 
     if (listingAction === 'delete') {
-      await prisma.listing.deleteMany({ where: { userId: targetUserId } as any });
+      await prisma.listing.deleteMany({ where: { authorId: targetUserId } as any });
     }
 
     await prisma.user.delete({
