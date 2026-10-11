@@ -1,3 +1,4 @@
+// app/api/auth/signup/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import * as bcrypt from 'bcrypt';
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
     // --- REFERRAL SIGNUP BONUS PROCESSING (GB 50.00) ---
     try {
       if (validReferrerId && validReferrerId !== newUser.id) {
-        // 1. Check if this email has EVER claimed a signup bonus before (survives account deletion)
+        // 1. Check if this email has EVER claimed a signup bonus before
         const existingLog = await prisma.referralLog.findUnique({
           where: { referredEmail: normalizedEmail },
         });
@@ -119,33 +120,34 @@ export async function POST(req: Request) {
         // Only process if no prior log exists for this email and admin exists
         if (!existingLog && adminUser) {
           await prisma.$transaction([
-            // Increment referrer's Growbucks (works whether referrer is admin or regular user)
+            // Increment referrer's Growbucks balance cache
             prisma.user.update({
               where: { id: validReferrerId },
               data: { growbucks: { increment: 50.00 } },
             }),
-            // Decrement admin/growtogive account's Growbucks (if admin is referrer, this balances the increment out to net 0)
+            // Decrement admin/growtogive account's Growbucks balance cache
             prisma.user.update({
               where: { id: adminUser.id },
               data: { growbucks: { decrement: 50.00 } },
             }),
-            // Transaction log for referrer (Incoming reward - Credit)
-            prisma.transaction.create({
-              data: {
-                receiverId: validReferrerId,
-                amount: 50.00,
-                type: 'REFERRAL',
-                reason: `Bonus for referred user signup (${newUser.email})`,
-              },
-            }),
-            // Transaction log for admin (Outgoing deduction - Debit)
+            // Transaction log 1: Credit to Referrer (Sender: Admin, Receiver: Referrer)
             prisma.transaction.create({
               data: {
                 senderId: adminUser.id,
                 receiverId: validReferrerId,
                 amount: 50.00,
                 type: 'REFERRAL',
-                reason: `referral signup payout (${newUser.email})`,
+                reason: `Bonus for referred user signup (${newUser.email})`,
+              },
+            }),
+            // Transaction log 2: Debit from Admin (Sender: Admin, Receiver: Admin - representing outflow/payout)
+            prisma.transaction.create({
+              data: {
+                senderId: adminUser.id,
+                receiverId: adminUser.id,
+                amount: -50.00,
+                type: 'REFERRAL_PAYOUT',
+                reason: `Referral signup payout to user for (${newUser.email})`,
               },
             }),
             // Permanently lock this email out from ever triggering another signup bonus
@@ -157,7 +159,7 @@ export async function POST(req: Request) {
             }),
           ]);
 
-          console.log('Referral successfully processed with dual credit/debit transaction logs.');
+          console.log('Referral successfully processed with corrected transaction logs.');
         } else {
           console.log('Referral skipped:', { existingLog: !!existingLog, adminFound: !!adminUser });
         }

@@ -2,9 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
@@ -79,11 +77,16 @@ export async function POST(req: Request) {
 
     if (!adminUser) {
       adminUser = await prisma.user.findFirst({
-        where: { role: 'ADMIN' },
+        where: { 
+          OR: [
+            { role: 'ADMIN' },
+            { role: 'admin' }
+          ]
+        },
       });
     }
 
-    // Correct multiplication for commission and net amount
+    // Correct multiplication for commission (10%) and net amount (90%)
     const commission = parsedAmount * 0.10;
     const netAmount = parsedAmount * 0.90;
 

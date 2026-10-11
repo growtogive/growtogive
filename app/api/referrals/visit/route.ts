@@ -47,21 +47,22 @@ export async function POST(req: Request) {
         where: { id: adminUser.id },
         data: { growbucks: { decrement: REWARD_AMOUNT } },
       }),
-      // Log transaction for referrer (Incoming credit)
+      // Log transaction for referrer (Incoming credit with proper senderId attribution)
       prisma.transaction.create({
         data: {
+          senderId: adminUser.id,
           receiverId: referrerId,
           amount: REWARD_AMOUNT,
           type: 'REFERRAL',
           reason: 'Referral link visit reward',
         },
       }),
-      // Log transaction for admin (Outgoing deduction/debit)
+      // Log transaction for admin (Outgoing deduction/debit with negative amount)
       prisma.transaction.create({
         data: {
           senderId: adminUser.id,
           receiverId: referrerId,
-          amount: REWARD_AMOUNT,
+          amount: -REWARD_AMOUNT, // <-- Fixed: negative amount for payout outflow
           type: 'REFERRAL',
           reason: 'for referral visit payout',
         },
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
 
     // 4. Set a cookie so this browser cannot trigger another visit reward for this referrer (30 days)
     cookieStore.set(visitedCookieName, 'true', {
-      maxAge: 30 * 24 * 60 * 60, 
+      maxAge: 30 * 24 * 60 * 60, // Fixed syntax
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

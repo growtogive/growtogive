@@ -20,14 +20,14 @@ export default async function AdminDashboardPage() {
     totalUsers = await prisma.user.count();
     totalListings = await prisma.listing.count();
     
-    // Fetch users including referredById safely
+    // Fetch users including their stored growbucks balance directly from the database
     const rawUsers = await prisma.user.findMany({ 
       select: { 
         id: true, 
         name: true, 
         email: true, 
         role: true,
-        growbucks: true,
+        growbucks: true, 
         createdAt: true,
         referredById: true,
       },

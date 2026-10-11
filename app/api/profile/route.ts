@@ -235,15 +235,48 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Cannot delete the admin account' }, { status: 400 });
     }
 
-    if (listingAction === 'delete') {
-      await prisma.listing.deleteMany({ where: { authorId: targetUserId } as any });
-    }
+    const userBalance = Number(targetUser.growbucks || 0);
+    const userName = targetUser.name || 'Member';
 
-    await prisma.user.delete({
-      where: { id: targetUserId },
+    // Execute deletion and GrowBucks return atomically inside a transaction
+    await prisma.$transaction(async (tx) => {
+      if (userBalance > 0) {
+        // 1. Zero out the user's balance first
+        await tx.user.update({
+          where: { id: targetUserId },
+          data: { growbucks: 0 },
+        });
+
+        // 2. Refund remaining balance back to admin account
+        await tx.user.update({
+          where: { id: adminUser.id },
+          data: { growbucks: { increment: userBalance } },
+        });
+
+        // 3. Create the ledger transaction record with senderId set to null 
+        // to prevent cascade deletion when the user account is deleted below
+        await tx.transaction.create({
+          data: {
+            reason: `Account closure balance return from ${userName} (${userBalance.toFixed(2)} GB)`,
+            amount: userBalance,
+            type: 'Trade',
+            senderId: null,
+            receiverId: adminUser.id,
+          },
+        });
+      }
+
+      if (listingAction === 'delete') {
+        await tx.listing.deleteMany({ where: { authorId: targetUserId } });
+      }
+
+      // 4. Finally, delete the user account safely
+      await tx.user.delete({
+        where: { id: targetUserId },
+      });
     });
 
-    return NextResponse.json({ success: true, message: 'User deleted successfully' });
+    return NextResponse.json({ success: true, message: 'User deleted and remaining GrowBucks returned to admin successfully.' });
   } catch (error: any) {
     console.error('Delete user error:', error);
     return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
