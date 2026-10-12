@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, searchParams } = req.nextUrl;
 
   // Check directly for NextAuth v5 (authjs) or v4 session cookies
   const sessionToken =
@@ -19,7 +19,17 @@ export function middleware(req: NextRequest) {
 
   if (isProtected && !isLoggedIn) {
     const signInUrl = new URL("/signup", req.url);
-    signInUrl.searchParams.set("callbackUrl", pathname);
+
+    // 1. Capture the referral ID (assuming it's named 'ref') and forward it
+    const ref = searchParams.get("ref");
+    if (ref) {
+      signInUrl.searchParams.set("ref", ref);
+    }
+
+    // 2. Preserve the full pathname + query string as the callbackUrl
+    const fullPathWithQuery = req.nextUrl.pathname + req.nextUrl.search;
+    signInUrl.searchParams.set("callbackUrl", fullPathWithQuery);
+
     return NextResponse.redirect(signInUrl);
   }
 

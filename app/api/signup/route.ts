@@ -4,6 +4,42 @@ import { prisma } from '@/lib/prisma';
 import * as bcrypt from 'bcrypt';
 import { cookies } from 'next/headers';
 
+// Helper function to reverse geocode lat/lng to get the official Google address city & state
+async function getCityAndStateFromLatLng(lat: number, lng: number) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return { city: null, state: null };
+
+  try {
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
+    );
+    const data = await response.json();
+    
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      let city: string | null = null;
+      let state: string | null = null;
+
+      const addressComponents = data.results[0].address_components;
+      for (const component of addressComponents) {
+        if (component.types.includes('locality')) {
+          city = component.long_name;
+        } else if (!city && component.types.includes('sublocality_level_1')) {
+          city = component.long_name;
+        } else if (!city && component.types.includes('administrative_area_level_2')) {
+          city = component.long_name;
+        }
+        if (component.types.includes('administrative_area_level_1')) {
+          state = component.short_name; // e.g. "FL"
+        }
+      }
+      return { city, state };
+    }
+  } catch (err) {
+    console.error('Error reverse geocoding lat/lng:', err);
+  }
+  return { city: null, state: null };
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -31,7 +67,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!name || !email || !password || !userPhone || !address || !city || !bio) {
+    if (!name || !email || !password || !userPhone || !address || !bio) {
       return NextResponse.json(
         { error: 'Please fill out all required fields.' },
         { status: 400 }
@@ -51,6 +87,15 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    // --- PARSE COORDINATES & FETCH GOOGLE ADDRESS CITY/STATE ---
+    const parsedLat = latitude ? parseFloat(latitude) : 27.4989;
+    const parsedLng = longitude ? parseFloat(longitude) : -82.5648;
+
+    // Derive city and state directly from the Google address coordinates
+    const googleLocation = await getCityAndStateFromLatLng(parsedLat, parsedLng);
+    const finalCity = googleLocation.city || city || null;
+    const finalState = googleLocation.state || state || null;
 
     // --- FETCH REFERRER FROM COOKIE (if present) ---
     const cookieStore = await cookies();
@@ -74,7 +119,7 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with all profile attributes AND the referredById link
+    // Create user with Google-derived city/state and lat/lng
     const newUser = await prisma.user.create({
       data: {
         name,
@@ -83,11 +128,11 @@ export async function POST(req: Request) {
         userPhone, 
         address,   
         role: 'Subscriber',
-        city: city || null,
-        state: state || null,
+        city: finalCity,
+        state: finalState,
         churchName: churchName || null,
-        latitude: latitude ? parseFloat(latitude) : 27.4989,
-        longitude: longitude ? parseFloat(longitude) : -82.5648,
+        latitude: parsedLat,
+        longitude: parsedLng,
         bio: bio || null,
         avatar: avatar || null,
         referredById: validReferrerId, // Links user to their referrer!
@@ -130,7 +175,7 @@ export async function POST(req: Request) {
               where: { id: adminUser.id },
               data: { growbucks: { decrement: 50.00 } },
             }),
-            // Transaction log 1: Credit to Referrer (Sender: Admin, Receiver: Referrer)
+            // Transaction log 1: Credit to Referrer
             prisma.transaction.create({
               data: {
                 senderId: adminUser.id,
@@ -140,13 +185,13 @@ export async function POST(req: Request) {
                 reason: `Bonus for referred user signup (${newUser.email})`,
               },
             }),
-            // Transaction log 2: Debit from Admin (Sender: Admin, Receiver: Admin - representing outflow/payout)
+            // Transaction log 2: Debit from Admin
             prisma.transaction.create({
               data: {
                 senderId: adminUser.id,
                 receiverId: adminUser.id,
                 amount: -50.00,
-                type: 'REFERRAL_PAYOUT',
+                type: 'REFERRAL',
                 reason: `Referral signup payout to user for (${newUser.email})`,
               },
             }),
