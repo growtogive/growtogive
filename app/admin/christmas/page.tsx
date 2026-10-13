@@ -16,7 +16,7 @@ export default function ChristmasAdminPage() {
   const [newLocationName, setNewLocationName] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Edit Kid Modal State (tagNumber removed from form fields)
+  // Edit Kid Modal State
   const [editingKid, setEditingKid] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -92,7 +92,7 @@ export default function ChristmasAdminPage() {
       gender: editForm.gender,
       giftOne: editForm.giftOne,
       giftTwo: editForm.giftTwo,
-      tagNumber: editingKid.tagNumber, // Keeps original tag number unchanged
+      tagNumber: editingKid.tagNumber,
     });
 
     if (res.success) {
@@ -101,6 +101,121 @@ export default function ChristmasAdminPage() {
     } else {
       alert(res.error || "Failed to update tag details");
     }
+  };
+
+  // Helper function to generate family letter and individual tag objects
+  const getFamilyTags = (app: any, appIndex: number) => {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const familyLetter = alphabet[appIndex % alphabet.length] || `A${appIndex}`;
+    let tagCounter = 1;
+    const tags: any[] = [];
+
+    if (app.kids && Array.isArray(app.kids)) {
+      app.kids.forEach((kid: any) => {
+        if (kid.giftOne) {
+          tags.push({
+            tagId: `${familyLetter}-${tagCounter++}`,
+            kid,
+            giftText: kid.giftOne,
+            giftNumber: 1,
+          });
+        }
+        if (kid.giftTwo) {
+          tags.push({
+            tagId: `${familyLetter}-${tagCounter++}`,
+            kid,
+            giftText: kid.giftTwo,
+            giftNumber: 2,
+          });
+        }
+      });
+    }
+
+    return { familyLetter, tags };
+  };
+
+  // Opens a printable window with individual sequential tags per gift
+  const handlePrintTags = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow popups to print tags.");
+      return;
+    }
+
+    let tagsHtml = "";
+
+    applications.forEach((app, appIndex) => {
+      const { tags } = getFamilyTags(app, appIndex);
+      tags.forEach((tag) => {
+        tagsHtml += generateTagHtml(tag.kid, tag.giftText, tag.tagId);
+      });
+    });
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Christmas Gift Tags</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #111; }
+            .tag-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+            .tag-card {
+              width: 320px;
+              height: 200px;
+              border: 2px dashed #dc2626;
+              border-radius: 12px;
+              padding: 16px;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              page-break-inside: avoid;
+              background: #fff;
+            }
+            .tag-header { text-align: center; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+            .tag-title { font-size: 16px; font-weight: 900; color: #dc2626; margin: 0; text-transform: uppercase; }
+            .tag-subtitle { font-size: 10px; color: #555; margin: 2px 0 0 0; }
+            .tag-body { font-size: 13px; margin: 6px 0; }
+            .tag-footer { text-align: center; border-top: 1px solid #eee; padding-top: 6px; font-size: 9px; color: #666; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div style="text-align: center; margin-bottom: 20px;" class="no-print">
+            <button onclick="window.print()" style="padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Print Tags</button>
+          </div>
+          <div class="tag-grid">
+            ${tagsHtml}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const generateTagHtml = (kid: any, giftText: string, tagIdCode: string) => {
+    return `
+      <div class="tag-card">
+        <div class="tag-header">
+          <h2 class="tag-title">CHRISTMAS GIFT</h2>
+          <p class="tag-subtitle">Take a tag! Bring gift back by 12.15.2026</p>
+        </div>
+        <div class="tag-body">
+          <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 4px;">
+            <span style="color: #dc2626;">Tag ID: #${tagIdCode}</span>
+            <span>Age: ${kid.age} (${kid.gender})</span>
+          </div>
+          <p style="margin: 4px 0;"><strong>Child Name:</strong> ${kid.name}</p>
+          <p style="margin: 4px 0;"><strong>Gift Desired:</strong> ${giftText}</p>
+        </div>
+        <div class="tag-footer">
+          Contact GrowToGive at admin@growtogive.com. 941.216.1181
+        </div>
+      </div>
+    `;
   };
 
   if (loading) return <div className="p-12 text-center text-gray-500 font-medium">Loading Christmas Dashboard...</div>;
@@ -114,9 +229,14 @@ export default function ChristmasAdminPage() {
             <h1 className="text-2xl font-extrabold text-gray-900">Christmas Charity Dashboard</h1>
             <p className="text-sm text-gray-500">Manage submissions, referrals, addresses, and gift statuses.</p>
           </div>
-          <button onClick={loadData} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg">
-            Refresh Data
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={handlePrintTags} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm">
+              🖨️ Print All Gift Tags
+            </button>
+            <button onClick={loadData} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg">
+              Refresh Data
+            </button>
+          </div>
         </div>
 
         {/* Location Management */}
@@ -153,81 +273,86 @@ export default function ChristmasAdminPage() {
             {applications.length === 0 ? (
               <p className="p-6 text-center text-gray-400">No applications submitted yet.</p>
             ) : (
-              applications.map((app) => (
-                <div key={app.id} className="p-6 space-y-4 hover:bg-gray-50/50 transition">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-base font-bold text-gray-900">{app.momName}</h3>
-                      <p className="text-xs text-gray-500">Phone: {app.phone} | Email: {app.email || "N/A"}</p>
-                      <p className="text-xs text-blue-600 font-semibold mt-1">🤝 Referred By: {app.referredBy}</p>
-                      <p className="text-xs text-gray-600 font-medium">📍 Address: {app.address}</p>
-                      {app.donorNotes && (
-                        <p className="text-xs bg-amber-50 text-amber-800 p-2 rounded mt-1 border border-amber-200">
-                          <strong>Donor Note:</strong> "{app.donorNotes}"
-                        </p>
-                      )}
-                    </div>
-                    <button onClick={() => handleDeleteApp(app.id)} className="text-xs text-red-600 hover:text-red-800 font-semibold">
-                      Delete Application
-                    </button>
-                  </div>
+              applications.map((app, appIndex) => {
+                const { familyLetter, tags } = getFamilyTags(app, appIndex);
 
-                  {/* Kids Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {app.kids.map((kid: any) => (
-                      <div key={kid.id} className="bg-white p-4 rounded-lg border shadow-xs space-y-2 relative">
-                        <div className="flex justify-between items-center">
-                          <span className="bg-red-600 text-white font-extrabold text-xs px-2 py-0.5 rounded">
-                            Tag: {kid.tagNumber}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-gray-600">{kid.gender} Age {kid.age}</span>
+                return (
+                  <div key={app.id} className="p-6 space-y-4 hover:bg-gray-50/50 transition">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-base font-bold text-gray-900">
+                          Family {familyLetter}: {app.momName}
+                        </h3>
+                        <p className="text-xs text-gray-500">Phone: {app.phone} | Email: {app.email || "N/A"}</p>
+                        <p className="text-xs text-blue-600 font-semibold mt-1">🤝 Referred By: {app.referredBy}</p>
+                        <p className="text-xs text-gray-600 font-medium">📍 Address: {app.address}</p>
+                        {app.donorNotes && (
+                          <p className="text-xs bg-amber-50 text-amber-800 p-2 rounded mt-1 border border-amber-200">
+                            <strong>Donor Note:</strong> "{app.donorNotes}"
+                          </p>
+                        )}
+                      </div>
+                      <button onClick={() => handleDeleteApp(app.id)} className="text-xs text-red-600 hover:text-red-800 font-semibold">
+                        Delete Application
+                      </button>
+                    </div>
+
+                    {/* Individual Tag Cards Grid (One card per gift) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {tags.map((tag) => (
+                        <div key={`${tag.kid.id}-${tag.giftNumber}`} className="bg-white p-4 rounded-lg border shadow-xs space-y-3 relative border-l-4 border-l-red-600">
+                          <div className="flex justify-between items-center border-b pb-2">
+                            <span className="bg-red-600 text-white font-extrabold text-xs px-2 py-0.5 rounded">
+                              Tag ID: #{tag.tagId}
+                            </span>
+                            <span className="text-xs font-semibold text-gray-600">{tag.kid.gender} Age {tag.kid.age}</span>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">Child: {tag.kid.name}</p>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">🎁 Gift {tag.giftNumber}: {tag.giftText}</p>
+                          </div>
+
+                          <div className="flex justify-between items-center pt-2">
                             <button 
-                              onClick={() => openEditModal(kid)}
+                              onClick={() => openEditModal(tag.kid)}
                               className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded font-semibold border"
                             >
                               Edit Tag
                             </button>
                           </div>
-                        </div>
-                        <p className="text-sm font-bold text-gray-800">{kid.name}</p>
-                        
-                        <div className="text-xs bg-gray-50 p-2 rounded border space-y-1">
-                          <p>🎁 <strong>Gift 1:</strong> {kid.giftOne}</p>
-                          <p>🎁 <strong>Gift 2:</strong> {kid.giftTwo}</p>
-                        </div>
 
-                        {/* Status / Location Dropdowns */}
-                        <div className="space-y-1.5 pt-2 border-t">
-                          <select
-                            value={kid.status}
-                            onChange={(e) => handleStatusChange(kid.id, e.target.value, kid.locationId)}
-                            className="w-full text-xs px-2 py-1 border rounded bg-white font-medium"
-                          >
-                            <option value="PENDING">PENDING</option>
-                            <option value="PLACED">PLACED</option>
-                            <option value="CLAIMED">CLAIMED</option>
-                            <option value="PICKED_UP">PICKED UP</option>
-                            <option value="WRAPPED">WRAPPED</option>
-                          </select>
+                          {/* Status / Location Dropdowns */}
+                          <div className="space-y-1.5 pt-2 border-t">
+                            <select
+                              value={tag.kid.status}
+                              onChange={(e) => handleStatusChange(tag.kid.id, e.target.value, tag.kid.locationId)}
+                              className="w-full text-xs px-2 py-1 border rounded bg-white font-medium"
+                            >
+                              <option value="PENDING">PENDING</option>
+                              <option value="PLACED">PLACED</option>
+                              <option value="CLAIMED">CLAIMED</option>
+                              <option value="PICKED_UP">PICKED UP</option>
+                              <option value="WRAPPED">WRAPPED</option>
+                            </select>
 
-                          <select
-                            value={kid.locationId || ""}
-                            onChange={(e) => handleStatusChange(kid.id, kid.status, e.target.value || null)}
-                            className="w-full text-xs px-2 py-1 border rounded bg-white font-medium"
-                          >
-                            <option value="">-- No Location Assigned --</option>
-                            {locations.map((loc) => (
-                              <option key={loc.id} value={loc.id}>{loc.name}</option>
-                            ))}
-                          </select>
+                            <select
+                              value={tag.kid.locationId || ""}
+                              onChange={(e) => handleStatusChange(tag.kid.id, tag.kid.status, e.target.value || null)}
+                              className="w-full text-xs px-2 py-1 border rounded bg-white font-medium"
+                            >
+                              <option value="">-- No Location Assigned --</option>
+                              {locations.map((loc) => (
+                                <option key={loc.id} value={loc.id}>{loc.name}</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+
                   </div>
-
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
