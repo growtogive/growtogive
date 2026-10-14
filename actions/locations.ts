@@ -36,31 +36,51 @@ export async function getAdminChristmasData() {
     where: { deletedAt: null },
     include: {
       kids: {
-        include: { location: true },
+        include: { 
+          location: true,
+          giftOneLocation: true,
+          giftTwoLocation: true,
+        },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 }
 
-// Update a kid's status or location, and trigger resequencing if location is removed
-export async function updateKidStatusAndLocation(kidId: string, status: string, locationId: string | null) {
+// Update a specific gift's status or location independently
+export async function updateKidStatusAndLocation(
+  kidId: string, 
+  status: string, 
+  locationId: string | null, 
+  giftNumber: number
+) {
   try {
+    let updateData: any = {};
+
+    if (giftNumber === 1) {
+      updateData = {
+        giftOneStatus: status,
+        giftOneLocationId: locationId || null,
+      };
+    } else {
+      updateData = {
+        giftTwoStatus: status,
+        giftTwoLocationId: locationId || null,
+      };
+    }
+
     await prisma.christmasKid.update({
       where: { id: kidId },
-      data: {
-        status: status as any,
-        locationId: locationId || null,
-      },
+      data: updateData,
     });
 
-    // If location is removed, resequence pending tags
     if (!locationId) {
       await resequencePendingApplications();
     }
 
     return { success: true };
   } catch (error) {
+    console.error("Error updating kid status and location:", error);
     return { success: false, error: "Failed to update tag status." };
   }
 }

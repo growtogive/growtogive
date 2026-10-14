@@ -36,13 +36,13 @@ model User {
   receivedMessages    Message[]       @relation("ReceivedMessages")
   quizAttempts        QuizAttempt[]
   eventAttendees      EventAttendee[]
-  favorites           Favorite[] @relation("UserFavorites")
-  favoritedUsers      Favorite[] @relation("FavoritedUsers")
+  favorites           Favorite[]      @relation("UserFavorites")
+  favoritedUsers      Favorite[]      @relation("FavoritedUsers")
   // Referral tracking relations
-  referredById  String?
-  referrer      User?    @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals     User[]   @relation("UserReferrals")
-  referralLogs  ReferralLog[]
+  referredById        String?
+  referrer            User?           @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals           User[]          @relation("UserReferrals")
+  referralLogs        ReferralLog[]
 }
 
 model Listing {
@@ -160,7 +160,7 @@ model Post {
   category    PostCategory @relation(fields: [categoryId], references: [id])
   quiz        Quiz?
   event       Event?
-  isSticky Boolean @default(false)
+  isSticky    Boolean      @default(false)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -176,12 +176,12 @@ model Quiz {
 }
 
 model QuizQuestion {
-  id            String   @id @default(uuid())
-  quizId        String
-  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  questionText  String
-  options       String[] 
-  correctAnswer Int      
+  id           String   @id @default(uuid())
+  quizId       String
+  quiz         Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionText String
+  options      String[] 
+  correctAnswer Int     
 }
 
 model QuizAttempt {
@@ -227,15 +227,25 @@ model EventAttendee {
 // CHRISTMAS CHARITY EVENT TABLES
 // ==========================================
 
+model Location {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt @default(now()) // Added @default(now())
+  kids          ChristmasKid[]
+  giftOneKids   ChristmasKid[] @relation("GiftOneLocation")
+  giftTwoKids   ChristmasKid[] @relation("GiftTwoLocation")
+}
+
 model ChristmasApplication {
-  id         String   @id @default(uuid())
+  id         String               @id @default(uuid())
   momName    String
   phone      String
   email      String?
   address    String
   referredBy String
   donorNotes String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime             @default(now())
   deletedAt  DateTime?
   kids       ChristmasKid[]
 }
@@ -244,22 +254,25 @@ model ChristmasKid {
   id            String               @id @default(uuid())
   applicationId String
   application   ChristmasApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  tagNumber     String               @unique
+  
   name          String
   age           Int
   gender        String
-  giftOne       String
-  giftTwo       String
-  wishlist      String
-  status        String               @default("PENDING")
-  locationId    String?
-  location      Location?            @relation(fields: [locationId], references: [id])
-}
+  giftOne       String?
+  giftTwo       String?
+  tagNumber     String               @unique
 
-model Location {
-  id        String         @id @default(cuid())
-  name      String         @unique
-  kids      ChristmasKid[]
+  // Independent Gift Statuses & Locations
+  giftOneStatus     String    @default("PENDING")
+  giftTwoStatus     String    @default("PENDING")
+  giftOneLocationId String?
+  giftTwoLocationId String?
+  giftOneLocation   Location? @relation("GiftOneLocation", fields: [giftOneLocationId], references: [id])
+  giftTwoLocation   Location? @relation("GiftTwoLocation", fields: [giftTwoLocationId], references: [id])
+
+  status            String    @default("PENDING")
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id])
 }
 
 enum TagStatus {

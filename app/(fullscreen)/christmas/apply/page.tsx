@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { submitChristmasApplication } from "@/actions/christmas";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { submitChristmasApplication, updateChristmasApplication, getChristmasApplicationById } from "@/actions/christmas";
 import { cleanText } from "@/utils/textFormatter";
+import { useSearchParams } from "next/navigation";
 
 interface KidInput {
+  id?: string;
   name: string;
   age: string;
   gender: string;
@@ -12,7 +14,20 @@ interface KidInput {
   giftTwo: string;
 }
 
+// 1. Main page wrapped in Suspense (Fixes the Next.js hook error)
 export default function ChristmasApplyPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><p className="text-gray-500 font-medium">Loading form...</p></div>}>
+      <ChristmasApplyForm />
+    </Suspense>
+  );
+}
+
+// 2. Inner component containing all hooks and form logic
+function ChristmasApplyForm() {
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -30,12 +45,63 @@ export default function ChristmasApplyPage() {
   ]);
 
   const [loading, setLoading] = useState(false);
+  const [fetchingData, setFetchingData] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const addressInputRef = useRef<HTMLInputElement>(null);
 
-  // Google Places Autocomplete Hook
+  useEffect(() => {
+    if (editId) {
+      setIsAuthenticated(true);
+      fetchExistingData(editId);
+    }
+  }, [editId]);
+
+  const fetchExistingData = async (id: string) => {
+    setFetchingData(true);
+    try {
+      const res = await getChristmasApplicationById(id);
+      if (res.success && res.data) {
+        const app = res.data;
+        setMomName(app.momName || "");
+        setPhone(app.phone || "");
+        setEmail(app.email || "");
+        setAddress(app.address || "");
+        
+        const standardOptions = ["GrowToGive", "Ballard Elementary", "Bradenton Woman's Club"];
+        if (standardOptions.includes(app.referredBy)) {
+          setReferredBy(app.referredBy);
+          setReferredByOther("");
+        } else {
+          setReferredBy("Other");
+          setReferredByOther(app.referredBy || "");
+        }
+
+        setDonorNotes(app.donorNotes || "");
+
+        if (app.kids && app.kids.length > 0) {
+          setKids(
+            app.kids.map((k: any) => ({
+              id: k.id,
+              name: k.name || "",
+              age: k.age ? k.age.toString() : "",
+              gender: k.gender || "Boy",
+              giftOne: k.giftOne || "",
+              giftTwo: k.giftTwo || "",
+            }))
+          );
+        }
+      } else {
+        setErrorMessage(res.error || "Failed to load application data for editing.");
+      }
+    } catch (err) {
+      setErrorMessage("An unexpected error occurred while fetching application data.");
+    } finally {
+      setFetchingData(false);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && window.google && addressInputRef.current) {
       const autocomplete = new window.google.maps.places.Autocomplete(addressInputRef.current, {
@@ -104,6 +170,7 @@ export default function ChristmasApplyPage() {
 
     try {
       const formattedKids = kids.map((k) => ({
+        id: k.id,
         name: cleanText(k.name),
         age: parseInt(k.age) || 0,
         gender: k.gender,
@@ -113,29 +180,46 @@ export default function ChristmasApplyPage() {
 
       const finalReferredBy = referredBy === "Other" ? cleanText(referredByOther) : referredBy;
 
-      const res = await submitChristmasApplication({
-        password: "CSMK2026",
-        momName: cleanText(momName),
-        phone: phone.trim(),
-        email: email.trim() || undefined,
-        address: cleanText(address),
-        referredBy: finalReferredBy,
-        donorNotes: donorNotes.trim() ? cleanText(donorNotes) : undefined,
-        kids: formattedKids,
-      });
+      let res;
+      if (editId) {
+        res = await updateChristmasApplication({
+          id: editId,
+          password: "CSMK2026",
+          momName: cleanText(momName),
+          phone: phone.trim(),
+          email: email.trim() || undefined,
+          address: cleanText(address),
+          referredBy: finalReferredBy,
+          donorNotes: donorNotes.trim() ? cleanText(donorNotes) : undefined,
+          kids: formattedKids,
+        });
+      } else {
+        res = await submitChristmasApplication({
+          password: "CSMK2026",
+          momName: cleanText(momName),
+          phone: phone.trim(),
+          email: email.trim() || undefined,
+          address: cleanText(address),
+          referredBy: finalReferredBy,
+          donorNotes: donorNotes.trim() ? cleanText(donorNotes) : undefined,
+          kids: formattedKids,
+        });
+      }
 
       if (res.success) {
-        setSuccessMessage("Application submitted successfully! Your tracking tags have been generated.");
-        setMomName("");
-        setPhone("");
-        setEmail("");
-        setAddress("");
-        setReferredBy("GrowToGive");
-        setReferredByOther("");
-        setDonorNotes("");
-        setKids([{ name: "", age: "", gender: "Boy", giftOne: "", giftTwo: "" }]);
+        setSuccessMessage(editId ? "Application updated successfully!" : "Application submitted successfully! Your tracking tags have been generated.");
+        if (!editId) {
+          setMomName("");
+          setPhone("");
+          setEmail("");
+          setAddress("");
+          setReferredBy("GrowToGive");
+          setReferredByOther("");
+          setDonorNotes("");
+          setKids([{ name: "", age: "", gender: "Boy", giftOne: "", giftTwo: "" }]);
+        }
       } else {
-        setErrorMessage(res.error || "Submission failed.");
+        setErrorMessage(res.error || "Operation failed.");
       }
     } catch (err) {
       setErrorMessage("An unexpected error occurred.");
@@ -170,11 +254,21 @@ export default function ChristmasApplyPage() {
     );
   }
 
+  if (fetchingData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-600 font-medium">Loading application data for editing...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-md border border-gray-100">
-        <h1 className="text-3xl font-extrabold text-gray-900 text-center mb-2">Christmas Assistance Application</h1>
-        <p className="text-sm text-gray-500 text-center mb-8">All fields are mandatory. Text capitalization is auto-corrected.</p>
+        <h1 className="text-3xl font-extrabold text-gray-900 text-center mb-2">
+          {editId ? "Edit Christmas Application" : "Christmas Assistance Application"}
+        </h1>
+        <p className="text-sm text-gray-500 text-center mb-8">All fields are mandatory.</p>
 
         {successMessage && <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg text-center font-medium">{successMessage}</div>}
         {errorMessage && <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-center font-medium">{errorMessage}</div>}
@@ -362,7 +456,7 @@ export default function ChristmasApplyPage() {
           </div>
 
           <button type="submit" disabled={loading} className="w-full bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition shadow-md">
-            {loading ? "Submitting Application..." : "Submit Christmas Application"}
+            {loading ? (editId ? "Updating Application..." : "Submitting Application...") : (editId ? "Save Changes" : "Submit Christmas Application")}
           </button>
         </form>
       </div>
