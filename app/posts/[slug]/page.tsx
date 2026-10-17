@@ -1,3 +1,4 @@
+// app/posts/[slug]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import Link from 'next/link';
 export default function PostDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const slug = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
   const { data: session, status } = useSession();
 
   const [post, setPost] = useState<any>(null);
@@ -28,15 +29,15 @@ export default function PostDetailPage() {
   const currentUserId = (session?.user as any)?.id;
 
   useEffect(() => {
-    if (id) {
+    if (slug) {
       fetchPost();
     }
-  }, [id, session]);
+  }, [slug, session]);
 
   const fetchPost = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/posts/${id}`);
+      const res = await fetch(`/api/posts/${slug}`);
       if (!res.ok) throw new Error('Post not found');
       const data = await res.json();
       setPost(data.post);
@@ -169,7 +170,7 @@ export default function PostDetailPage() {
           {isAdmin && (
             <div className="absolute top-8 right-8">
               <Link 
-                href={`/admin/posts/${post.id}/edit`} 
+                href={`/admin/posts/${post.slug}/edit`} 
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all"
               >
                 <span>✏️ Edit Post</span>
@@ -210,7 +211,7 @@ export default function PostDetailPage() {
 
           {post.price !== null && post.price !== undefined && Number(post.price) > 0 ? (
             <Link 
-              href={`/checkout?postId=${post.id}&amount=${post.price}`}
+              href={`/checkout?postSlug=${post.slug}&amount=${post.price}`}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
             >
               <span>🏷️ Price / Fee: ${Number(post.price).toFixed(2)} (Click to Checkout ↗)</span>

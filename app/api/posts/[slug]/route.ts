@@ -1,14 +1,35 @@
+// app/api/posts/[slug]/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// GET: Fetch single post
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+async function findPost(identifier: string) {
+  let post = await prisma.post.findUnique({
+    where: { slug: identifier },
+    include: {
+      category: true,
+      quiz: { include: { questions: true } },
+      event: { include: { attendees: { include: { user: true } } } },
+    },
+  });
+  if (!post) {
+    post = await prisma.post.findUnique({
+      where: { id: identifier },
+      include: {
+        category: true,
+        quiz: { include: { questions: true } },
+        event: { include: { attendees: { include: { user: true } } } },
+      },
+    });
+  }
+  return post;
+}
+
+export async function GET(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
-    const { id } = await context.params;
+    const { slug } = await context.params;
     const session = await getServerSession(authOptions);
-    
     let userId = (session?.user as any)?.id;
 
     if (!userId && session?.user?.email) {
@@ -16,37 +37,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         where: { email: session.user.email },
         select: { id: true },
       });
-      if (dbUser) {
-        userId = dbUser.id;
-      }
+      if (dbUser) userId = dbUser.id;
     }
 
-    const post = await prisma.post.findUnique({
-      where: { id },
-      include: {
-        category: true,
-        quiz: {
-          include: {
-            questions: true,
-            attempts: {
-              where: {
-                userId: userId || 'NO_USER_LOGGED_IN',
-              },
-            },
-          },
-        },
-        event: {
-          include: {
-            attendees: {
-              include: {
-                user: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
+    const post = await findPost(slug);
     if (!post) {
       return NextResponse.json({ error: 'Post not found.' }, { status: 404 });
     }
@@ -58,15 +52,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 }
 
-// PUT: Update post (Admin Only)
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user || (session.user as any)?.role?.toUpperCase() !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 });
     }
 
-    const { id } = await context.params;
+    const { slug } = await context.params;
     const body = await request.json();
     const { title, description, images, videoUrl, price, categoryName, quiz, event } = body;
 
@@ -74,28 +67,18 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Title, description, and category are required.' }, { status: 400 });
     }
 
-    if (images && images.length > 5) {
-      return NextResponse.json({ error: 'Posts can have a maximum of 5 images.' }, { status: 400 });
-    }
-
-    let category = await prisma.postCategory.findUnique({
-      where: { name: categoryName.trim() },
-    });
-
+    let category = await prisma.postCategory.findUnique({ where: { name: categoryName.trim() } });
     if (!category) {
-      category = await prisma.postCategory.create({
-        data: { name: categoryName.trim() },
-      });
+      category = await prisma.postCategory.create({ data: { name: categoryName.trim() } });
     }
 
-    const existingPost = await prisma.post.findUnique({
-      where: { id },
-      include: { quiz: true, event: true },
-    });
-
+    const existingPost = await findPost(slug);
     if (!existingPost) {
       return NextResponse.json({ error: 'Post not found.' }, { status: 404 });
     }
+
+    const existingQuiz = await prisma.quiz.findUnique({ where: { postId: existingPost.id } });
+    const existingEvent = await prisma.event.findUnique({ where: { postId: existingPost.id } });
 
     const quizOperation = quiz?.questions && quiz.questions.length > 0
       ? {
@@ -125,9 +108,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
             },
           },
         }
-      : existingPost.quiz 
-        ? { delete: true } 
-        : undefined;
+      : existingQuiz ? { delete: true } : undefined;
 
     const eventOperation = event?.eventDate
       ? {
@@ -148,12 +129,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
             },
           },
         }
-      : existingPost.event 
-        ? { delete: true } 
-        : undefined;
+      : existingEvent ? { delete: true } : undefined;
 
     const updatedPost = await prisma.post.update({
-      where: { id },
+      where: { id: existingPost.id },
       data: {
         title,
         description,
@@ -166,20 +145,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       },
       include: {
         category: true,
-        quiz: {
-          include: {
-            questions: true,
-          },
-        },
-        event: {
-          include: {
-            attendees: {
-              include: {
-                user: true,
-              },
-            },
-          },
-        },
+        quiz: { include: { questions: true } },
+        event: { include: { attendees: { include: { user: true } } } },
       },
     });
 
@@ -190,17 +157,20 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 }
 
-// DELETE: Delete post (Admin Only)
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user || (session.user as any)?.role?.toUpperCase() !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 });
     }
 
-    const { id } = await context.params;
-    await prisma.post.delete({ where: { id } });
+    const { slug } = await context.params;
+    const existingPost = await findPost(slug);
+    if (!existingPost) {
+      return NextResponse.json({ error: 'Post not found.' }, { status: 404 });
+    }
 
+    await prisma.post.delete({ where: { id: existingPost.id } });
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('Failed to delete post:', err);

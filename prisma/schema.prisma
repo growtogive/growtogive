@@ -47,6 +47,7 @@ model User {
 
 model Listing {
   id            String   @id @default(cuid())
+  slug          String?  @unique              // Used for URLs
   title         String
   description   String
   type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
@@ -151,6 +152,7 @@ model PostCategory {
 
 model Post {
   id          String       @id @default(uuid())
+  slug        String  @unique
   title       String
   description String
   images      String[]     

@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 // Haversine formula to calculate distance in miles between two coordinate pairs
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return 0;
   const R = 3958.8; // Radius of the Earth in miles
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
@@ -21,6 +21,51 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 10) / 10;
 }
+
+// Fallback coordinate mapping for common cities so radius works instantly without explicit DB coordinates
+const FALLBACK_CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+  'bayshore gardens': { lat: 27.4984, lng: -82.5647 },
+  'bradenton': { lat: 27.4982, lng: -82.5748 },
+  'sarasota': { lat: 27.3364, lng: -82.5307 },
+  'tampa': { lat: 27.9506, lng: -82.4572 },
+  'st. petersburg': { lat: 27.7676, lng: -82.6403 },
+  'orlando': { lat: 28.5383, lng: -83.3792 },
+  'miami': { lat: 25.7617, lng: -80.1918 },
+  'jacksonville': { lat: 30.3322, lng: -81.6557 },
+};
+
+function getCoordsForUser(user: any): { lat: number; lng: number } | null {
+  // 1. If explicit lat/lng exist on user object
+  if (user.latitude != null && user.longitude != null) {
+    const lat = Number(user.latitude);
+    const lng = Number(user.longitude);
+    if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+  }
+
+  // 2. Fallback to city matching
+  if (user.city) {
+    const cleanCity = user.city.toLowerCase().trim();
+    if (FALLBACK_CITY_COORDS[cleanCity]) {
+      return FALLBACK_CITY_COORDS[cleanCity];
+    }
+  }
+
+  return null;
+}
+
+const getMemberHierarchy = (user: any) => {
+  const city = (user.city || '').trim();
+  const church = (user.churchName || user.church || '').trim();
+  
+  const displayCity = city || 'General City';
+  const displayChurch = church || 'General Church';
+  
+  return {
+    city: displayCity,
+    church: displayChurch,
+    hierarchyString: `${displayCity} > ${displayChurch}`
+  };
+};
 
 export default function MembersPage() {
   const router = useRouter();
@@ -52,36 +97,31 @@ export default function MembersPage() {
       
       const users = Array.isArray(data) ? data : (data.users || []);
 
-      // Find the logged-in user's coordinates directly from the fetched users array
+      // Find logged-in user session match
       const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
       const currentDbUser = currentUserEmail 
         ? users.find((u: any) => u.email?.toLowerCase()?.trim() === currentUserEmail)
         : null;
 
-      const userCoords = currentDbUser && currentDbUser.latitude && currentDbUser.longitude
-        ? { lat: Number(currentDbUser.latitude), lng: Number(currentDbUser.longitude) }
-        : null;
+      // Determine center reference coordinates (Logged-in user -> Fallback city -> Default region center)
+      const userCoords = currentDbUser ? getCoordsForUser(currentDbUser) : null;
+      const referenceCoords = userCoords || (users.length > 0 ? getCoordsForUser(users[0]) : null) || { lat: 27.4984, lng: -82.5647 };
 
       const mappedMembers = users.map((user: any) => {
         let computedDistance = 0;
-        
-        if (
-          userCoords &&
-          userCoords.lat &&
-          userCoords.lng &&
-          user.latitude &&
-          user.longitude
-        ) {
+        const targetCoords = getCoordsForUser(user);
+
+        if (referenceCoords && targetCoords) {
           computedDistance = calculateDistance(
-            userCoords.lat,
-            userCoords.lng,
-            Number(user.latitude),
-            Number(user.longitude)
+            referenceCoords.lat,
+            referenceCoords.lng,
+            targetCoords.lat,
+            targetCoords.lng
           );
         }
 
         return {
-          id: user.id,
+          ...user,
           name: user.name || 'Community Member',
           city: user.city || '',
           churchName: user.churchName || user.church || '',
@@ -103,13 +143,12 @@ export default function MembersPage() {
     }
   };
 
-  // Dynamically build unique City > Church options sorted in alphabetical order
+  // Dynamically build unique City > Church options sorted alphabetically
   const uniqueHierarchies = Array.from(
     new Set(
       members.map((user) => {
-        const c = (user.city || '').trim();
-        const ch = (user.churchName || '').trim();
-        return c && ch ? `${c} > ${ch}` : c ? `${c} > General Church` : null;
+        const { city, church, hierarchyString } = getMemberHierarchy(user);
+        return (user.city || user.churchName || user.church) ? hierarchyString : null;
       }).filter(Boolean)
     )
   ).sort((a: any, b: any) => a.localeCompare(b));
@@ -126,8 +165,8 @@ export default function MembersPage() {
         displayCity.toLowerCase().includes(searchTerm.toLowerCase()) ||
         displayChurch.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const userHierarchy = displayCity && displayChurch ? `${displayCity} > ${displayChurch}` : displayCity ? `${displayCity} > General Church` : '';
-      const matchesHierarchy = selectedHierarchy === 'ALL' || userHierarchy === selectedHierarchy || displayCity === selectedHierarchy;
+      const { city: itemCity, hierarchyString: userHierarchy } = getMemberHierarchy(user);
+      const matchesHierarchy = selectedHierarchy === 'ALL' || userHierarchy === selectedHierarchy || itemCity === selectedHierarchy;
 
       const distanceVal = user.distance !== undefined && user.distance !== null ? Number(user.distance) : 0;
       const matchesDistance = maxRadius === 'ALL' || distanceVal <= Number(maxRadius);
@@ -260,8 +299,7 @@ export default function MembersPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredAndSortedMembers.map((user: any) => {
-              const displayCity = (user.city || '').trim() || 'General City';
-              const displayChurch = (user.churchName || '').trim() || 'Grace Family Church';
+              const { city: displayCity, church: displayChurch } = getMemberHierarchy(user);
 
               const reviewCount = user.reviews?.length || 0;
               const ratingVal = reviewCount > 0 

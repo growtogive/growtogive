@@ -1,3 +1,4 @@
+// app/api/listings/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -76,7 +77,7 @@ export async function GET(req: Request) {
     });
 
     const enrichedListings = listings.map((listing) => {
-      const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
+      const isCommercial = listing.type === 'COMMERCIAL' || (listing as any).isCommercial;
       
       let targetLat: number | null = null;
       let targetLng: number | null = null;
@@ -117,7 +118,7 @@ export async function GET(req: Request) {
   }
 }
 
-// 📝 POST a new listing
+// 📝 POST a new listing with auto-generated slug
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -132,7 +133,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // --- BASIC TRAINING GATE CHECK ---
     if (!user.basicTrainingPassed) {
       return NextResponse.json(
         { error: 'You must complete Basic Training before creating listings or trading Growbucks.' },
@@ -181,9 +181,17 @@ export async function POST(req: Request) {
       listingLng = longitude ? parseFloat(longitude) : (user.longitude ?? -82.5748);
     }
 
+    // Auto-generate unique slug
+    const baseSlug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const slug = `${baseSlug}-${Math.random().toString(36).substring(2, 7)}`;
+
     const newListing = await prisma.listing.create({
       data: {
         title,
+        slug,
         description,
         type: listingType,
         category: category || 'GOODS',

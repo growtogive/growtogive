@@ -1,3 +1,4 @@
+// app/marketplace/page.tsx
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -319,7 +320,7 @@ export default function MarketplacePage() {
 
               return (
                 <div key={item.id} className={`bg-white rounded-xl overflow-hidden shadow-xs flex flex-col justify-between hover:shadow-md transition-all group ${getBorderClass()}`}>
-                  <Link href={`/listings/${item.id}`} className="block">
+                  <Link href={`/listings/${item.slug || item.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       <img
                         src={primaryImage}
