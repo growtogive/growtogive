@@ -279,7 +279,8 @@ export default function NewListingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create listing.');
 
-      router.push(`/listings/${data.listing?.id || data.id}`);
+      const createdSlug = data.listing?.slug || data.slug;
+      router.push(`/listings/${createdSlug}`);
     } catch (err: any) {
       setError(err.message);
       setSubmitting(false);
@@ -414,7 +415,7 @@ export default function NewListingPage() {
                   <span className="font-medium text-rose-600">- {commissionAmount.toFixed(2)} Growbucks</span>
                 </div>
                 <div className="flex justify-between pt-1.5 border-t border-emerald-200/60 font-semibold text-slate-900 text-sm">
-                  <span>You Will Receive:</span>
+                  <span>Recipient Will Receive:</span>
                   <span className="text-emerald-600">{netReceiveAmount.toFixed(2)} Growbucks</span>
                 </div>
               </div>

@@ -6,7 +6,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import FavoriteButton from '@/components/FavoriteButton';
-import { LISTING_CATEGORIES } from '@/lib/constants/categories';
 
 declare global {
   interface Window {
@@ -85,39 +84,10 @@ export default function ListingDetailPage() {
   const [transferError, setTransferError] = useState('');
   const [transferSuccess, setTransferSuccess] = useState('');
 
-  // Inline Edit Modal States
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    title: '',
-    description: '',
-    type: 'OFFER',
-    category: '',
-    priceInBucks: '0.00',
-    imageUrl: '',
-    images: [] as string[],
-    isFeatured: false,
-    location: '',
-    businessHours: '',
-    businessPhone: '',
-    websiteUrl: '',
-    latitude: 27.4989,
-    longitude: -82.5648,
-  });
-  const [originalType, setOriginalType] = useState('OFFER');
-  const [hasOtherCommercial, setHasOtherCommercial] = useState(false);
-  const [submittingEdit, setSubmittingEdit] = useState(false);
-  const [editError, setEditError] = useState('');
-  const autocompleteRef = useRef<any>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
   const [submittingReview, setSubmittingReview] = useState(false);
-
-  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
-  const [editRating, setEditRating] = useState(5);
-  const [editComment, setEditComment] = useState('');
 
   const [mapLoaded, setMapLoaded] = useState(false);
 
@@ -186,36 +156,6 @@ export default function ListingDetailPage() {
     }
   }, [mapLoaded, listing]);
 
-  // Google Places Autocomplete for Edit Modal
-  useEffect(() => {
-    if (!showEditModal || editFormData.type !== 'COMMERCIAL') return;
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey || !window.google) return;
-
-    const initEditAutocomplete = () => {
-      if (!inputRef.current) return;
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
-        types: ['geocode'],
-        componentRestrictions: { country: 'us' },
-      });
-      autocompleteRef.current.addListener('place_changed', () => {
-        const place = autocompleteRef.current.getPlace();
-        if (place && place.geometry && place.geometry.location) {
-          const lat = place.geometry.location.lat();
-          const lng = place.geometry.location.lng();
-          const address = place.formatted_address || inputRef.current?.value || '';
-          setEditFormData((prev) => ({
-            ...prev,
-            location: address,
-            latitude: lat,
-            longitude: lng,
-          }));
-        }
-      });
-    };
-    initEditAutocomplete();
-  }, [showEditModal, editFormData.type]);
-
   const fetchListingDetail = async () => {
     try {
       setLoading(true);
@@ -271,98 +211,6 @@ export default function ListingDetailPage() {
       router.push('/marketplace');
     } catch (err: any) {
       alert(err.message);
-    }
-  };
-
-  const handleOpenEditModal = async () => {
-    if (!listing) return;
-    const listingImages = listing.images && listing.images.length > 0 
-      ? listing.images 
-      : (listing.imageUrl ? [listing.imageUrl] : []);
-
-    setEditFormData({
-      title: listing.title || '',
-      description: listing.description || '',
-      type: listing.type || 'OFFER',
-      category: listing.category || '',
-      priceInBucks: listing.priceInBucks?.toString() || '0.00',
-      imageUrl: listing.imageUrl || listingImages[0] || '',
-      images: listingImages,
-      isFeatured: Boolean(listing.isFeatured),
-      location: listing.location || '',
-      businessHours: listing.businessHours || '',
-      businessPhone: listing.businessPhone ? formatPhoneNumber(listing.businessPhone) : '',
-      websiteUrl: listing.websiteUrl || '',
-      latitude: listing.latitude ?? 27.4989,
-      longitude: listing.longitude ?? -82.5648,
-    });
-    setOriginalType(listing.type || 'OFFER');
-    setEditError('');
-
-    const authorId = listing.authorId || listing.author?.id;
-    try {
-      const allRes = await fetch('/api/listings');
-      if (allRes.ok) {
-        const listingsData = await allRes.json();
-        const listingsArray = Array.isArray(listingsData) ? listingsData : (listingsData.listings || []);
-        const commercialExists = listingsArray.some(
-          (l: any) => l.type === 'COMMERCIAL' && l.slug !== listing.id && (l.authorId === authorId || l.userId === authorId)
-        );
-        setHasOtherCommercial(commercialExists);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    setShowEditModal(true);
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEditError('');
-    if (!editFormData.category) {
-      setEditError('Please select a valid category.');
-      return;
-    }
-
-    if (editFormData.type === 'COMMERCIAL') {
-      if (!editFormData.location) {
-        setEditError('Storefront location address is required for Commercial listings.');
-        return;
-      }
-      if (!editFormData.businessHours) {
-        setEditError('Business hours are required for Commercial listings.');
-        return;
-      }
-      if (!editFormData.businessPhone || editFormData.businessPhone.replace(/\D/g, '').length < 10) {
-        setEditError('A valid 10-digit business phone number is required for Commercial listings.');
-        return;
-      }
-    }
-
-    setSubmittingEdit(true);
-    try {
-      const formattedTitle = formatListingTitle(editFormData.title);
-      const res = await fetch(`/api/listings/${slug}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...editFormData,
-          title: formattedTitle,
-          priceInBucks: editFormData.type === 'COMMERCIAL' ? 0 : (parseFloat(editFormData.priceInBucks) || 0),
-          businessPhone: editFormData.type === 'COMMERCIAL' ? editFormData.businessPhone : null,
-          websiteUrl: editFormData.type === 'COMMERCIAL' ? editFormData.websiteUrl : null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update listing.');
-
-      setShowEditModal(false);
-      fetchListingDetail();
-    } catch (err: any) {
-      setEditError(err.message);
-    } finally {
-      setSubmittingEdit(false);
     }
   };
 
@@ -547,12 +395,12 @@ export default function ListingDetailPage() {
           <div className="flex items-center gap-3">
             {canModify && (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={handleOpenEditModal}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                <Link
+                  href={`/listings/${slug}/edit`}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer inline-flex items-center"
                 >
                   Edit Listing
-                </button>
+                </Link>
                 <button
                   onClick={handleDeleteListing}
                   className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs transition-all cursor-pointer"
@@ -884,169 +732,6 @@ export default function ListingDetailPage() {
             </div>
           )}
         </div>
-
-        {/* INLINE EDIT MODAL */}
-        {showEditModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-xl w-full shadow-2xl relative space-y-6 my-8 max-h-[90vh] overflow-y-auto">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
-              >
-                ×
-              </button>
-
-              <div>
-                <h3 className="text-xl font-black text-slate-900">Edit Listing</h3>
-                <p className="text-xs text-slate-500">Update your marketplace listing details.</p>
-              </div>
-
-              {editError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
-                  {editError}
-                </div>
-              )}
-
-              <form onSubmit={handleEditSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.title}
-                    onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                    onBlur={(e) => setEditFormData({ ...editFormData, title: formatListingTitle(e.target.value) })}
-                    className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Type</label>
-                    <select
-                      value={editFormData.type}
-                      onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-                    >
-                      <option value="OFFER">Offer</option>
-                      <option value="REQUEST">Request</option>
-                      {(!hasOtherCommercial || originalType === 'COMMERCIAL') && (
-                        <option value="COMMERCIAL">Commercial</option>
-                      )}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Category *</label>
-                    <select
-                      required
-                      value={editFormData.category}
-                      onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-                    >
-                      <option value="" disabled>Select category...</option>
-                      {LISTING_CATEGORIES.map((catName) => (
-                        <option key={catName} value={catName}>{catName}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {editFormData.type !== 'COMMERCIAL' && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Growbucks Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      value={editFormData.priceInBucks}
-                      onChange={(e) => setEditFormData({ ...editFormData, priceInBucks: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-                    />
-                  </div>
-                )}
-
-                {editFormData.type === 'COMMERCIAL' && (
-                  <div className="space-y-4 p-4 bg-sky-50/50 border border-sky-200 rounded-2xl">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Storefront Address *</label>
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        required
-                        value={editFormData.location}
-                        onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-                        placeholder="Start typing address..."
-                        className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-sky-400 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Business Hours *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editFormData.businessHours}
-                        onChange={(e) => setEditFormData({ ...editFormData, businessHours: e.target.value })}
-                        placeholder="e.g. Mon-Fri 9am - 5pm"
-                        className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-sky-400 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Business Phone *</label>
-                      <input
-                        type="tel"
-                        required
-                        maxLength={14}
-                        value={editFormData.businessPhone}
-                        onChange={(e) => setEditFormData({ ...editFormData, businessPhone: formatPhoneNumber(e.target.value) })}
-                        placeholder="(555) 000-0000"
-                        className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-sky-400 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Website URL (Optional)</label>
-                      <input
-                        type="url"
-                        value={editFormData.websiteUrl}
-                        onChange={(e) => setEditFormData({ ...editFormData, websiteUrl: e.target.value })}
-                        placeholder="https://example.com"
-                        className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-sky-400 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Description</label>
-                  <textarea
-                    rows={4}
-                    required
-                    value={editFormData.description}
-                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-                  />
-                </div>
-
-                <div className="pt-2 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditModal(false)}
-                    className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingEdit}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all"
-                  >
-                    {submittingEdit ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {showMessageModal && session && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">

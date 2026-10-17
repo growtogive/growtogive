@@ -319,7 +319,6 @@ export default function ProfilePage() {
     new Map(rawTransactions.map((tx: any) => [tx.id, tx])).values()
   );
 
-  // Pull wallet balance directly from database field
   const currentWalletBalance = Number(profileData?.growbucks || 0);
 
   const displayedTransactions = allTransactions.slice(0, visibleTransactionsCount);
@@ -662,6 +661,7 @@ export default function ProfilePage() {
                 const listing = favItem.listing;
                 if (!listing || !listing.id) return null;
                 
+                const listingSlug = listing.slug || listing.id;
                 const createdDate = new Date(listing.createdAt || Date.now());
                 const expirationDate = new Date(createdDate);
                 expirationDate.setDate(expirationDate.getDate() + 14);
@@ -674,7 +674,7 @@ export default function ProfilePage() {
                       <FavoriteButton listingId={listing.id} initialIsFavorited={true} />
                     </div>
 
-                    <Link href={`/listings/${listing.id}`} className="block">
+                    <Link href={`/listings/${listingSlug}`} className="block">
                       <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                         <img 
                           src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
@@ -732,6 +732,7 @@ export default function ProfilePage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {userListings.map((item: any) => {
+                const listingSlug = item.slug || item.id;
                 const createdDate = new Date(item.createdAt);
                 const expirationDate = new Date(createdDate);
                 expirationDate.setDate(expirationDate.getDate() + 14);
@@ -743,7 +744,7 @@ export default function ProfilePage() {
 
                 return (
                   <div key={item.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group">
-                    <Link href={`/listings/${item.id}`} className="block">
+                    <Link href={`/listings/${listingSlug}`} className="block">
                       <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                         <img 
                           src={item.imageUrl || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
@@ -790,7 +791,7 @@ export default function ProfilePage() {
                       </span>
 
                       <div className="flex items-center gap-2">
-                        <Link href={`/listings/${item.id}/edit`} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg">
+                        <Link href={`/listings/${listingSlug}/edit`} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg">
                           Edit
                         </Link>
                         <button onClick={() => handleDeleteListing(item.id)} className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-medium rounded-lg cursor-pointer">

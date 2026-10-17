@@ -307,8 +307,6 @@ export default function EditListingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update listing.');
 
-      // If the title changed, the slug might have changed too depending on backend slug generation. 
-      // Safely redirect using the returned listing slug if available, otherwise fallback to the current slug.
       const updatedSlug = data.listing?.slug || listingSlug;
       router.push(`/listings/${updatedSlug}`);
     } catch (err: any) {
@@ -376,7 +374,7 @@ export default function EditListingPage() {
               </select>
               {hasOtherCommercial && originalType !== 'COMMERCIAL' && (
                 <p className="text-[11px] text-amber-600 mt-1">
-                  ℹ️ Commercial listing option hidden (1 active commercial listing allowed per user).
+                Commercial option already used.
                 </p>
               )}
             </div>
@@ -420,7 +418,7 @@ export default function EditListingPage() {
                   <span className="font-medium text-rose-600">{commissionAmount.toFixed(2)} Growbucks</span>
                 </div>
                 <div className="flex justify-between pt-1.5 border-t border-emerald-200/60 font-semibold text-slate-900 text-sm">
-                  <span>You Will Receive:</span>
+                  <span>Recipient Will Receive:</span>
                   <span className="text-emerald-600">{netReceiveAmount.toFixed(2)} Growbucks</span>
                 </div>
               </div>
