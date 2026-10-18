@@ -64,16 +64,16 @@ export default function HomePage() {
               const previewImg = (post.images && post.images.length > 0) ? post.images[0] : null;
 
               return (
-                <div key={post.id} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm p-5 flex flex-col justify-between hover:border-slate-300 transition-all">
+                <div key={post.id || post.slug} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm p-5 flex flex-col justify-between hover:border-slate-300 transition-all">
                   
                   <div className="space-y-3">
                     {previewImg && (
-                      <Link href={`/posts/${post.id}`} className="block h-40 w-full bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 group">
+                      <Link href={`/posts/${post.slug}`} className="block h-40 w-full bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 group">
                         <img src={previewImg} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       </Link>
                     )}
 
-                    <Link href={`/posts/${post.id}`} className="block group">
+                    <Link href={`/posts/${post.slug}`} className="block group">
                       <h2 className="text-base font-black text-slate-900 group-hover:text-blue-600 transition-colors leading-tight line-clamp-2">
                         {post.title}
                       </h2>
@@ -111,7 +111,7 @@ export default function HomePage() {
                       </div>
                     )}
 
-                    <Link href={`/posts/${post.id}`} className="block pt-1">
+                    <Link href={`/posts/${post.slug}`} className="block pt-1">
                       <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">
                         {post.description}
                       </p>
@@ -123,9 +123,6 @@ export default function HomePage() {
                       {post.quiz && <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px]">🧠 Quiz ({post.quiz.rewardAmount} GB)</span>}
                       {post.event && <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[10px]">📅 Event ({post.event.rewardAmount} GB)</span>}
                     </div>
-                    <Link href={`/posts/${post.id}`} className="text-emerald-600 hover:underline font-bold text-xs whitespace-nowrap ml-auto">
-                      Read More →
-                    </Link>
                   </div>
 
                 </div>

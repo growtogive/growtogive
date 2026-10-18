@@ -30,15 +30,6 @@ function formatListingTitle(title: string): string {
     .join(' ');
 }
 
-function formatPhoneNumber(value: string): string {
-  const cleaned = value.replace(/\D/g, '').substring(0, 10);
-  const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
-  if (!match) return value;
-  if (!match[2]) return match[1] ? `(${match[1]}` : '';
-  if (!match[3]) return `(${match[1]}) ${match[2]}`;
-  return `(${match[1]}) ${match[2]}-${match[3]}`;
-}
-
 function getJitteredCoords(lat: number, lng: number, seedStr: string) {
   let hash = 0;
   for (let i = 0; i < seedStr.length; i++) {
@@ -88,6 +79,11 @@ export default function ListingDetailPage() {
   const [comment, setComment] = useState('');
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
   const [submittingReview, setSubmittingReview] = useState(false);
+
+  // Review Edit States
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editComment, setEditComment] = useState('');
 
   const [mapLoaded, setMapLoaded] = useState(false);
 
@@ -255,6 +251,7 @@ export default function ListingDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           listingSlug: listing.slug,
+          listingId: listing.id,
           receiverId: listing.authorId || listing.author?.id,
           content: messageContent,
         }),
@@ -295,6 +292,23 @@ export default function ListingDetailPage() {
       setError(err.message);
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  const handleReviewEditSubmit = async (reviewId: string) => {
+    try {
+      const res = await fetch(`/api/listings/${slug}/reviews`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviewId, rating: editRating, comment: editComment }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update review.');
+
+      setEditingReviewId(null);
+      fetchListingDetail();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -347,6 +361,7 @@ export default function ListingDetailPage() {
   const authorName = listing.author?.name || 'Community Member';
 
   const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
+  const currentUserId = (session?.user as any)?.id;
   const userRole = (session?.user as any)?.role;
   const isAdmin = userRole?.toUpperCase() === 'ADMIN';
   const isAuthor = Boolean(currentUserEmail && listing.author?.email?.toLowerCase()?.trim() === currentUserEmail);
@@ -357,7 +372,7 @@ export default function ListingDetailPage() {
     const revAuthorId = rev.authorId || rev.author?.id;
     return Boolean(
       (currentUserEmail && revAuthorEmail && revAuthorEmail === currentUserEmail) ||
-      (revAuthorId && session?.user && (revAuthorId === (session.user as any).id))
+      (revAuthorId && currentUserId && (revAuthorId === currentUserId))
     );
   });
 
@@ -1024,41 +1039,106 @@ export default function ListingDetailPage() {
               <p className="text-sm text-slate-500">No reviews yet.</p>
             ) : (
               <div className="space-y-4">
-                {reviews.map((review: any) => (
-                  <div key={review.id} className="border-t border-slate-100 pt-4 space-y-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="font-bold text-slate-800">{review.author?.name || 'Community Member'}</span>
-                      <span className="text-amber-500 font-bold">★ {review.rating}</span>
-                    </div>
-                    {review.comment && <p className="text-sm text-slate-600 whitespace-pre-line">{review.comment}</p>}
-                    {review.reply && (
-                      <div className="pl-4 border-l-2 border-emerald-500 bg-slate-50 p-3 rounded-r-xl">
-                        <p className="text-xs font-bold text-emerald-800">Author Reply:</p>
-                        <p className="text-sm text-slate-600 mt-1">{review.reply}</p>
-                      </div>
-                    )}
+                {reviews.map((review: any) => {
+                  const revAuthorEmail = (review.author?.email || review.authorEmail || '').toLowerCase().trim();
+                  const revAuthorId = review.authorId || review.author?.id;
+                  const isReviewOwner = Boolean(
+                    (currentUserEmail && revAuthorEmail && revAuthorEmail === currentUserEmail) ||
+                    (revAuthorId && currentUserId && revAuthorId === currentUserId)
+                  );
+                  const isEditingThisReview = editingReviewId === review.id;
 
-                    {isAuthor && !review.reply && (
-                      <div className="pt-2 flex flex-col gap-2">
-                        <textarea
-                          rows={2}
-                          placeholder="Write a reply to this review..."
-                          value={replyText[review.id] || ''}
-                          onChange={(e) => setReplyText({ ...replyText, [review.id]: e.target.value })}
-                          className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                        />
-                        <div>
-                          <button
-                            onClick={() => handleReplySubmit(review.id)}
-                            className="px-4 py-1.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
-                          >
-                            Post Reply
-                          </button>
+                  return (
+                    <div key={review.id} className="border-t border-slate-100 pt-4 space-y-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="font-bold text-slate-800">{review.author?.name || 'Community Member'}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-amber-500 font-bold">★ {review.rating}</span>
+                          {isReviewOwner && !isEditingThisReview && (
+                            <button
+                              onClick={() => {
+                                setEditingReviewId(review.id);
+                                setEditRating(review.rating);
+                                setEditComment(review.comment || '');
+                              }}
+                              className="text-xs text-blue-600 hover:underline font-bold ml-2"
+                            >
+                              Edit
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {isEditingThisReview ? (
+                        <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                          <div className="flex items-center gap-3">
+                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Rating:</label>
+                            <select
+                              value={editRating}
+                              onChange={(e) => setEditRating(Number(e.target.value))}
+                              className="px-3 py-1.5 border border-slate-200 bg-white text-xs rounded-xl font-bold"
+                            >
+                              <option value="5">5 - Excellent</option>
+                              <option value="4">4 - Very Good</option>
+                              <option value="3">3 - Average</option>
+                              <option value="2">2 - Fair</option>
+                              <option value="1">1 - Poor</option>
+                            </select>
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={editComment}
+                            onChange={(e) => setEditComment(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleReviewEditSubmit(review.id)}
+                              className="px-4 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-all cursor-pointer"
+                            >
+                              Save Review
+                            </button>
+                            <button
+                              onClick={() => setEditingReviewId(null)}
+                              className="px-4 py-1.5 bg-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-300 transition-all cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        review.comment && <p className="text-sm text-slate-600 whitespace-pre-line">{review.comment}</p>
+                      )}
+
+                      {review.reply && (
+                        <div className="pl-4 border-l-2 border-emerald-500 bg-slate-50 p-3 rounded-r-xl">
+                          <p className="text-xs font-bold text-emerald-800">Author Reply:</p>
+                          <p className="text-sm text-slate-600 mt-1">{review.reply}</p>
+                        </div>
+                      )}
+
+                      {isAuthor && !review.reply && (
+                        <div className="pt-2 flex flex-col gap-2">
+                          <textarea
+                            rows={2}
+                            placeholder="Write a reply to this review..."
+                            value={replyText[review.id] || ''}
+                            onChange={(e) => setReplyText({ ...replyText, [review.id]: e.target.value })}
+                            className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                          />
+                          <div>
+                            <button
+                              onClick={() => handleReplySubmit(review.id)}
+                              className="px-4 py-1.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
+                            >
+                              Post Reply
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
