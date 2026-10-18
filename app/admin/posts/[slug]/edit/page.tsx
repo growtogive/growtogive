@@ -8,7 +8,12 @@ import Link from 'next/link';
 export default function AdminEditPostPage() {
   const router = useRouter();
   const params = useParams();
-  const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  
+  // Extract slug (supporting both [slug] and legacy [id] routes)
+  const slug = Array.isArray(params?.slug) 
+    ? params.slug[0] 
+    : params?.slug || (Array.isArray(params?.id) ? params.id[0] : params?.id);
+
   const { data: session, status } = useSession();
 
   const [loading, setLoading] = useState(true);
@@ -46,10 +51,10 @@ export default function AdminEditPostPage() {
 
   useEffect(() => {
     fetchCategories();
-    if (id) {
+    if (slug) {
       fetchPost();
     }
-  }, [id]);
+  }, [slug]);
 
   useEffect(() => {
     if (hasEvent && locationInputRef.current && window.google?.maps?.places) {
@@ -80,7 +85,7 @@ export default function AdminEditPostPage() {
   const fetchPost = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/posts/${id}`);
+      const res = await fetch(`/api/posts/${slug}`);
       if (!res.ok) throw new Error('Failed to fetch post details.');
       const data = await res.json();
       const p = data.post;
@@ -217,7 +222,7 @@ export default function AdminEditPostPage() {
         } : null,
       };
 
-      const res = await fetch(`/api/posts/${id}`, {
+      const res = await fetch(`/api/posts/${slug}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -226,7 +231,8 @@ export default function AdminEditPostPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update post.');
 
-      router.push(`/posts/${id}`);
+      // Redirect using the updated slug (or data.post.slug if the slug changed on update)
+      router.push(`/posts/${data.post?.slug || slug}`);
     } catch (err: any) {
       setError(err.message);
       setSubmitting(false);
@@ -242,7 +248,7 @@ export default function AdminEditPostPage() {
       <main className="max-w-2xl mx-auto px-4 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-black text-slate-900">Edit Post</h1>
-          <Link href={`/posts/${id}`} className="text-xs font-bold text-slate-600 hover:text-slate-900">Cancel</Link>
+          <Link href={`/posts/${slug}`} className="text-xs font-bold text-slate-600 hover:text-slate-900">Cancel</Link>
         </div>
 
         {error && <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl">{error}</div>}

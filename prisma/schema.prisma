@@ -28,6 +28,7 @@ model User {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   listings            Listing[]
+  posts               Post[]
   reviews             Review[]        @relation("TargetUserReviews")
   authReviews         Review[]        @relation("AuthorReviews")
   sentTx              Transaction[]   @relation("SentTransactions")
@@ -152,6 +153,8 @@ model PostCategory {
 
 model Post {
   id          String       @id @default(uuid())
+  authorId    String?
+  author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   slug        String  @unique
   title       String
   description String

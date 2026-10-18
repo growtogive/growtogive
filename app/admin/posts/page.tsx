@@ -37,10 +37,10 @@ export default function AdminPostsManagementPage() {
     }
   };
 
-  const handleDeletePost = async (postId: string) => {
+  const handleDeletePost = async (postSlug: string) => {
     if (!confirm('Are you sure you want to delete this post?')) return;
     try {
-      const res = await fetch(`/api/posts/${postId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/posts/${postSlug}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete post');
       fetchPosts();
     } catch (err: any) {
@@ -72,32 +72,41 @@ export default function AdminPostsManagementPage() {
           <div className="bg-white border rounded-3xl p-12 text-center text-slate-400 text-sm">No posts found.</div>
         ) : (
           <div className="space-y-4">
-            {posts.map((post: any) => (
-              <div key={post.id} className="bg-white border border-slate-200 rounded-3xl p-6 flex items-center justify-between shadow-sm">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded border uppercase">
-                    {post.category?.name || 'Announcement'}
-                  </span>
-                  <h3 className="font-black text-base text-slate-900">{post.title}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-1">{post.description}</p>
-                </div>
+            {posts.map((post: any) => {
+              // Fallback to id if slug is missing on old records
+              const identifier = post.slug || post.id;
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <Link
-                    href={`/admin/posts/${post.id}/edit`}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
-                  >
-                    Edit Post
-                  </Link>
-                  <button
-                    onClick={() => handleDeletePost(post.id)}
-                    className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs transition-all cursor-pointer"
-                  >
-                    Delete
-                  </button>
+              return (
+                <div key={post.id || post.slug} className="bg-white border border-slate-200 rounded-3xl p-6 flex items-center justify-between shadow-sm">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded border uppercase">
+                      {post.category?.name || 'Announcement'}
+                    </span>
+                    <h3 className="font-black text-base text-slate-900">
+                      <Link href={`/posts/${identifier}`} className="hover:underline">
+                        {post.title}
+                      </Link>
+                    </h3>
+                    <p className="text-xs text-slate-500 line-clamp-1">{post.description}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/admin/posts/${identifier}/edit`}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
+                    >
+                      Edit Post
+                    </Link>
+                    <button
+                      onClick={() => handleDeletePost(identifier)}
+                      className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

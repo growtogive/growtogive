@@ -29,22 +29,10 @@ async function findPost(identifier: string) {
 export async function GET(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await context.params;
-    const session = await getServerSession(authOptions);
-    let userId = (session?.user as any)?.id;
-
-    if (!userId && session?.user?.email) {
-      const dbUser = await prisma.user.findUnique({
-        where: { email: session.user.email },
-        select: { id: true },
-      });
-      if (dbUser) userId = dbUser.id;
-    }
-
     const post = await findPost(slug);
     if (!post) {
       return NextResponse.json({ error: 'Post not found.' }, { status: 404 });
     }
-
     return NextResponse.json({ post });
   } catch (err: any) {
     console.error('Failed to fetch post:', err);
@@ -61,7 +49,7 @@ export async function PUT(request: Request, context: { params: Promise<{ slug: s
 
     const { slug } = await context.params;
     const body = await request.json();
-    const { title, description, images, videoUrl, price, categoryName, quiz, event } = body;
+    const { title, description, images, videoUrl, price, categoryName, isSticky, quiz, event } = body;
 
     if (!title || !description || !categoryName) {
       return NextResponse.json({ error: 'Title, description, and category are required.' }, { status: 400 });
@@ -77,60 +65,8 @@ export async function PUT(request: Request, context: { params: Promise<{ slug: s
       return NextResponse.json({ error: 'Post not found.' }, { status: 404 });
     }
 
-    const existingQuiz = await prisma.quiz.findUnique({ where: { postId: existingPost.id } });
-    const existingEvent = await prisma.event.findUnique({ where: { postId: existingPost.id } });
-
-    const quizOperation = quiz?.questions && quiz.questions.length > 0
-      ? {
-          upsert: {
-            create: {
-              rewardAmount: parseFloat(quiz.rewardAmount) || 0,
-              passingPercentage: parseInt(quiz.passingPercentage) || 70,
-              questions: {
-                create: quiz.questions.map((q: any) => ({
-                  questionText: q.questionText,
-                  options: q.options,
-                  correctAnswer: Number(q.correctAnswer),
-                })),
-              },
-            },
-            update: {
-              rewardAmount: parseFloat(quiz.rewardAmount) || 0,
-              passingPercentage: parseInt(quiz.passingPercentage) || 70,
-              questions: {
-                deleteMany: {},
-                create: quiz.questions.map((q: any) => ({
-                  questionText: q.questionText,
-                  options: q.options,
-                  correctAnswer: Number(q.correctAnswer),
-                })),
-              },
-            },
-          },
-        }
-      : existingQuiz ? { delete: true } : undefined;
-
-    const eventOperation = event?.eventDate
-      ? {
-          upsert: {
-            create: {
-              title: event.title || title,
-              description: event.description || description,
-              eventDate: new Date(event.eventDate),
-              location: event.location || null,
-              rewardAmount: parseFloat(event.rewardAmount) || 0,
-            },
-            update: {
-              title: event.title || title,
-              description: event.description || description,
-              eventDate: new Date(event.eventDate),
-              location: event.location || null,
-              rewardAmount: parseFloat(event.rewardAmount) || 0,
-            },
-          },
-        }
-      : existingEvent ? { delete: true } : undefined;
-
+    // Optional: Update slug if title changed, or keep existing slug
+    // For now, we update the main fields while preserving the slug or updating it if needed
     const updatedPost = await prisma.post.update({
       where: { id: existingPost.id },
       data: {
@@ -139,9 +75,8 @@ export async function PUT(request: Request, context: { params: Promise<{ slug: s
         images: images || [],
         videoUrl: videoUrl || null,
         price: price !== null && price !== '' ? parseFloat(price) : null,
+        isSticky: Boolean(isSticky),
         categoryId: category.id,
-        quiz: quizOperation,
-        event: eventOperation,
       },
       include: {
         category: true,
