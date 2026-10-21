@@ -299,14 +299,14 @@ export default function NewListingPage() {
           <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">🔒</div>
           <h1 className="text-xl font-bold text-slate-900">Basic Training Required</h1>
           <p className="text-slate-600 text-xs leading-relaxed">
-            You must complete and pass <span className="font-semibold text-slate-900">Basic Training</span> before you can create marketplace listings or trade Growbucks. You can still browse listings, join events, and take quizzes!
+            You must complete and pass <span className="font-semibold text-slate-900">Introduction to GrowToGive</span> before you can create marketplace listings or trade Growbucks. You can still browse listings, join events, and take quizzes!
           </p>
           <div className="pt-4">
             <Link
-              href="/basic-training"
+              href="/posts/introduction-to-growtogive"
               className="w-full inline-block bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded text-xs transition-all shadow-xs"
             >
-              Start Basic Training Now
+              Start Now
             </Link>
           </div>
           <div className="pt-2">
@@ -371,7 +371,6 @@ export default function NewListingPage() {
               </select>
               {hasOtherCommercial && (
                 <p className="text-[11px] text-amber-600 mt-1">
-                  ℹ️ Commercial listing option hidden (1 active commercial listing allowed per user).
                 </p>
               )}
             </div>

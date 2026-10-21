@@ -26,6 +26,8 @@ function getCoordsForCity(cityName: string): { lat: number; lng: number } {
 }
 
 async function findListing(identifier: string) {
+  if (!identifier || identifier === 'undefined' || identifier === 'null') return null;
+
   let listing = await prisma.listing.findUnique({
     where: { slug: identifier },
     include: {
@@ -108,7 +110,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       targetLng = coords.lng;
     }
 
-    const distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat, targetLng);
+    const distance = calculateDistance(currentUserLat!, currentUserLng!, targetLat!, targetLng!);
 
     return NextResponse.json({
       listing: {

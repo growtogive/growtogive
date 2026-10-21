@@ -1,3 +1,4 @@
+// app/listings/[slug]/edit/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -48,6 +49,7 @@ export default function EditListingPage() {
     type: 'OFFER',
     category: '',
     priceInBucks: '0.00',
+    videoUrl: '',
     imageUrl: '',
     images: [] as string[],
     isFeatured: false,
@@ -65,6 +67,9 @@ export default function EditListingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [upgrading, setUpgrading] = useState(false);
+  const [confirmingUpgrade, setConfirmingUpgrade] = useState(false);
 
   const autocompleteRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -144,6 +149,7 @@ export default function EditListingPage() {
         type: listing.type || 'OFFER',
         category: listing.category || '',
         priceInBucks: listing.priceInBucks?.toString() || '0.00',
+        videoUrl: listing.videoUrl || '',
         imageUrl: listing.imageUrl || listingImages[0] || '',
         images: listingImages,
         isFeatured: Boolean(listing.isFeatured),
@@ -263,6 +269,36 @@ export default function EditListingPage() {
     });
   };
 
+  const handleUpgrade = async (upgradeType: string) => {
+    setError('');
+    setSuccessMessage('');
+    setUpgrading(true);
+
+    try {
+      const res = await fetch(`/api/listings/${listingSlug}/upgrade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upgradeType }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upgrade listing.');
+
+      setSuccessMessage('Listing upgraded successfully!');
+      if (upgradeType === 'FEATURED') {
+        setFormData((prev) => ({ ...prev, isFeatured: true }));
+      }
+      setConfirmingUpgrade(false);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message);
+      setUpgrading(false);
+      setConfirmingUpgrade(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -301,6 +337,7 @@ export default function EditListingPage() {
           priceInBucks: formData.type === 'COMMERCIAL' ? 0 : (parseFloat(formData.priceInBucks) || 0),
           businessPhone: formData.type === 'COMMERCIAL' ? formData.businessPhone : null,
           websiteUrl: formData.type === 'COMMERCIAL' ? formData.websiteUrl : null,
+          videoUrl: (formData.type === 'COMMERCIAL' && formData.isFeatured) ? formData.videoUrl : null,
         }),
       });
 
@@ -327,9 +364,16 @@ export default function EditListingPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto bg-white border border-slate-200 shadow-sm p-8 sm:p-10">
         
-        <div className="flex justify-between items-center mb-8 border-b border-slate-200 pb-4">
+        <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Edit Marketplace Listing</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">Edit Marketplace Listing</h1>
+              {formData.isFeatured && (
+                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-300 flex items-center gap-1">
+                  ✨ Featured Listing
+                </span>
+              )}
+            </div>
             <p className="text-slate-500 text-xs mt-0.5">Update your item, service, or community offering details.</p>
           </div>
           <Link href={`/listings/${listingSlug}`} className="text-xs font-semibold text-slate-500 hover:text-slate-900">
@@ -337,9 +381,65 @@ export default function EditListingPage() {
           </Link>
         </div>
 
+        {/* Listing Upgrade / Featured Status Header Bar */}
+        {!formData.isFeatured ? (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900">Upgrade This Listing</h3>
+              <p className="text-xs text-amber-700 mt-0.5">Feature your listing to stick to the top, unlock up to 5 photos, and extend expiration 14 days. ($1.00).</p>
+            </div>
+            
+            {!confirmingUpgrade ? (
+              <button
+                type="button"
+                onClick={() => setConfirmingUpgrade(true)}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                ✨ Feature Listing ($1.00)
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs font-semibold text-amber-900">Confirm ($1.00)?</span>
+                <button
+                  type="button"
+                  disabled={upgrading}
+                  onClick={() => handleUpgrade('FEATURED')}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {upgrading ? 'Upgrading...' : 'Yes, Confirm'}
+                </button>
+                <button
+                  type="button"
+                  disabled={upgrading}
+                  onClick={() => setConfirmingUpgrade(false)}
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mb-6 p-4 bg-amber-50/70 border border-amber-300 rounded-xl flex items-center gap-3 shadow-xs">
+            <div className="w-9 h-9 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold shrink-0 text-sm">
+              ✨
+            </div>
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900">Featured Status Active</h3>
+              <p className="text-xs text-amber-700 mt-0.5">This listing is pinned at the top and currently supports up to 5 photos.</p>
+            </div>
+          </div>
+        )}
+
         {error && (
-          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl">
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl">
+            {successMessage}
           </div>
         )}
 
@@ -374,7 +474,7 @@ export default function EditListingPage() {
               </select>
               {hasOtherCommercial && originalType !== 'COMMERCIAL' && (
                 <p className="text-[11px] text-amber-600 mt-1">
-                Commercial option already used.
+                  Commercial option already used.
                 </p>
               )}
             </div>
@@ -479,6 +579,20 @@ export default function EditListingPage() {
                   placeholder="https://example.com"
                 />
               </div>
+              {formData.isFeatured && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Video Embed URL (Optional)</label>
+                  <input
+                    type="url"
+                    name="videoUrl"
+                    value={formData.videoUrl}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">Provide a YouTube or video link to showcase your commercial storefront.</p>
+                </div>
+              )}
             </div>
           )}
 

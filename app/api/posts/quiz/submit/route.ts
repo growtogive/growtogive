@@ -1,3 +1,4 @@
+// app/api/quiz/submit/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     // If the user has NOT passed basic training, and they are trying to take any OTHER quiz, block them!
     if (!currentUser?.basicTrainingPassed && !isBasicTrainingQuiz) {
       return NextResponse.json(
-        { error: 'You must complete and pass the Basic Training quiz before taking other quizzes.' },
+        { error: 'You must complete and pass the Intro To GrowToGive quiz before taking other quizzes.' },
         { status: 403 }
       );
     }
@@ -150,14 +151,14 @@ export async function POST(request: Request) {
         data: { growbucks: { decrement: reward } },
       });
 
-      // 3. Create a valid transaction record with a positive amount representing the transfer
+      // 3. Create a valid transaction record mapping admin as sender and the user (userId) as receiver
       await tx.transaction.create({
         data: {
           senderId: adminUser.id,
           receiverId: userId,
           amount: reward,
           type: 'Activity',
-          reason: `Passed Quiz: ${displayTitle}`,
+          reason: `Passed Quiz: ${displayTitle} (Sent to ${userId})`,
         },
       });
 

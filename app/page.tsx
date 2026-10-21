@@ -22,7 +22,23 @@ export default function HomePage() {
       const res = await fetch('/api/posts');
       if (res.ok) {
         const data = await res.json();
-        setPosts(data.posts || []);
+        const rawPosts = data.posts || [];
+
+        // Sort posts: Sticky/Pinned posts first, then by creation date descending (newest first)
+        const sortedPosts = rawPosts.sort((a: any, b: any) => {
+          // Adjust 'isSticky' below if your database field is named differently (e.g., 'sticky', 'pinned')
+          const aSticky = a.isSticky ? 1 : 0;
+          const bSticky = b.isSticky ? 1 : 0;
+
+          if (aSticky !== bSticky) {
+            return bSticky - aSticky; // Sticky posts come first
+          }
+
+          // Secondary sort: Newest posts first
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        setPosts(sortedPosts);
       }
     } catch (err) {
       console.error('Failed to load posts', err);
@@ -64,8 +80,15 @@ export default function HomePage() {
               const previewImg = (post.images && post.images.length > 0) ? post.images[0] : null;
 
               return (
-                <div key={post.id || post.slug} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm p-5 flex flex-col justify-between hover:border-slate-300 transition-all">
+                <div key={post.id || post.slug} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm p-5 flex flex-col justify-between hover:border-slate-300 transition-all relative">
                   
+                  {/* Optional Sticky Badge Indicator */}
+                  {post.isSticky && (
+                    <span className="absolute top-3 right-3 bg-amber-100 text-amber-800 text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-amber-200 uppercase tracking-wider">
+                      📌 Sticky
+                    </span>
+                  )}
+
                   <div className="space-y-3">
                     {previewImg && (
                       <Link href={`/posts/${post.slug}`} className="block h-40 w-full bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 group">

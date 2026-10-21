@@ -69,7 +69,7 @@ function ChristmasApplyForm() {
         setEmail(app.email || "");
         setAddress(app.address || "");
         
-        const standardOptions = ["GrowToGive", "Ballard Elementary", "Bradenton Woman's Club"];
+        const standardOptions = ["GrowToGive", "Ballard Elementary", "River Club Carwash"];
         if (standardOptions.includes(app.referredBy)) {
           setReferredBy(app.referredBy);
           setReferredByOther("");
@@ -207,7 +207,7 @@ function ChristmasApplyForm() {
       }
 
       if (res.success) {
-        setSuccessMessage(editId ? "Application updated successfully!" : "Application submitted successfully! Your tracking tags have been generated.");
+        setSuccessMessage(editId ? "Application updated successfully!" : "Application submitted successfully!");
         if (!editId) {
           setMomName("");
           setPhone("");
@@ -266,9 +266,10 @@ function ChristmasApplyForm() {
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-md border border-gray-100">
         <h1 className="text-3xl font-extrabold text-gray-900 text-center mb-2">
-          {editId ? "Edit Christmas Application" : "Christmas Assistance Application"}
+         <p className="text-sm text-gray-500 text-center mb-8">8TH ANNUAL.</p> 
+          {editId ? "Edit Christmas Application" : "Christmas for SINGLE MOMS & KIDS"}
         </h1>
-        <p className="text-sm text-gray-500 text-center mb-8">All fields are mandatory.</p>
+        <p className="text-sm text-gray-500 text-center mb-8">All fields are mandatory. Deadline: Friday, October 30, 2026. Pickup date is SUNDAY Dec 20, 2026. Location: TBD. We will notify you.</p>
 
         {successMessage && <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg text-center font-medium">{successMessage}</div>}
         {errorMessage && <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-center font-medium">{errorMessage}</div>}
@@ -326,7 +327,7 @@ function ChristmasApplyForm() {
                 >
                   <option value="GrowToGive">GrowToGive</option>
                   <option value="Ballard Elementary">Ballard Elementary</option>
-                  <option value="Bradenton Woman's Club">Bradenton Woman's Club</option>
+                  <option value="River Club Car Wash">River Club Car Wash</option>
                   <option value="Other">Other</option>
                 </select>
 
@@ -362,7 +363,7 @@ function ChristmasApplyForm() {
                 onChange={(e) => setDonorNotes(e.target.value)}
                 rows={2}
                 className="w-full px-4 py-2 border rounded-lg text-sm"
-                placeholder="Optional notes regarding clothing sizes or context..."
+                placeholder="Optional comments or notes regarding clothing sizes, etc..."
               />
             </div>
           </div>
@@ -387,7 +388,7 @@ function ChristmasApplyForm() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
-                    <label className="block text-xs text-gray-600 mb-1">Child's Name</label>
+                    <label className="block text-xs text-gray-600 mb-1">Child's First Name Only</label>
                     <input
                       type="text"
                       value={kid.name}
@@ -395,7 +396,7 @@ function ChristmasApplyForm() {
                       onBlur={() => handleKidChange(index, "name", cleanText(kid.name))}
                       required
                       className="w-full px-3 py-1.5 border rounded-lg text-sm bg-white"
-                      placeholder="First Name"
+                      placeholder="Only First Name"
                     />
                   </div>
                   <div>

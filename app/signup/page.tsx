@@ -13,6 +13,34 @@ function formatPhoneNumber(value: string): string {
   return `(${match[1]}) ${match[2]}-${match[3]}`;
 }
 
+// Helper function to auto-correct capitalization and basic grammar
+function correctCapitalization(field: string, value: string): string {
+  if (!value) return '';
+
+  if (field === 'name' || field === 'city' || field === 'newCity' || field === 'newChurch' || field === 'churchName') {
+    // Title Case for names, cities, and churches
+    return value
+      .toLowerCase()
+      .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+  }
+
+  if (field === 'bio') {
+    // Sentence case: Capitalize the first letter of sentences
+    let corrected = value.trim();
+    if (corrected.length === 0) return '';
+    
+    // Capitalize the very first letter
+    corrected = corrected.charAt(0).toUpperCase() + corrected.slice(1);
+
+    // Capitalize letters following sentence-ending punctuation (. ! ?)
+    corrected = corrected.replace(/([.?!]\s+)([a-z])/g, (match, p1, p2) => p1 + p2.toUpperCase());
+    
+    return corrected;
+  }
+
+  return value;
+}
+
 export default function SignupPage() {
   const router = useRouter();
 
@@ -122,6 +150,17 @@ export default function SignupPage() {
     }
   };
 
+  // Apply capitalization correction when user leaves input fields (Blur)
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (['name', 'bio', 'churchName'].includes(name)) {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: correctCapitalization(name, value),
+      }));
+    }
+  };
+
   const handleCitySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedVal = e.target.value;
     if (!selectedVal) {
@@ -134,8 +173,8 @@ export default function SignupPage() {
 
   const handleSaveNewCity = () => {
     if (!newCity.trim()) return;
-    const formattedCity = newCity.trim();
-    const formattedState = newState.trim() || 'FL';
+    const formattedCity = correctCapitalization('newCity', newCity.trim());
+    const formattedState = newState.trim().toUpperCase() || 'FL';
 
     const existingIndex = taxonomy.findIndex((t) => t.city.toLowerCase() === formattedCity.toLowerCase());
     if (existingIndex === -1) {
@@ -149,7 +188,7 @@ export default function SignupPage() {
 
   const handleSaveNewChurch = () => {
     if (!newChurch.trim()) return;
-    const formattedChurch = newChurch.trim();
+    const formattedChurch = correctCapitalization('newChurch', newChurch.trim());
 
     setTaxonomy(
       taxonomy.map((t) => {
@@ -198,22 +237,29 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (formData.userPhone && formData.userPhone.replace(/\D/g, '').length < 10) {
+    // Final check to ensure form data has capitalization polished
+    const polishedData = {
+      ...formData,
+      name: correctCapitalization('name', formData.name),
+      bio: correctCapitalization('bio', formData.bio),
+    };
+
+    if (polishedData.userPhone && polishedData.userPhone.replace(/\D/g, '').length < 10) {
       setMessage({ type: 'error', text: 'Please enter a valid 10-digit phone number.' });
       return;
     }
 
-    if (!formData.city.trim()) {
+    if (!polishedData.city.trim()) {
       setMessage({ type: 'error', text: 'Please select a city and state.' });
       return;
     }
 
-    if (!formData.bio.trim()) {
+    if (!polishedData.bio.trim()) {
       setMessage({ type: 'error', text: 'Please fill out the Description / Bio field.' });
       return;
     }
 
-    if (!isAddressValid || !formData.latitude || !formData.longitude) {
+    if (!isAddressValid || !polishedData.latitude || !polishedData.longitude) {
       setMessage({ 
         type: 'error', 
         text: 'Please select your valid street address from the Google Maps dropdown suggestions.' 
@@ -229,7 +275,7 @@ export default function SignupPage() {
       const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(polishedData),
       });
 
       const data = await res.json();
@@ -294,7 +340,15 @@ export default function SignupPage() {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Full Name *</label>
-              <input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+              <input 
+                type="text" 
+                name="name" 
+                value={formData.name} 
+                onChange={handleChange} 
+                onBlur={handleBlur} 
+                required 
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" 
+              />
             </div>
 
             <div>
@@ -436,6 +490,7 @@ export default function SignupPage() {
                 required 
                 value={formData.bio} 
                 onChange={handleChange} 
+                onBlur={handleBlur}
                 placeholder="Tell us a little bit about yourself..."
                 className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" 
               />

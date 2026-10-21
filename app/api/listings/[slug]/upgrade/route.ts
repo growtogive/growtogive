@@ -1,21 +1,42 @@
+// app/api/listings/[slug]/upgrade/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ slug: string }> }
+) {
   try {
+    const resolvedParams = await params;
+    const identifier = resolvedParams.slug;
+
+    if (!identifier || identifier === 'undefined' || identifier === 'null') {
+      return NextResponse.json({ error: 'Listing identifier is required' }, { status: 400 });
+    }
+
     const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    if (!session || !session.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await context.params;
-    const body = await request.json();
-    const { upgradeType } = body; // 'FEATURED' or 'COMMERCIAL'
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
 
-    const listing = await prisma.listing.findUnique({
-      where: { id },
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Find the listing by slug or id fallback
+    const listing = await prisma.listing.findFirst({
+      where: {
+        OR: [
+          { slug: identifier },
+          { id: identifier },
+        ],
+      },
       include: { author: true },
     });
 
@@ -23,40 +44,47 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
 
-    const userEmail = session.user.email?.toLowerCase();
-    const isAuthor = listing.author?.email?.toLowerCase() === userEmail;
-    const isAdmin = (session.user as any)?.role?.toUpperCase() === 'ADMIN';
+    const isAdmin = user.role?.toUpperCase() === 'ADMIN';
+    const isOwner = listing.authorId === user.id;
 
-    if (!isAuthor && !isAdmin) {
+    if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const body = await req.json();
+    const { upgradeType } = body; // 'FEATURED' or 'COMMERCIAL'
+
+    if (!upgradeType || !['FEATURED', 'COMMERCIAL'].includes(upgradeType)) {
+      return NextResponse.json({ error: 'Invalid upgrade type specified' }, { status: 400 });
+    }
+
+    let updatedListing;
+
     if (upgradeType === 'FEATURED') {
-      const newExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // +14 days
-      const updated = await prisma.listing.update({
-        where: { id },
+      // Extend expiration by 14 days and set isFeatured to true (fixing the math multiplication)
+      const currentExpiry = new Date(listing.expiresAt || Date.now());
+      const newExpiry = new Date(Math.max(currentExpiry.getTime(), Date.now()) + 14 * 24 * 60 * 60 * 1000);
+
+      updatedListing = await prisma.listing.update({
+        where: { id: listing.id },
         data: {
           isFeatured: true,
-          expiresAt: newExpiresAt,
+          expiresAt: newExpiry,
         },
       });
-      return NextResponse.json({ success: true, listing: updated });
-    }
-
-    if (upgradeType === 'COMMERCIAL') {
-      const updated = await prisma.listing.update({
-        where: { id },
+    } else if (upgradeType === 'COMMERCIAL') {
+      updatedListing = await prisma.listing.update({
+        where: { id: listing.id },
         data: {
-          type: 'COMMERCIAL',
           isCommercial: true,
+          type: 'COMMERCIAL',
         },
       });
-      return NextResponse.json({ success: true, listing: updated });
     }
 
-    return NextResponse.json({ error: 'Invalid upgrade type' }, { status: 400 });
-  } catch (err: any) {
-    console.error('Upgrade error:', err);
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ success: true, listing: updatedListing });
+  } catch (error: any) {
+    console.error('Upgrade listing error:', error);
+    return NextResponse.json({ error: error.message || 'Something went wrong.' }, { status: 500 });
   }
 }

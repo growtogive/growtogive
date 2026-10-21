@@ -88,8 +88,11 @@ export default function ListingDetailPage() {
   const [mapLoaded, setMapLoaded] = useState(false);
 
   useEffect(() => {
-    if (slug) {
+    if (slug && slug !== 'null' && slug !== 'undefined') {
       fetchListingDetail();
+    } else {
+      setLoading(false);
+      setListing(null);
     }
   }, [slug]);
 
@@ -196,17 +199,6 @@ export default function ListingDetailPage() {
       }
     } catch (err) {
       console.error('Failed to fetch other listings', err);
-    }
-  };
-
-  const handleDeleteListing = async () => {
-    if (!confirm('Are you sure you want to delete this listing?')) return;
-    try {
-      const res = await fetch(`/api/listings/${slug}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete listing.');
-      router.push('/marketplace');
-    } catch (err: any) {
-      alert(err.message);
     }
   };
 
@@ -362,10 +354,7 @@ export default function ListingDetailPage() {
 
   const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
   const currentUserId = (session?.user as any)?.id;
-  const userRole = (session?.user as any)?.role;
-  const isAdmin = userRole?.toUpperCase() === 'ADMIN';
   const isAuthor = Boolean(currentUserEmail && listing.author?.email?.toLowerCase()?.trim() === currentUserEmail);
-  const canModify = isAuthor || isAdmin;
   
   const hasAlreadyReviewed = reviews.some((rev: any) => {
     const revAuthorEmail = (rev.author?.email || rev.authorEmail || '').toLowerCase().trim();
@@ -401,39 +390,6 @@ export default function ListingDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      <header className="w-full bg-white border-b-2 border-blue-500 sticky top-0 z-40 shadow-sm">
-        <div className="w-full mx-auto px-4 py-3.5 flex justify-between items-center gap-4" style={{ maxWidth: '750px' }}>
-          <Link href="/marketplace" className="flex items-center gap-2.5">
-            <span className="text-2xl">🌱</span>
-            <span className="text-xl font-black tracking-tight text-slate-900">GrowToGive</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            {canModify && (
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/listings/${slug}/edit`}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer inline-flex items-center"
-                >
-                  Edit Listing
-                </Link>
-                <button
-                  onClick={handleDeleteListing}
-                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs transition-all cursor-pointer"
-                >
-                  Delete
-                </button>
-              </div>
-            )}
-            <Link
-              href="/marketplace"
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all"
-            >
-              ← Back to Marketplace
-            </Link>
-          </div>
-        </div>
-      </header>
-
       <main className="w-full mx-auto px-4 pt-10 space-y-8" style={{ maxWidth: '750px' }}>
         
         {isAuthor && !isFeatured && (
@@ -1143,6 +1099,7 @@ export default function ListingDetailPage() {
             )}
           </div>
         </div>
+
       </main>
     </div>
   );
