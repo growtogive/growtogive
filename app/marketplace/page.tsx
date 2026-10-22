@@ -149,7 +149,7 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6">
+      <main className="w-full pt-1 space-y-4 px-2.5 sm:px-6">
         
         {/* Header & Subheading */}
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -164,7 +164,7 @@ export default function MarketplacePage() {
         </div>
 
         {/* Control Bar */}
-        <div className="bg-white px-3 pt-[15px] pb-[15px] border-b-[2px] border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="bg-white px-3 pt-3.75 pb-3.75 border-b-2 border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             <input
               type="text"
@@ -294,7 +294,7 @@ export default function MarketplacePage() {
               
               const getBorderClass = () => {
                 if (isCommercial) return 'border-2 border-blue-600 shadow-md';
-                if (isFeatured) return 'border border-blue-400 shadow-sm';
+                if (isFeatured) return 'border-2 border-amber-400 bg-amber-50/20 shadow-md';
                 return 'border border-slate-300';
               };
 
@@ -338,7 +338,7 @@ export default function MarketplacePage() {
                           {item.type}
                         </span>
                         {isFeatured && (
-                          <span className="bg-sky-100 text-blue-900 border border-sky-300 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide shadow-xs">
+                          <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide shadow-xs">
                             Featured
                           </span>
                         )}

@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
-@theme {
+:root {
   --color-commercial-bg: #f3e8ff; /* purple-100 equivalent */
   --color-commercial-text: #6b21a8; /* purple-800 equivalent */
+}
+
+/* --- GLOBAL FONT SIZE ADJUSTMENT --- */
+html {
+  /* Bumps default 16px up to 18px globally. Adjust percentage if needed (e.g. 120%) */
+  font-size: 112.5%; 
 }
 
 /* --- GLOBAL SITE-WIDE FULL-WIDTH & ADAPTIVE OVERFLOW FIXES --- */

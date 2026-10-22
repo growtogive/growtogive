@@ -3,12 +3,22 @@
 
 import { useState, useEffect, use } from 'react';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import FavoriteButton from '@/components/FavoriteButton';
 
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  // Redirect to login if unauthenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
   const loggedInEmail = (session?.user as any)?.email;
   const loggedInUserId = (session?.user as any)?.id;
   const isAdmin = loggedInEmail === 'admin@growtogive.com';
@@ -27,10 +37,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    if (id) {
+    if (status === 'authenticated' && id) {
       fetchUserData();
     }
-  }, [id, loggedInUserId]);
+  }, [id, status]);
 
   const fetchUserData = async () => {
     try {
@@ -108,7 +118,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  if (loading) {
+  if (status === 'loading' || loading) {
     return <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
   }
 
