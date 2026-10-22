@@ -14,6 +14,18 @@ interface KidInput {
   giftTwo: string;
 }
 
+interface SubmittedReceiptData {
+  id?: string;
+  momName: string;
+  phone: string;
+  email?: string;
+  address: string;
+  referredBy: string;
+  donorNotes?: string;
+  kids: KidInput[];
+  submittedAt: string;
+}
+
 // 1. Main page wrapped in Suspense (Fixes the Next.js hook error)
 export default function ChristmasApplyPage() {
   return (
@@ -48,6 +60,9 @@ function ChristmasApplyForm() {
   const [fetchingData, setFetchingData] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Receipt state to display after successful submission/update
+  const [submittedReceipt, setSubmittedReceipt] = useState<SubmittedReceiptData | null>(null);
 
   const addressInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,6 +140,20 @@ function ChristmasApplyForm() {
     } else {
       setPasswordError("Incorrect access password.");
     }
+  };
+
+  // Phone number mask formatter
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, "");
+    let formatted = rawValue;
+    if (rawValue.length > 3 && rawValue.length <= 6) {
+      formatted = `(${rawValue.slice(0, 3)}) ${rawValue.slice(3)}`;
+    } else if (rawValue.length > 6) {
+      formatted = `(${rawValue.slice(0, 3)}) ${rawValue.slice(3, 6)}-${rawValue.slice(6, 10)}`;
+    } else if (rawValue.length > 0) {
+      formatted = `(${rawValue}`;
+    }
+    setPhone(formatted);
   };
 
   const handleAddKid = () => {
@@ -207,17 +236,25 @@ function ChristmasApplyForm() {
       }
 
       if (res.success) {
+        const receiptPayload: SubmittedReceiptData = {
+          id: editId || (res as any).data?.id || "N/A",
+          momName: cleanText(momName),
+          phone: phone.trim(),
+          email: email.trim(),
+          address: cleanText(address),
+          referredBy: finalReferredBy,
+          donorNotes: donorNotes.trim() ? cleanText(donorNotes) : undefined,
+          kids,
+          submittedAt: new Date().toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
+        setSubmittedReceipt(receiptPayload);
         setSuccessMessage(editId ? "Application updated successfully!" : "Application submitted successfully!");
-        if (!editId) {
-          setMomName("");
-          setPhone("");
-          setEmail("");
-          setAddress("");
-          setReferredBy("GrowToGive");
-          setReferredByOther("");
-          setDonorNotes("");
-          setKids([{ name: "", age: "", gender: "Boy", giftOne: "", giftTwo: "" }]);
-        }
       } else {
         setErrorMessage(res.error || "Operation failed.");
       }
@@ -262,12 +299,70 @@ function ChristmasApplyForm() {
     );
   }
 
+  // Render Printable Receipt View After Successful Submission
+  if (submittedReceipt) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-xl mx-auto bg-white p-8 rounded-xl shadow-md border border-gray-100 space-y-6 print:shadow-none print:border-none">
+          <div className="text-center border-b pb-6">
+            <span className="text-xs font-bold uppercase tracking-wider text-red-600 bg-red-50 px-3 py-1 rounded-full">
+              Official Application Receipt
+            </span>
+            <h1 className="text-2xl font-extrabold text-gray-900 mt-2">GrowToGive's Christmas for Single Moms & Kids</h1>
+            <p className="text-sm text-gray-500 mt-1">Submitted on: {submittedReceipt.submittedAt}</p>
+            <p className="text-xs text-gray-500 mt-1">Contact admin@growtogive.com, 941.216.1181</p>
+          </div>
+
+          <div className="space-y-4 text-sm">
+            <div className="bg-gray-50 p-4 rounded-lg border">
+              <h3 className="font-bold text-gray-800 mb-2">Parent / Guardian Information</h3>
+              <p><span className="font-semibold">Name:</span> {submittedReceipt.momName}</p>
+              <p><span className="font-semibold">Phone:</span> {submittedReceipt.phone}</p>
+              {submittedReceipt.email && <p><span className="font-semibold">Email:</span> {submittedReceipt.email}</p>}
+              <p><span className="font-semibold">Address:</span> {submittedReceipt.address}</p>
+              <p><span className="font-semibold">Referred By:</span> {submittedReceipt.referredBy}</p>
+              {submittedReceipt.donorNotes && <p className="mt-1"><span className="font-semibold">Notes:</span> {submittedReceipt.donorNotes}</p>}
+            </div>
+
+            <div>
+              <h3 className="font-bold text-gray-800 mb-2">Children & Wishlists</h3>
+              <div className="space-y-3">
+                {submittedReceipt.kids.map((kid, idx) => (
+                  <div key={idx} className="bg-gray-50 p-3 rounded-lg border text-xs space-y-1">
+                    <p className="font-bold text-gray-800 text-sm">Child #{idx + 1}: {kid.name} ({kid.gender}, Age {kid.age})</p>
+                    <p><span className="font-semibold">Gift Option 1:</span> {kid.giftOne}</p>
+                    <p><span className="font-semibold">Gift Option 2:</span> {kid.giftTwo}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-xs text-yellow-800 space-y-1">
+              <p className="font-bold">Important Pickup Information:</p>
+              <p>Pickup Date: <span className="font-semibold">SUNDAY, Dec 20, 2026</span></p>
+              <p>Location: <span className="font-semibold">TBD</span> (We will notify you via phone/email).</p>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t print:hidden">
+            <button
+              onClick={() => window.print()}
+              className="w-full bg-gray-800 text-white font-semibold py-2.5 rounded-lg hover:bg-gray-900 transition shadow-sm"
+            >
+              Print / Save as PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-md border border-gray-100">
         <h1 className="text-3xl font-extrabold text-gray-900 text-center mb-2">
          <p className="text-sm text-gray-500 text-center mb-8">8TH ANNUAL.</p> 
-          {editId ? "Edit Christmas Application" : "Christmas for SINGLE MOMS & KIDS"}
+          {editId ? "Edit Christmas Application" : "GrowToGive's Christmas for Single Moms & Kids"}
         </h1>
         <p className="text-sm text-gray-500 text-center mb-8">All fields are mandatory. Deadline: Friday, October 30, 2026. Pickup date is SUNDAY Dec 20, 2026. Location: TBD. We will notify you.</p>
 
@@ -295,7 +390,8 @@ function ChristmasApplyForm() {
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={handlePhoneChange}
+                  maxLength={14}
                   required
                   className="w-full px-4 py-2 border rounded-lg text-sm"
                   placeholder="(555) 000-0000"
