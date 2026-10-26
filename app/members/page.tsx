@@ -128,7 +128,7 @@ export default function MembersPage() {
           createdAt: user.createdAt || Date.now(),
           distance: computedDistance,
           reviews: user.reviews || [],
-          image: user.avatar || user.image || '',
+          image: (user.images && user.images.length > 0) ? user.images[0] : (user.avatar || user.image || user.avatarUrl || ''),
           bio: user.bio || 'Community participant and member.',
         };
       });
@@ -206,7 +206,7 @@ export default function MembersPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6">
+      <main className="w-full pt-1 space-y-4 px-2.5 sm:px-6">
         
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -221,7 +221,7 @@ export default function MembersPage() {
         </div>
 
         {/* Control Bar */}
-        <div className="bg-white px-3 pt-[15px] pb-[15px] border-b-[2px] border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="bg-white px-3 pt-3.75 pb-3.75 border-b-2 border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             <input
               type="text"

@@ -1,7 +1,7 @@
 // app/listings/[slug]/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -62,11 +62,6 @@ export default function ListingDetailPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState('');
   const [messageSuccess, setMessageSuccess] = useState('');
-
-  // Upgrade States
-  const [upgrading, setUpgrading] = useState(false);
-  const [upgradeError, setUpgradeError] = useState('');
-  const [upgradeSuccess, setUpgradeSuccess] = useState('');
 
   // Transfer Modal States
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -199,34 +194,6 @@ export default function ListingDetailPage() {
       }
     } catch (err) {
       console.error('Failed to fetch other listings', err);
-    }
-  };
-
-  const handleUpgrade = async (upgradeType: 'FEATURED' | 'COMMERCIAL') => {
-    if (!slug) return;
-    setUpgrading(true);
-    setUpgradeError('');
-    setUpgradeSuccess('');
-
-    try {
-      const res = await fetch(`/api/listings/${slug}/upgrade`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ upgradeType }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upgrade listing.');
-
-      setUpgradeSuccess(
-        upgradeType === 'FEATURED'
-          ? '🎉 Successfully upgraded to Featured ($1.00)! Unlocked up to 5 images, extended expiration by 14 days, and highlighted.'
-          : '🎉 Successfully upgraded to Commercial listing ($50/month processed)!'
-      );
-      fetchListingDetail();
-    } catch (err: any) {
-      setUpgradeError(err.message);
-    } finally {
-      setUpgrading(false);
     }
   };
 
@@ -383,6 +350,7 @@ export default function ListingDetailPage() {
   const storefrontAddress = listing.location || '';
   const googleMapsSearchUrl = storefrontAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storefrontAddress)}` : '#';
 
+  // Fallback check: Map over listing.images, or fallback to listing.imageUrl
   const listingImages = (listing.images && listing.images.length > 0) ? listing.images : (listing.imageUrl ? [listing.imageUrl] : []);
   const currentActiveImage = listingImages[activeImageIndex] || listingImages[0];
 
@@ -392,43 +360,6 @@ export default function ListingDetailPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
       <main className="w-full mx-auto px-4 pt-10 space-y-8" style={{ maxWidth: '750px' }}>
         
-        {isAuthor && !isFeatured && (
-          <div className="bg-sky-50 border border-sky-200 rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-sm font-black text-blue-900 uppercase tracking-wider">Listing Upgrade Options</h3>
-                <p className="text-xs text-blue-700 mt-0.5">
-                  {!isCommercial 
-                    ? 'Upgrade your Offer/Request to Featured ($1.00) to unlock up to 5 photos, extend expiration by 14 days, sort at the top, and highlight!'
-                    : 'Your Commercial listing is active ($50/mo). You get up to 5 images, video upload, top sorting, storefront stats, and exact mapping.'}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {!isCommercial && (
-                  <button
-                    onClick={() => handleUpgrade('FEATURED')}
-                    disabled={upgrading}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {upgrading ? 'Processing...' : 'Upgrade to Featured ($1.00 / +5 Photos & 14 Days)'}
-                  </button>
-                )}
-                {isCommercial && (
-                  <button
-                    onClick={() => handleUpgrade('COMMERCIAL')}
-                    disabled={upgrading}
-                    className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {upgrading ? 'Processing...' : 'Renew Commercial ($50 / mo)'}
-                  </button>
-                )}
-              </div>
-            </div>
-            {upgradeError && <p className="text-xs text-rose-700 font-semibold">{upgradeError}</p>}
-            {upgradeSuccess && <p className="text-xs text-emerald-700 font-bold">{upgradeSuccess}</p>}
-          </div>
-        )}
-
         {isCommercial && (
           <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md flex items-center justify-around text-center">
             <div>
@@ -452,9 +383,10 @@ export default function ListingDetailPage() {
           isFeatured ? 'border-4 border-amber-400 shadow-md ring-2 ring-amber-200' : 'border border-slate-200'
         }`}>
           
+          {/* Main Image Gallery Viewer */}
           {listingImages.length > 0 ? (
             <div className="space-y-3 p-4 bg-slate-50/50">
-              <div className="h-[420px] w-full bg-slate-100 relative overflow-hidden rounded-2xl border border-slate-200">
+              <div className="h-105 w-full bg-slate-100 relative overflow-hidden rounded-2xl border border-slate-200">
                 <img
                   src={currentActiveImage}
                   alt={listing.title}
@@ -498,6 +430,21 @@ export default function ListingDetailPage() {
                 <FavoriteButton listingId={listing.id} />
               </div>
               No Image Available
+            </div>
+          )}
+
+          {/* Embedded Video Player for Commercial Listings (Placed under main image) */}
+          {isCommercial && listing.videoUrl && (
+            <div className="px-4 pb-4">
+              <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-200 shadow-inner flex items-center justify-center">
+                <video 
+                  src={listing.videoUrl} 
+                  controls 
+                  className="w-full h-full object-contain"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
             </div>
           )}
 
@@ -561,20 +508,6 @@ export default function ListingDetailPage() {
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-
-            {isCommercial && listing.videoUrl && (
-              <div className="p-5 bg-sky-50/50 border border-sky-200 rounded-2xl space-y-2">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-sky-800">Attached Video</h2>
-                <a
-                  href={listing.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-blue-600 hover:underline font-bold text-sm"
-                >
-                  <span>▶</span> Watch Commercial Video ↗
-                </a>
               </div>
             )}
 
@@ -977,7 +910,7 @@ export default function ListingDetailPage() {
                         </h4>
                       </div>
                       <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200 font-medium">
-                        <span className="text-slate-500 truncate max-w-[100px]">{item.city || displayCity}</span>
+                        <span className="text-slate-500 truncate max-w-25">{item.city || displayCity}</span>
                         <span className="font-bold text-slate-900">{itemPrice}</span>
                       </div>
                     </div>

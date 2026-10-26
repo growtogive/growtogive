@@ -316,7 +316,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6 max-w-5xl mx-auto">
+      <main className="w-full pt-1 space-y-4 px-2.5 sm:px-6 max-w-5xl mx-auto">
         
         <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
           <div className="space-y-0.5">
@@ -347,7 +347,15 @@ export default function ProfilePage() {
               <div className="flex items-center gap-5">
                 <div className="w-40 h-40 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 rounded-2xl shadow-inner">
                   {profileData?.avatar ? (
-                    <img src={profileData.avatar} alt={profileData?.name || 'User'} className="w-full h-full object-cover" />
+                    ((profileData?.images && profileData.images.length > 0 ? profileData.images[0] : null) || profileData?.avatar || profileData?.image || '') ? (
+                      <img
+                        src={(profileData?.images && profileData.images.length > 0 ? profileData.images[0] : null) || profileData?.avatar || profileData?.image || ''}
+                        alt={profileData?.name || 'User'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-6xl">👤</span>
+                    )
                   ) : (
                     <span className="text-6xl">👤</span>
                   )}
@@ -620,9 +628,9 @@ export default function ProfilePage() {
                       <Link href={`/profile/${targetUser.id}`} className="block p-5 space-y-4">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center overflow-hidden shrink-0">
-                            {targetUser.avatar ? (
-                              <img src={targetUser.avatar} alt={targetUser.name} className="w-full h-full object-cover" />
-                            ) : (
+                            {((targetUser.images && targetUser.images.length > 0 ? targetUser.images[0] : null) || targetUser.avatar || targetUser.image || '') ? (
+    <img src={(targetUser.images && targetUser.images.length > 0 ? targetUser.images[0] : null) || targetUser.avatar || targetUser.image || ''} alt={targetUser.name} className="w-full h-full object-cover" />
+  ) : (
                               targetUser.name?.charAt(0) || 'U'
                             )}
                           </div>
@@ -664,10 +672,10 @@ export default function ProfilePage() {
                     <Link href={`/listings/${listingSlug}`} className="block">
                       <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                         <img 
-                          src={listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
-                          alt={listing.title} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                        />
+    src={(listing.images && listing.images.length > 0 ? listing.images[0] : null) || listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+    alt={listing.title} 
+    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+  />
                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 items-center">
                           <span className={`px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
                             isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
@@ -744,13 +752,13 @@ export default function ProfilePage() {
                     <Link href={`/listings/${listingSlug}`} className="block">
                       <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                         <img 
-                          src={item.imageUrl || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
-                          alt={item.title} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                          onError={(e: any) => { 
-                            e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
-                          }}
-                        />
+    src={(item.images && item.images.length > 0 ? item.images[0] : null) || item.imageUrl || item.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+    alt={item.title} 
+    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+    onError={(e: any) => { 
+      e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
+    }}
+  />
                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 items-center">
                           <span className={`px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
                             isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'

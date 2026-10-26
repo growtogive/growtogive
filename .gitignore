@@ -1,3 +1,4 @@
 node_modules/
 .next/
 *.gz
+gcs-key.json

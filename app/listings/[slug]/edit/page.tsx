@@ -66,6 +66,7 @@ export default function EditListingPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [upgrading, setUpgrading] = useState(false);
@@ -227,24 +228,34 @@ export default function EditListingPage() {
     setError('');
 
     try {
-      const newImagePromises = Array.from(files).map((file) => {
-        if (file.size > 5 * 1024 * 1024) {
-          throw new Error('Image file is too large. Please select images under 5MB.');
+      const uploadPromises = Array.from(files).map(async (file) => {
+        if (file.size > 15 * 1024 * 1024) {
+          throw new Error('Image file is too large. Please select images under 15MB.');
         }
-        return new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
+
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadData,
         });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to upload image to Google Cloud Storage.');
+        }
+
+        const data = await res.json();
+        return data.url || data.imageUrl;
       });
 
-      const base64Images = await Promise.all(newImagePromises);
+      const uploadedUrls = await Promise.all(uploadPromises);
       
       setFormData((prev) => {
         const updatedImages = allowsMultipleImages 
-          ? [...prev.images, ...base64Images].slice(0, 5)
-          : [base64Images[0]];
+          ? [...prev.images, ...uploadedUrls].slice(0, 5)
+          : [uploadedUrls[0]];
         return {
           ...prev,
           images: updatedImages,
@@ -252,9 +263,50 @@ export default function EditListingPage() {
         };
       });
     } catch (err: any) {
-      setError(err.message || 'Error processing uploaded image(s).');
+      setError(err.message || 'Error uploading image(s) to GCS.');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Enforce 500MB max limit to accommodate larger video files comfortably
+    if (file.size > 500 * 1024 * 1024) {
+      setError('Video file is too large. Please upload a video under 500MB.');
+      return;
+    }
+
+    setUploadingVideo(true);
+    setError('');
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to upload video to Google Cloud Storage.');
+      }
+
+      const data = await res.json();
+      const videoPublicUrl = data.url || data.imageUrl;
+
+      setFormData((prev) => ({
+        ...prev,
+        videoUrl: videoPublicUrl,
+      }));
+    } catch (err: any) {
+      setError(err.message || 'Error uploading video to GCS.');
+    } finally {
+      setUploadingVideo(false);
     }
   };
 
@@ -404,8 +456,14 @@ export default function EditListingPage() {
                   type="button"
                   disabled={upgrading}
                   onClick={() => handleUpgrade('FEATURED')}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
+                  {upgrading && (
+                    <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
                   {upgrading ? 'Upgrading...' : 'Yes, Confirm'}
                 </button>
                 <button
@@ -472,11 +530,6 @@ export default function EditListingPage() {
                   <option value="COMMERCIAL">Commercial</option>
                 )}
               </select>
-              {hasOtherCommercial && originalType !== 'COMMERCIAL' && (
-                <p className="text-[11px] text-amber-600 mt-1">
-                  Commercial option already used.
-                </p>
-              )}
             </div>
 
             <div>
@@ -518,7 +571,7 @@ export default function EditListingPage() {
                   <span className="font-medium text-rose-600">{commissionAmount.toFixed(2)} Growbucks</span>
                 </div>
                 <div className="flex justify-between pt-1.5 border-t border-emerald-200/60 font-semibold text-slate-900 text-sm">
-                  <span>Recipient Will Receive:</span>
+                  <span>Recipient Receives:</span>
                   <span className="text-emerald-600">{netReceiveAmount.toFixed(2)} Growbucks</span>
                 </div>
               </div>
@@ -579,18 +632,57 @@ export default function EditListingPage() {
                   placeholder="https://example.com"
                 />
               </div>
+
               {formData.isFeatured && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Video Embed URL (Optional)</label>
-                  <input
-                    type="url"
-                    name="videoUrl"
-                    value={formData.videoUrl}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                    placeholder="https://www.youtube.com/watch?v=..."
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">Provide a YouTube or video link to showcase your commercial storefront.</p>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Video Upload (Optional - Max 200MB)</label>
+                  
+                  {formData.videoUrl ? (
+                    <div className="mb-3 space-y-2">
+                      <div className="relative w-full max-w-md aspect-video bg-black border border-slate-200 rounded overflow-hidden flex items-center justify-center">
+                        <video 
+                          src={formData.videoUrl} 
+                          controls 
+                          className="w-full h-full object-contain"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs bg-slate-50 p-2 border border-slate-200 rounded">
+                        <span className="truncate max-w-xs text-slate-700 font-medium">{formData.videoUrl}</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, videoUrl: '' }))}
+                          className="text-rose-600 hover:text-rose-700 font-bold ml-2 cursor-pointer shrink-0"
+                        >
+                          Remove Video
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <label className={`w-full py-4 px-4 border-2 border-dashed rounded flex flex-col items-center justify-center bg-white text-xs font-medium transition-all ${uploadingVideo ? 'border-sky-400 bg-sky-50/50 cursor-not-allowed opacity-80' : 'border-sky-300 hover:border-sky-400 cursor-pointer'}`}>
+                    {uploadingVideo ? (
+                      <div className="flex items-center gap-2 text-sky-700 font-semibold">
+                        <svg className="animate-spin h-5 w-5 text-sky-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Uploading & Processing video to GCS... (this may take a minute for large files)</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-600">📁 Click to upload video file (max 200MB)</span>
+                    )}
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoFileChange}
+                      disabled={uploadingVideo}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-1.5">Upload an MP4 or video file to showcase your commercial storefront.</p>
                 </div>
               )}
             </div>
@@ -599,7 +691,7 @@ export default function EditListingPage() {
           {/* Media Upload Section */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Listing Images {allowsMultipleImages ? '(Up to 5 images allowed)' : '(1 image allowed - upgrade to Featured for 5)'}
+              Listing Images {allowsMultipleImages ? '(Up to 5 images allowed, max 15MB each)' : '(1 image allowed, max 15MB - upgrade to Featured for 5)'}
             </label>
 
             <div className={`grid gap-3 mb-3 ${allowsMultipleImages ? 'grid-cols-5' : 'grid-cols-1 max-w-xs'}`}>
@@ -631,7 +723,7 @@ export default function EditListingPage() {
               )}
             </div>
 
-            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Processing image(s)...</p>}
+            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Uploading image(s) to GCS (max 15MB)...</p>}
           </div>
 
           <div>
@@ -656,10 +748,16 @@ export default function EditListingPage() {
 
             <button
               type="submit"
-              disabled={submitting || uploadingImage}
-              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              disabled={submitting || uploadingImage || uploadingVideo}
+              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer flex items-center gap-2"
             >
-              {submitting ? 'Saving Changes...' : 'Save Listing'}
+              {(submitting || uploadingVideo) && (
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {submitting ? 'Saving Changes...' : uploadingVideo ? 'Waiting for Video Upload...' : 'Save Listing'}
             </button>
           </div>
         </form>

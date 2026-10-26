@@ -141,7 +141,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, description, type, category, priceInBucks, imageUrl, location, city, latitude, longitude, businessHours, businessPhone, websiteUrl } = body;
+    const { title, description, type, category, priceInBucks, imageUrl, images, location, city, latitude, longitude, businessHours, businessPhone, websiteUrl } = body;
 
     if (!title || !description) {
       return NextResponse.json({ error: 'Title and description are required.' }, { status: 400 });
@@ -188,6 +188,8 @@ export async function POST(req: Request) {
       .replace(/^-+|-+$/g, '');
     const slug = `${baseSlug}-${Math.random().toString(36).substring(2, 7)}`;
 
+    const listingImages = Array.isArray(images) && images.length > 0 ? images : (imageUrl ? [imageUrl] : []);
+
     const newListing = await prisma.listing.create({
       data: {
         title,
@@ -196,7 +198,8 @@ export async function POST(req: Request) {
         type: listingType,
         category: category || 'GOODS',
         priceInBucks: listingType === 'COMMERCIAL' ? 0 : (priceInBucks ? parseFloat(priceInBucks) : 0.00),
-        imageUrl: imageUrl || null,
+        imageUrl: imageUrl || listingImages[0] || null,
+        images: listingImages,
         location: location || null,
         city: listingCity,
         latitude: listingLat,

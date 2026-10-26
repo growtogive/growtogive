@@ -77,7 +77,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         churchName: foundUser.churchName || 'Grace Family Church',
         city: foundUser.city || 'Bradenton',
         state: foundUser.state || 'FL',
-        image: foundUser.avatar || null,
+        images: foundUser.images || [],
+        image: (foundUser.images && foundUser.images.length > 0 ? foundUser.images[0] : null) || foundUser.avatar || foundUser.image || null,
         createdAt: foundUser.createdAt,
         reviews: combinedReviews,
       });
@@ -144,6 +145,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     : 'March 2026';
 
   const profileUserId = userProfile.id;
+  const userAvatarImage = (userProfile.images && userProfile.images.length > 0 ? userProfile.images[0] : null) || userProfile.image || '';
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
@@ -175,8 +177,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         <div className="bg-white border border-slate-200 shadow-sm p-6 sm:p-8 mb-8 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-5">
             <div className="w-20 h-20 rounded-xl bg-emerald-100 text-emerald-800 font-black text-2xl flex items-center justify-center border border-emerald-200 shrink-0 shadow-inner overflow-hidden">
-              {userProfile.image ? (
-                <img src={userProfile.image} alt={userProfile.name} className="w-full h-full object-cover" />
+              {userAvatarImage ? (
+                <img src={userAvatarImage} alt={userProfile.name} className="w-full h-full object-cover" />
               ) : (
                 userProfile.name ? userProfile.name.charAt(0) : 'U'
               )}
@@ -246,6 +248,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   expirationDate.setDate(expirationDate.getDate() + 14);
                   const isCommercial = (itemListing.type || '').toUpperCase() === 'COMMERCIAL';
                   const priceDisplay = !isCommercial ? `GB ${Number(itemListing.priceInBucks || 0).toFixed(2)}` : 'Storefront';
+                  
+                  const listingPrimaryImage = (itemListing.images && itemListing.images.length > 0 ? itemListing.images[0] : null) || itemListing.imageUrl || itemListing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available';
 
                   return (
                     <div key={itemListing.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
@@ -256,7 +260,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                       <Link href={`/listings/${itemListing.id}`} className="block">
                         <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                           <img
-                            src={itemListing.imageUrl || itemListing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                            src={listingPrimaryImage}
                             alt={itemListing.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
@@ -315,6 +319,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               const priceDisplay = !isCommercial ? `GB ${Number(item.priceInBucks || 0).toFixed(2)}` : 'Storefront';
               const isFavorited = userFavoriteIds.includes(item.id);
 
+              const itemPrimaryImage = (item.images && item.images.length > 0 ? item.images[0] : null) || item.imageUrl || item.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available';
+
               return (
                 <div key={item.id} className="border border-slate-200 bg-white flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all rounded-xl overflow-hidden group relative">
                   <div className="absolute top-3 right-3 z-10">
@@ -324,7 +330,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   <Link href={`/listings/${item.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       <img
-                        src={item.imageUrl || item.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'}
+                        src={itemPrimaryImage}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e: any) => { 

@@ -146,7 +146,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug: st
     }
 
     const body = await req.json();
-    const { title, description, type, category, priceInBucks, imageUrl, location, city, latitude, longitude, businessHours } = body;
+    const { 
+      title, 
+      description, 
+      type, 
+      category, 
+      priceInBucks, 
+      imageUrl, 
+      images,
+      videoUrl,
+      isFeatured,
+      location, 
+      city, 
+      latitude, 
+      longitude, 
+      businessHours,
+      businessPhone,
+      websiteUrl
+    } = body;
 
     const targetType = type || listing.type;
 
@@ -197,13 +214,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug: st
         category: category ?? listing.category,
         priceInBucks: targetType === 'COMMERCIAL' ? 0 : (priceInBucks !== undefined ? parseFloat(priceInBucks) : listing.priceInBucks),
         imageUrl: imageUrl ?? listing.imageUrl,
+        images: images ?? listing.images,
+        videoUrl: (targetType === 'COMMERCIAL' && isFeatured) ? (videoUrl ?? listing.videoUrl) : null,
+        isFeatured: isFeatured ?? listing.isFeatured,
         city: city ?? listing.city,
         location: targetType === 'COMMERCIAL' ? (location ?? listing.location) : null,
         latitude: targetType === 'COMMERCIAL' ? newLat : null,
         longitude: targetType === 'COMMERCIAL' ? newLng : null,
         businessHours: targetType === 'COMMERCIAL' ? (businessHours ?? listing.businessHours) : null,
-        businessPhone: body.businessPhone,
-        websiteUrl: body.websiteUrl,
+        businessPhone: businessPhone ?? listing.businessPhone,
+        websiteUrl: websiteUrl ?? listing.websiteUrl,
       },
     });
 

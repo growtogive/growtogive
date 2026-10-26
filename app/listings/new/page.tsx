@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import imageCompression from 'browser-image-compression';
 import { LISTING_CATEGORIES } from '@/lib/constants/categories';
 
 declare global {
@@ -48,9 +49,10 @@ export default function NewListingPage() {
     description: '',
     type: 'OFFER',
     category: '',
-    priceInBucks: '0.00',
+    priceInBucks: '',
     imageUrl: '',
     images: [] as string[],
+    videoUrl: '',
     isFeatured: false,
     location: '',
     businessHours: '',
@@ -193,24 +195,47 @@ export default function NewListingPage() {
     setError('');
 
     try {
-      const newImagePromises = Array.from(files).map((file) => {
-        if (file.size > 5 * 1024 * 1024) {
-          throw new Error('Image file is too large. Please select images under 5MB.');
+      const uploadPromises = Array.from(files).map(async (file) => {
+        if (file.size > 15 * 1024 * 1024) {
+          throw new Error('Image file is too large. Please select images under 15MB.');
         }
-        return new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
+
+        // Compression options using browser-image-compression
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+        };
+
+        // Compress image file client-side
+        const compressedFile = await imageCompression(file, options);
+
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', compressedFile, file.name);
+
+        // Send compressed file to GCS upload API route
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
         });
+
+        const contentType = uploadRes.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Upload failed: Server returned an invalid response. File may exceed server payload size limits.');
+        }
+
+        const data = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(data.error || 'Upload failed');
+
+        return data.url;
       });
 
-      const base64Images = await Promise.all(newImagePromises);
+      const uploadedUrls = await Promise.all(uploadPromises);
       
       setFormData((prev) => {
         const updatedImages = allowsMultipleImages 
-          ? [...prev.images, ...base64Images].slice(0, 5)
-          : [base64Images[0]];
+          ? [...prev.images, ...uploadedUrls].slice(0, 5)
+          : [uploadedUrls[0]];
         return {
           ...prev,
           images: updatedImages,
@@ -218,7 +243,7 @@ export default function NewListingPage() {
         };
       });
     } catch (err: any) {
-      setError(err.message || 'Error processing uploaded image(s).');
+      setError(err.message || 'Error uploading image(s).');
     } finally {
       setUploadingImage(false);
     }
@@ -287,7 +312,6 @@ export default function NewListingPage() {
     }
   };
 
-  // --- BASIC TRAINING GATE CHECK SCREEN ---
   if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500 text-sm">Loading...</div>;
   }
@@ -369,10 +393,6 @@ export default function NewListingPage() {
                   <option value="COMMERCIAL">Commercial</option>
                 )}
               </select>
-              {hasOtherCommercial && (
-                <p className="text-[11px] text-amber-600 mt-1">
-                </p>
-              )}
             </div>
 
             <div>
@@ -395,29 +415,32 @@ export default function NewListingPage() {
           {formData.type !== 'COMMERCIAL' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Growbucks Amount</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Growbucks Amount *</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   name="priceInBucks"
                   required
                   value={formData.priceInBucks}
                   onChange={handleChange}
+                  placeholder="0.00"
                   className="w-full px-3 py-2.5 bg-white text-slate-900 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />
               </div>
 
-              {/* Growbuck Commission Calculator Breakdown */}
-              <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-md text-xs space-y-1.5 text-slate-700">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Platform Commission (10%):</span>
-                  <span className="font-medium text-rose-600">- {commissionAmount.toFixed(2)} Growbucks</span>
+              {formData.priceInBucks !== '' && (
+                <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-md text-xs space-y-1.5 text-slate-700">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Platform Commission (10%):</span>
+                    <span className="font-medium text-rose-600">{commissionAmount.toFixed(2)} Growbucks</span>
+                  </div>
+                  <div className="flex justify-between pt-1.5 border-t border-emerald-200/60 font-semibold text-slate-900 text-sm">
+                    <span>Recipient Receives:</span>
+                    <span className="text-emerald-600">{netReceiveAmount.toFixed(2)} Growbucks</span>
+                  </div>
                 </div>
-                <div className="flex justify-between pt-1.5 border-t border-emerald-200/60 font-semibold text-slate-900 text-sm">
-                  <span>Recipient Will Receive:</span>
-                  <span className="text-emerald-600">{netReceiveAmount.toFixed(2)} Growbucks</span>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -481,12 +504,12 @@ export default function NewListingPage() {
           {/* Media Upload Section */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Listing Images {allowsMultipleImages ? '(Up to 5 images allowed)' : '(1 image allowed - upgrade to Featured for 5)'}
+              Listing Images {allowsMultipleImages ? '(Up to 5 images allowed - Max 15MB each)' : '(1 image allowed - max 15MB - upgrade to Featured for 5)'}
             </label>
 
-            <div className={`grid gap-3 mb-3 ${allowsMultipleImages ? 'grid-cols-5' : 'grid-cols-1 max-w-xs'}`}>
+            <div className="flex flex-wrap gap-3 mb-3">
               {formData.images.map((imgSrc, idx) => (
-                <div key={idx} className="relative w-full h-20 bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center rounded">
+                <div key={idx} className="relative w-24 h-24 aspect-square bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center rounded">
                   <img src={imgSrc} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
                   <button
                     type="button"
@@ -500,9 +523,13 @@ export default function NewListingPage() {
               ))}
 
               {formData.images.length < maxImagesAllowed && (
-                <label className="w-full h-20 border-2 border-dashed border-slate-300 hover:border-slate-400 rounded flex flex-col items-center justify-center cursor-pointer bg-slate-50 text-slate-500 text-[11px] font-medium">
-                  <span>+ Add</span>
+                <label
+                  htmlFor="image-upload-input"
+                  className="w-24 h-24 aspect-square border-2 border-dashed border-slate-300 hover:border-slate-400 rounded flex flex-col items-center justify-center cursor-pointer bg-slate-50 text-slate-500 text-[11px] font-medium text-center p-1"
+                >
+                  <span>+ Add Image</span>
                   <input
+                    id="image-upload-input"
                     type="file"
                     accept="image/*"
                     multiple={allowsMultipleImages}
@@ -513,7 +540,7 @@ export default function NewListingPage() {
               )}
             </div>
 
-            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Processing image(s)...</p>}
+            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Compressing & uploading image(s) under 15MB limit...</p>}
           </div>
 
           <div>
