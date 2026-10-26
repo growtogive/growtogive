@@ -273,7 +273,6 @@ export default function EditListingPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Enforce 500MB max limit to accommodate larger video files comfortably
     if (file.size > 500 * 1024 * 1024) {
       setError('Video file is too large. Please upload a video under 500MB.');
       return;
@@ -282,9 +281,120 @@ export default function EditListingPage() {
     setUploadingVideo(true);
     setError('');
 
+    let audioCtx: AudioContext | null = null;
+
     try {
+      const videoElement = document.createElement('video');
+      videoElement.preload = 'metadata';
+      videoElement.src = URL.createObjectURL(file);
+      videoElement.muted = false; // Must be unmuted to capture audio via Web Audio API
+      videoElement.playsInline = true;
+
+      await new Promise((resolve, reject) => {
+        videoElement.onloadedmetadata = () => resolve(true);
+        videoElement.onerror = () => reject(new Error('Failed to load video metadata for compression.'));
+      });
+
+      const maxWidth = 1280;
+      const scale = videoElement.videoWidth > maxWidth ? maxWidth / videoElement.videoWidth : 1;
+      const targetWidth = Math.round(videoElement.videoWidth * scale);
+      const targetHeight = Math.round(videoElement.videoHeight * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) throw new Error('Could not initialize video compression canvas.');
+
+      // Capture video stream from canvas
+      const videoStream = canvas.captureStream(30);
+      const mergedStream = new MediaStream();
+
+      // Add video track
+      videoStream.getVideoTracks().forEach((track) => mergedStream.addTrack(track));
+
+      // Capture and attach audio track using Web Audio API if audio exists
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+          const sourceNode = audioCtx.createMediaElementSource(videoElement);
+          const destinationNode = audioCtx.createMediaStreamDestination();
+          sourceNode.connect(destinationNode);
+          sourceNode.connect(audioCtx.destination); // Optional: keep audible or mute via gain
+
+          destinationNode.stream.getAudioTracks().forEach((track) => {
+            mergedStream.addTrack(track);
+          });
+        }
+      } catch (audioErr) {
+        console.warn('Audio capture warning:', audioErr);
+      }
+
+      const recordedChunks: Blob[] = [];
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : MediaRecorder.isTypeSupported('video/webm')
+        ? 'video/webm'
+        : 'video/mp4';
+
+      const mediaRecorder = new MediaRecorder(mergedStream, {
+        mimeType,
+        videoBitsPerSecond: 1500000,
+        audioBitsPerSecond: 128000,
+      } as any);
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      const compressedBlobPromise = new Promise<Blob>((resolve) => {
+        mediaRecorder.onstop = () => {
+          const compressedBlob = new Blob(recordedChunks, { type: mimeType });
+          resolve(compressedBlob);
+        };
+      });
+
+      // Resume audio context if suspended (browser autoplay policies)
+      if (audioCtx && audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        videoElement.onplay = () => resolve();
+        videoElement.onerror = () => reject(new Error('Error playing video for compression.'));
+        videoElement.play().catch(reject);
+      });
+
+      mediaRecorder.start();
+
+      const drawFrame = () => {
+        if (videoElement.ended || videoElement.paused) {
+          if (mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+          }
+          return;
+        }
+        ctx.drawImage(videoElement, 0, 0, targetWidth, targetHeight);
+        requestAnimationFrame(drawFrame);
+      };
+
+      requestAnimationFrame(drawFrame);
+
+      const compressedBlob = await compressedBlobPromise;
+      URL.revokeObjectURL(videoElement.src);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+      }
+
       const uploadData = new FormData();
-      uploadData.append('file', file);
+      const compressedFile = new File([compressedBlob], 'compressed-video.webm', { type: mimeType });
+      uploadData.append('file', compressedFile);
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -293,7 +403,7 @@ export default function EditListingPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to upload video to Google Cloud Storage.');
+        throw new Error(errData.error || 'Failed to upload compressed video to Google Cloud Storage.');
       }
 
       const data = await res.json();
@@ -304,6 +414,9 @@ export default function EditListingPage() {
         videoUrl: videoPublicUrl,
       }));
     } catch (err: any) {
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+      }
       setError(err.message || 'Error uploading video to GCS.');
     } finally {
       setUploadingVideo(false);
@@ -635,7 +748,7 @@ export default function EditListingPage() {
 
               {formData.isFeatured && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Video Upload (Optional - Max 200MB)</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Video Upload (Optional - Max 500MB)</label>
                   
                   {formData.videoUrl ? (
                     <div className="mb-3 space-y-2">
@@ -669,10 +782,10 @@ export default function EditListingPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>Uploading & Processing video to GCS... (this may take a minute for large files)</span>
+                        <span>Uploading video to GCS... (this may take a minute for large files)</span>
                       </div>
                     ) : (
-                      <span className="text-slate-600">📁 Click to upload video file (max 200MB)</span>
+                      <span className="text-slate-600">📁 Click to upload & compress video file (max 500MB)</span>
                     )}
                     <input
                       type="file"
@@ -757,7 +870,7 @@ export default function EditListingPage() {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
               )}
-              {submitting ? 'Saving Changes...' : uploadingVideo ? 'Waiting for Video Upload...' : 'Save Listing'}
+              {submitting ? 'Saving Changes...' : uploadingVideo ? 'Uploading Video...' : 'Save Listing'}
             </button>
           </div>
         </form>

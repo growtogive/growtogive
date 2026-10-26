@@ -1,3 +1,4 @@
+// app/listings/new/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -65,12 +66,13 @@ export default function NewListingPage() {
   const [hasOtherCommercial, setHasOtherCommercial] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
   const [error, setError] = useState('');
 
   const autocompleteRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ONLY Featured listings get up to 5 images. All other listings get 1.
+  // ONLY Featured listings get up to 5 images & video uploads. All other listings get 1.
   const allowsMultipleImages = formData.isFeatured;
   const maxImagesAllowed = allowsMultipleImages ? 5 : 1;
 
@@ -200,20 +202,17 @@ export default function NewListingPage() {
           throw new Error('Image file is too large. Please select images under 15MB.');
         }
 
-        // Compression options using browser-image-compression
         const options = {
           maxSizeMB: 1,
           maxWidthOrHeight: 1200,
           useWebWorker: true,
         };
 
-        // Compress image file client-side
         const compressedFile = await imageCompression(file, options);
 
         const uploadFormData = new FormData();
         uploadFormData.append('file', compressedFile, file.name);
 
-        // Send compressed file to GCS upload API route
         const uploadRes = await fetch('/api/upload', {
           method: 'POST',
           body: uploadFormData,
@@ -246,6 +245,156 @@ export default function NewListingPage() {
       setError(err.message || 'Error uploading image(s).');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024 * 1024) {
+      setError('Video file is too large. Please upload a video under 500MB.');
+      return;
+    }
+
+    setUploadingVideo(true);
+    setError('');
+
+    let audioCtx: AudioContext | null = null;
+
+    try {
+      const videoElement = document.createElement('video');
+      videoElement.preload = 'metadata';
+      videoElement.src = URL.createObjectURL(file);
+      videoElement.muted = false;
+      videoElement.playsInline = true;
+
+      await new Promise((resolve, reject) => {
+        videoElement.onloadedmetadata = () => resolve(true);
+        videoElement.onerror = () => reject(new Error('Failed to load video metadata for compression.'));
+      });
+
+      const maxWidth = 1280;
+      const scale = videoElement.videoWidth > maxWidth ? maxWidth / videoElement.videoWidth : 1;
+      const targetWidth = Math.round(videoElement.videoWidth * scale);
+      const targetHeight = Math.round(videoElement.videoHeight * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) throw new Error('Could not initialize video compression canvas.');
+
+      const videoStream = canvas.captureStream(30);
+      const mergedStream = new MediaStream();
+
+      videoStream.getVideoTracks().forEach((track) => mergedStream.addTrack(track));
+
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+          const sourceNode = audioCtx.createMediaElementSource(videoElement);
+          const destinationNode = audioCtx.createMediaStreamDestination();
+          sourceNode.connect(destinationNode);
+          sourceNode.connect(audioCtx.destination);
+
+          destinationNode.stream.getAudioTracks().forEach((track) => {
+            mergedStream.addTrack(track);
+          });
+        }
+      } catch (audioErr) {
+        console.warn('Audio capture warning:', audioErr);
+      }
+
+      const recordedChunks: Blob[] = [];
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : MediaRecorder.isTypeSupported('video/webm')
+        ? 'video/webm'
+        : 'video/mp4';
+
+      const mediaRecorder = new MediaRecorder(mergedStream, {
+        mimeType,
+        videoBitsPerSecond: 1500000,
+        audioBitsPerSecond: 128000,
+      } as any);
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      const compressedBlobPromise = new Promise<Blob>((resolve) => {
+        mediaRecorder.onstop = () => {
+          const compressedBlob = new Blob(recordedChunks, { type: mimeType });
+          resolve(compressedBlob);
+        };
+      });
+
+      if (audioCtx && audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        videoElement.onplay = () => resolve();
+        videoElement.onerror = () => reject(new Error('Error playing video for compression.'));
+        videoElement.play().catch(reject);
+      });
+
+      mediaRecorder.start();
+
+      const drawFrame = () => {
+        if (videoElement.ended || videoElement.paused) {
+          if (mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+          }
+          return;
+        }
+        ctx.drawImage(videoElement, 0, 0, targetWidth, targetHeight);
+        requestAnimationFrame(drawFrame);
+      };
+
+      requestAnimationFrame(drawFrame);
+
+      const compressedBlob = await compressedBlobPromise;
+      URL.revokeObjectURL(videoElement.src);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+      }
+
+      const uploadData = new FormData();
+      const compressedFile = new File([compressedBlob], 'compressed-video.webm', { type: mimeType });
+      uploadData.append('file', compressedFile);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to upload compressed video to Google Cloud Storage.');
+      }
+
+      const data = await res.json();
+      const videoPublicUrl = data.url || data.imageUrl;
+
+      setFormData((prev) => ({
+        ...prev,
+        videoUrl: videoPublicUrl,
+      }));
+    } catch (err: any) {
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+      }
+      setError(err.message || 'Error compressing or uploading video to GCS.');
+    } finally {
+      setUploadingVideo(false);
     }
   };
 
@@ -298,6 +447,7 @@ export default function NewListingPage() {
           priceInBucks: formData.type === 'COMMERCIAL' ? 0 : (parseFloat(formData.priceInBucks) || 0),
           businessPhone: formData.type === 'COMMERCIAL' ? formData.businessPhone : null,
           websiteUrl: formData.type === 'COMMERCIAL' ? formData.websiteUrl : null,
+          videoUrl: formData.type === 'COMMERCIAL' ? formData.videoUrl : null,
         }),
       });
 
@@ -498,6 +648,59 @@ export default function NewListingPage() {
                   placeholder="https://example.com"
                 />
               </div>
+
+              {formData.isFeatured && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Listing Video Upload (Optional - Max 500MB)</label>
+                  
+                  {formData.videoUrl ? (
+                    <div className="mb-3 space-y-2">
+                      <div className="relative w-full max-w-md aspect-video bg-black border border-slate-200 rounded overflow-hidden flex items-center justify-center">
+                        <video 
+                          src={formData.videoUrl} 
+                          controls 
+                          className="w-full h-full object-contain"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs bg-slate-50 p-2 border border-slate-200 rounded">
+                        <span className="truncate max-w-xs text-slate-700 font-medium">{formData.videoUrl}</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, videoUrl: '' }))}
+                          className="text-rose-600 hover:text-rose-700 font-bold ml-2 cursor-pointer shrink-0"
+                        >
+                          Remove Video
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <label className={`w-full py-4 px-4 border-2 border-dashed rounded flex flex-col items-center justify-center bg-white text-xs font-medium transition-all ${uploadingVideo ? 'border-sky-400 bg-sky-50/50 cursor-not-allowed opacity-80' : 'border-sky-300 hover:border-sky-400 cursor-pointer'}`}>
+                    {uploadingVideo ? (
+                      <div className="flex items-center gap-2 text-sky-700 font-semibold">
+                        <svg className="animate-spin h-5 w-5 text-sky-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Compressing & Uploading video to GCS... (this may take a minute for large files)</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-600">📁 Click to upload & compress video file (max 500MB)</span>
+                    )}
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoFileChange}
+                      disabled={uploadingVideo}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-1.5">Upload an MP4 or video file to showcase your commercial storefront.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -566,10 +769,10 @@ export default function NewListingPage() {
 
             <button
               type="submit"
-              disabled={submitting || uploadingImage}
+              disabled={submitting || uploadingImage || uploadingVideo}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
-              {submitting ? 'Creating Listing...' : 'Publish Listing'}
+              {submitting ? 'Creating Listing...' : uploadingVideo ? 'Compressing & Uploading Video...' : 'Publish Listing'}
             </button>
           </div>
         </form>
