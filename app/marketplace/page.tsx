@@ -1,11 +1,14 @@
 // app/marketplace/page.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import useSWR from 'swr';
 import { LISTING_CATEGORIES } from '@/lib/constants/categories';
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 // Strict rule: City > Church text ALWAYS comes from the author profile
 const getAuthorHierarchy = (item: any) => {
@@ -27,9 +30,14 @@ export default function MarketplacePage() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  const [listings, setListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  // SWR handles in-memory client-side caching for instant back/forward navigation without re-fetching
+  const { data, error: swrError, isLoading } = useSWR('/api/listings', fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000, // Caches data in memory for 1 minute
+  });
+
+  const listings = Array.isArray(data) ? data : (data?.listings || []);
+  const error = swrError ? (swrError.message || 'Failed to load marketplace.') : '';
   
   // Filter & Sort States
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,38 +47,17 @@ export default function MarketplacePage() {
   const [maxRadius, setMaxRadius] = useState('25');
   const [sortBy, setSortBy] = useState('date_desc');
 
-  useEffect(() => {
-    fetchListings();
-  }, []);
-
-  const fetchListings = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const res = await fetch('/api/listings');
-      if (!res.ok) throw new Error('Failed to fetch marketplace listings');
-      const data = await res.json();
-      setListings(Array.isArray(data) ? data : (data.listings || []));
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Failed to load marketplace.');
-      setListings([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Dynamically build unique City > Church options sorted alphabetically from authors
-  const uniqueHierarchies = Array.from(
+  const uniqueHierarchies = useMemo(() => Array.from(
     new Set(
-      listings.map((item) => {
+      listings.map((item: any) => {
         const { city, church } = getAuthorHierarchy(item);
         return (item.author?.city || item.author?.churchName || item.author?.church) 
           ? `${city} > ${church}` 
           : null;
       }).filter(Boolean)
     )
-  ).sort((a: any, b: any) => a.localeCompare(b));
+  ).sort((a: any, b: any) => a.localeCompare(b)), [listings]);
 
   const toggleType = (type: string) => {
     if (selectedTypes.includes(type)) {
@@ -86,7 +73,7 @@ export default function MarketplacePage() {
 
   // Filter and Sort Logic
   const filteredAndSortedListings = useMemo(() => {
-    let result = listings.filter((item) => {
+    let result = listings.filter((item: any) => {
       const matchesSearch = 
         item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -106,7 +93,7 @@ export default function MarketplacePage() {
     });
 
     // Sorting logic with priority tiers
-    result.sort((a, b) => {
+    result.sort((a: any, b: any) => {
       const aCommercial = (a.isCommercial || a.type === 'COMMERCIAL') ? 1 : 0;
       const bCommercial = (b.isCommercial || b.type === 'COMMERCIAL') ? 1 : 0;
       if (aCommercial !== bCommercial) return bCommercial - aCommercial;
@@ -139,7 +126,7 @@ export default function MarketplacePage() {
     return result;
   }, [listings, searchTerm, selectedTypes, selectedCategory, selectedHierarchy, maxRadius, sortBy]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-lg">
         Loading marketplace...

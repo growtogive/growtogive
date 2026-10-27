@@ -5,7 +5,10 @@ import { useState, useEffect, use } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import useSWR from 'swr';
 import FavoriteButton from '@/components/FavoriteButton';
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -22,74 +25,31 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const loggedInEmail = (session?.user as any)?.email;
   const loggedInUserId = (session?.user as any)?.id;
   const isAdmin = loggedInEmail === 'admin@growtogive.com';
-  const isOwnProfile = loggedInUserId === id;
 
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const [listings, setListings] = useState<any[]>([]);
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [userFavoriteIds, setUserFavoriteIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  // SWR caches profile data in memory for instant back/forward browser navigation
+  const { data, error: swrError, isLoading } = useSWR(
+    status === 'authenticated' && id ? `/api/profile?userId=${id}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000,
+    }
+  );
+
+  const foundUser = data?.user;
+  const userListings = data?.listings || [];
+  const userFavorites = data?.favorites || [];
+  
+  const userFavoriteIds = userFavorites.map((f: any) => f.listingId || f.listing?.id);
+  const favorites = userFavorites;
+  const listings = userListings;
+
   const [showReviewsModal, setShowReviewsModal] = useState(false);
 
   // Admin delete modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [listingAction, setListingAction] = useState<'unpublish' | 'delete'>('unpublish');
   const [isDeleting, setIsDeleting] = useState(false);
-
-  useEffect(() => {
-    if (status === 'authenticated' && id) {
-      fetchUserData();
-    }
-  }, [id, status]);
-
-  const fetchUserData = async () => {
-    try {
-      setLoading(true);
-
-      const res = await fetch(`/api/profile?userId=${id}`);
-      if (!res.ok) throw new Error('Failed to fetch profile');
-      const data = await res.json();
-
-      const foundUser = data.user;
-      if (!foundUser) {
-        setUserProfile(null);
-        setListings([]);
-        setFavorites([]);
-        return;
-      }
-
-      const userListings = data.listings || [];
-      const userFavorites = data.favorites || [];
-      setUserFavoriteIds(userFavorites.map((f: any) => f.listingId || f.listing?.id));
-      setFavorites(userFavorites);
-
-      // Combine author direct reviews + commercial listing reviews
-      const directReviews = foundUser.reviews || [];
-      const commercialReviews = userListings
-        .filter((item: any) => (item.type || '').toUpperCase() === 'COMMERCIAL')
-        .flatMap((item: any) => item.reviews || []);
-
-      const combinedReviews = [...directReviews, ...commercialReviews];
-
-      setUserProfile({
-        id: foundUser.id,
-        name: foundUser.name || 'Community Member',
-        churchName: foundUser.churchName || 'Grace Family Church',
-        city: foundUser.city || 'Bradenton',
-        state: foundUser.state || 'FL',
-        images: foundUser.images || [],
-        image: (foundUser.images && foundUser.images.length > 0 ? foundUser.images[0] : null) || foundUser.avatar || foundUser.image || null,
-        createdAt: foundUser.createdAt,
-        reviews: combinedReviews,
-      });
-      setListings(userListings);
-    } catch (err) {
-      console.error(err);
-      setUserProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDeleteUser = async (targetUserId: string) => {
     setIsDeleting(true);
@@ -101,15 +61,15 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       });
 
       const contentType = res.headers.get("content-type");
-      let data: any = {};
+      let resData: any = {};
       if (contentType && contentType.includes("application/json")) {
         const text = await res.text();
-        data = text ? JSON.parse(text) : {};
+        resData = text ? JSON.parse(text) : {};
       }
 
-      if (!res.ok) throw new Error(data.error || data.message || 'Failed to delete user');
+      if (!res.ok) throw new Error(resData.error || resData.message || 'Failed to delete user');
 
-      alert(data.message || 'User deleted successfully');
+      alert(resData.message || 'User deleted successfully');
       window.location.href = '/marketplace';
     } catch (err: any) {
       alert(err.message);
@@ -119,11 +79,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || isLoading) {
     return <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
   }
 
-  if (!userProfile) {
+  if (!foundUser || swrError) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
         <h2 className="text-2xl font-black text-slate-900 mb-2">User Not Found</h2>
@@ -135,6 +95,28 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  const isOwnProfile = loggedInUserId === foundUser.id;
+
+  // Combine author direct reviews + commercial listing reviews
+  const directReviews = foundUser.reviews || [];
+  const commercialReviews = userListings
+    .filter((item: any) => (item.type || '').toUpperCase() === 'COMMERCIAL')
+    .flatMap((item: any) => item.reviews || []);
+
+  const combinedReviews = [...directReviews, ...commercialReviews];
+
+  const userProfile = {
+    id: foundUser.id,
+    name: foundUser.name || 'Community Member',
+    churchName: foundUser.churchName || 'Grace Family Church',
+    city: foundUser.city || 'Bradenton',
+    state: foundUser.state || 'FL',
+    images: foundUser.images || [],
+    image: (foundUser.images && foundUser.images.length > 0 ? foundUser.images[0] : null) || foundUser.avatar || foundUser.image || null,
+    createdAt: foundUser.createdAt,
+    reviews: combinedReviews,
+  };
+
   const reviewsList = userProfile.reviews || [];
   const avgRating = reviewsList.length > 0 
     ? (reviewsList.reduce((acc: number, r: any) => acc + r.rating, 0) / reviewsList.length).toFixed(1)
@@ -145,7 +127,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     : 'March 2026';
 
   const profileUserId = userProfile.id;
-  const userAvatarImage = (userProfile.images && userProfile.images.length > 0 ? userProfile.images[0] : null) || userProfile.image || '';
+  const userAvatarImage = userProfile.image || '';
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
@@ -327,7 +309,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                     <FavoriteButton listingId={item.id} initialIsFavorited={isFavorited} />
                   </div>
 
-                  <Link href={`/listings/${item.id}`} className="block">
+                  <Link href={`/listings/${item.slug || item.id}`} className="block">
                     <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                       <img
                         src={itemPrimaryImage}

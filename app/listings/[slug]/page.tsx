@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import useSWR from 'swr';
 import FavoriteButton from '@/components/FavoriteButton';
 
 declare global {
@@ -12,6 +13,8 @@ declare global {
     google: any;
   }
 }
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 function formatListingTitle(title: string): string {
   if (!title) return '';
@@ -47,10 +50,20 @@ export default function ListingDetailPage() {
   const { data: session } = useSession();
   const basicTrainingPassed = (session?.user as any)?.basicTrainingPassed;
 
-  const [listing, setListing] = useState<any>(null);
-  const [reviews, setReviews] = useState<any[]>([]);
-  const [otherListings, setOtherListings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // SWR caches listing details in memory to prevent re-fetching on back/forward browser navigation
+  const { data, error: swrError, isLoading, mutate } = useSWR(
+    slug && slug !== 'null' && slug !== 'undefined' ? `/api/listings/${slug}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000,
+    }
+  );
+
+  const rawListing = data?.listing || data;
+  const listing = rawListing && rawListing.title ? { ...rawListing, title: formatListingTitle(rawListing.title) } : rawListing;
+  const reviews = listing?.reviews || [];
+
   const [error, setError] = useState('');
 
   // Active Image Index for Gallery Viewer
@@ -81,15 +94,6 @@ export default function ListingDetailPage() {
   const [editComment, setEditComment] = useState('');
 
   const [mapLoaded, setMapLoaded] = useState(false);
-
-  useEffect(() => {
-    if (slug && slug !== 'null' && slug !== 'undefined') {
-      fetchListingDetail();
-    } else {
-      setLoading(false);
-      setListing(null);
-    }
-  }, [slug]);
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -150,33 +154,14 @@ export default function ListingDetailPage() {
     }
   }, [mapLoaded, listing]);
 
-  const fetchListingDetail = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/listings/${slug}`);
-      if (!res.ok) throw new Error('Failed to fetch listing details');
-      const data = await res.json();
-      const listingData = data.listing || data;
-      
-      if (listingData.title) {
-        listingData.title = formatListingTitle(listingData.title);
-      }
+  const [otherListings, setOtherListings] = useState<any[]>([]);
 
-      setListing(listingData);
-      setReviews(listingData.reviews || []);
-      setActiveImageIndex(0);
-
-      const authorId = listingData.authorId || listingData.author?.id;
-      if (authorId) {
-        fetchOtherListings(authorId, listingData.slug);
-      }
-    } catch (err) {
-      console.error(err);
-      setListing(null);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const authorId = listing?.authorId || listing?.author?.id;
+    if (authorId && listing?.slug) {
+      fetchOtherListings(authorId, listing.slug);
     }
-  };
+  }, [listing]);
 
   const fetchOtherListings = async (authorId: string, currentSlug: string) => {
     try {
@@ -246,7 +231,7 @@ export default function ListingDetailPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to submit review.');
 
       setComment('');
-      fetchListingDetail();
+      mutate(); // Revalidate SWR cache
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -265,7 +250,7 @@ export default function ListingDetailPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to update review.');
 
       setEditingReviewId(null);
-      fetchListingDetail();
+      mutate(); // Revalidate SWR cache
     } catch (err: any) {
       alert(err.message);
     }
@@ -282,13 +267,13 @@ export default function ListingDetailPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to post reply.');
 
       setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
-      fetchListingDetail();
+      mutate(); // Revalidate SWR cache
     } catch (err: any) {
       alert(err.message);
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium text-lg">
         Loading listing details...
@@ -296,17 +281,24 @@ export default function ListingDetailPage() {
     );
   }
 
-  if (!listing) {
+  if (!listing || swrError) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
         <h1 className="text-2xl font-black text-slate-900 mb-2">Listing Not Found</h1>
         <p className="text-slate-600 text-sm mb-6">This listing may have been removed or is no longer available.</p>
-        <Link
-          href="/marketplace"
-          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md"
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              router.push('/marketplace');
+            }
+          }}
+          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md cursor-pointer"
         >
           Return to Marketplace
-        </Link>
+        </button>
       </div>
     );
   }
@@ -358,8 +350,26 @@ export default function ListingDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      <main className="w-full mx-auto px-4 pt-10 space-y-8" style={{ maxWidth: '750px' }}>
+      <main className="w-full mx-auto px-4 pt-6 space-y-8" style={{ maxWidth: '750px' }}>
         
+        {/* LISTING Header */}
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+          <h1 className="text-xs font-black uppercase tracking-widest text-slate-400">LISTING</h1>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                router.push('/marketplace');
+              }
+            }}
+            className="text-xs font-bold text-emerald-600 hover:underline cursor-pointer bg-transparent border-none p-0"
+          >
+            ← Back to Marketplace
+          </button>
+        </div>
+
         {isCommercial && (
           <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md flex items-center justify-around text-center">
             <div>
@@ -383,17 +393,17 @@ export default function ListingDetailPage() {
           isFeatured ? 'border-4 border-amber-400 shadow-md ring-2 ring-amber-200' : 'border border-slate-200'
         }`}>
           
-          {/* Main Image Gallery Viewer */}
+          {/* Main Image Gallery Viewer preserving aspect ratio without forced background */}
           {listingImages.length > 0 ? (
             <div className="space-y-3 p-4 bg-slate-50/50">
-              <div className="h-105 w-full bg-slate-100 relative overflow-hidden rounded-2xl border border-slate-200">
+              <div className="w-full bg-slate-100 relative overflow-hidden rounded-2xl border border-slate-200 flex items-center justify-center">
                 <img
                   src={currentActiveImage}
                   alt={listing.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-auto max-h-125 object-contain mx-auto"
                   onError={(e: any) => { e.target.style.display = 'none'; }}
                 />
-                <div className="absolute top-4 right-4 flex items-center gap-2">
+                <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
                   <span className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wide border shadow-sm ${
                     isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-white text-black border-slate-200'
                   }`}>
@@ -414,7 +424,7 @@ export default function ListingDetailPage() {
                       key={idx}
                       type="button"
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`h-16 bg-slate-100 border rounded-xl overflow-hidden cursor-pointer transition-all ${
+                      className={`h-16 bg-slate-100 border rounded-xl overflow-hidden cursor-pointer transition-all relative flex items-center justify-center ${
                         activeImageIndex === idx ? 'border-emerald-600 ring-2 ring-emerald-300 shadow-sm' : 'border-slate-200 opacity-75 hover:opacity-100'
                       }`}
                     >
@@ -433,14 +443,14 @@ export default function ListingDetailPage() {
             </div>
           )}
 
-          {/* Embedded Video Player for Commercial Listings (Placed under main image) */}
+          {/* Embedded Video Player for Commercial Listings preserving aspect ratio */}
           {isCommercial && listing.videoUrl && (
             <div className="px-4 pb-4">
-              <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-200 shadow-inner flex items-center justify-center">
+              <div className="w-full bg-black rounded-2xl overflow-hidden border border-slate-200 shadow-inner flex items-center justify-center">
                 <video 
                   src={listing.videoUrl} 
                   controls 
-                  className="w-full h-full object-contain"
+                  className="w-full h-auto max-h-125 object-contain mx-auto"
                 >
                   Your browser does not support the video tag.
                 </video>
@@ -882,7 +892,7 @@ export default function ListingDetailPage() {
                     className="group border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col"
                   >
                     {itemImg ? (
-                      <div className="h-40 w-full bg-slate-100 relative overflow-hidden">
+                      <div className="h-40 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                         <img
                           src={itemImg}
                           alt={item.title}

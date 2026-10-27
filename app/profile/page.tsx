@@ -5,7 +5,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import FavoriteButton from '@/components/FavoriteButton';
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 function formatPhoneNumber(value: string): string {
   const cleaned = value.replace(/\D/g, '').substring(0, 10);
@@ -20,10 +23,30 @@ export default function ProfilePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [profileData, setProfileData] = useState<any>(null);
-  const [userListings, setUserListings] = useState<any[]>([]);
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // SWR caches profile and taxonomy data in memory for instant navigation
+  const { data: profileDataJson, error: profileError, isLoading: profileLoading, mutate: mutateProfile } = useSWR(
+    status === 'authenticated' ? '/api/profile' : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60000 }
+  );
+
+  const { data: taxonomyDataJson } = useSWR(
+    status === 'authenticated' ? '/api/taxonomies' : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 300000 }
+  );
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  const profileData = profileDataJson?.user || profileDataJson;
+  const userListings = profileDataJson?.listings || [];
+  const favorites = profileDataJson?.favorites || [];
+  const taxonomy = Array.isArray(taxonomyDataJson) ? taxonomyDataJson : [];
+
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -48,7 +71,30 @@ export default function ProfilePage() {
     confirmPassword: '',
   });
 
-  const [taxonomy, setTaxonomy] = useState<any[]>([]);
+  // Sync formData when SWR profile data updates
+  useEffect(() => {
+    if (profileData) {
+      setFormData((prev) => ({
+        ...prev,
+        name: profileData.name || '',
+        email: profileData.email || '',
+        userPhone: profileData.userPhone || '',
+        address: profileData.address || '',
+        latitude: profileData.latitude !== null && profileData.latitude !== undefined ? String(profileData.latitude) : '',
+        longitude: profileData.longitude !== null && profileData.longitude !== undefined ? String(profileData.longitude) : '',
+        city: profileData.city || '',
+        state: profileData.state || 'FL',
+        churchName: profileData.churchName || '',
+        bio: profileData.bio || '',
+        avatar: profileData.avatar || '',
+      }));
+
+      if (profileData.address && profileData.latitude) {
+        setIsAddressValid(true);
+      }
+    }
+  }, [profileData]);
+
   const [isAddingCity, setIsAddingCity] = useState(false);
   const [newCity, setNewCity] = useState('');
   const [newState, setNewState] = useState('FL');
@@ -57,14 +103,6 @@ export default function ProfilePage() {
   const [newChurch, setNewChurch] = useState('');
 
   const addressInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    } else if (status === 'authenticated') {
-      fetchProfileAndTaxonomies();
-    }
-  }, [status]);
 
   // Initialize Google Places Autocomplete strictly
   useEffect(() => {
@@ -96,61 +134,6 @@ export default function ProfilePage() {
     });
   }, [isEditing]);
 
-  const fetchProfileAndTaxonomies = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const [profileRes, taxonomyRes] = await Promise.all([
-        fetch('/api/profile'),
-        fetch('/api/taxonomies'),
-      ]);
-
-      const profileJson = await profileRes.json();
-      const taxonomyData = await taxonomyRes.json();
-      
-      if (!profileRes.ok) throw new Error(profileJson.error || 'Failed to load profile details.');
-      
-      const currentUser = profileJson.user || profileJson;
-      const currentListings = profileJson.listings || [];
-      const currentFavorites = profileJson.favorites || [];
-
-      setProfileData(currentUser);
-      setUserListings(currentListings);
-      setFavorites(currentFavorites);
-      setTaxonomy(Array.isArray(taxonomyData) ? taxonomyData : []);
-      
-      const userCity = currentUser.city || '';
-      const userState = currentUser.state || 'FL';
-      const userChurch = currentUser.churchName || '';
-
-      setFormData({
-        name: currentUser.name || '',
-        email: currentUser.email || '',
-        userPhone: currentUser.userPhone || '',
-        address: currentUser.address || '',
-        latitude: currentUser.latitude !== null && currentUser.latitude !== undefined ? String(currentUser.latitude) : '',
-        longitude: currentUser.longitude !== null && currentUser.longitude !== undefined ? String(currentUser.longitude) : '',
-        city: userCity,
-        state: userState,
-        churchName: userChurch,
-        bio: currentUser.bio || '',
-        avatar: currentUser.avatar || '',
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
-
-      if (currentUser.address && currentUser.latitude) {
-        setIsAddressValid(true);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'userPhone') {
@@ -180,9 +163,9 @@ export default function ProfilePage() {
     const formattedCity = newCity.trim();
     const formattedState = newState.trim() || 'FL';
 
-    const existingIndex = taxonomy.findIndex((t) => t.city.toLowerCase() === formattedCity.toLowerCase());
+    const existingIndex = taxonomy.findIndex((t: any) => t.city.toLowerCase() === formattedCity.toLowerCase());
     if (existingIndex === -1) {
-      setTaxonomy([...taxonomy, { city: formattedCity, state: formattedState, churches: [] }]);
+      taxonomy.push({ city: formattedCity, state: formattedState, churches: [] });
     }
 
     setFormData((prev) => ({ ...prev, city: formattedCity, state: formattedState, churchName: '' }));
@@ -194,15 +177,14 @@ export default function ProfilePage() {
     if (!newChurch.trim()) return;
     const formattedChurch = newChurch.trim();
 
-    setTaxonomy(
-      taxonomy.map((t) => {
-        if (t.city.toLowerCase() === formData.city.toLowerCase()) {
-          const churchExists = t.churches.some((c: string) => c.toLowerCase() === formattedChurch.toLowerCase());
-          return churchExists ? t : { ...t, churches: [...t.churches, formattedChurch] };
+    taxonomy.forEach((t: any) => {
+      if (t.city.toLowerCase() === formData.city.toLowerCase()) {
+        const churchExists = t.churches.some((c: string) => c.toLowerCase() === formattedChurch.toLowerCase());
+        if (!churchExists) {
+          t.churches.push(formattedChurch);
         }
-        return t;
-      })
-    );
+      }
+    });
 
     setFormData((prev) => ({ ...prev, churchName: formattedChurch }));
     setNewChurch('');
@@ -279,11 +261,9 @@ export default function ProfilePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update profile.');
 
-      setProfileData(data.user || data);
+      mutateProfile(); // Revalidate SWR cache
       setIsEditing(false);
       setSuccessMessage('Profile updated successfully!');
-      
-      window.location.reload();
     } catch (err: any) {
       setError(err.message);
     }
@@ -295,17 +275,17 @@ export default function ProfilePage() {
     try {
       const res = await fetch(`/api/listings/${listingId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete listing.');
-      setUserListings(userListings.filter((item) => item.id !== listingId));
+      mutateProfile(); // Revalidate SWR cache
       setSuccessMessage('Listing deleted successfully.');
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  const currentCityTaxonomy = taxonomy.find((t) => t.city.toLowerCase() === (formData.city || '').toLowerCase());
+  const currentCityTaxonomy = taxonomy.find((t: any) => t.city.toLowerCase() === (formData.city || '').toLowerCase());
   const availableChurches = currentCityTaxonomy ? currentCityTaxonomy.churches : [];
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || profileLoading) {
     return <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-sm">Loading profile...</div>;
   }
 
@@ -461,7 +441,7 @@ export default function ProfilePage() {
                         className="w-full border border-slate-200 rounded-xl p-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer"
                       >
                         <option value="">Select City, State</option>
-                        {taxonomy.map((item) => (
+                        {taxonomy.map((item: any) => (
                           <option key={`${item.city}|${item.state}`} value={`${item.city}|${item.state}`}>
                             {item.city}, {item.state}
                           </option>
@@ -629,8 +609,8 @@ export default function ProfilePage() {
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center overflow-hidden shrink-0">
                             {((targetUser.images && targetUser.images.length > 0 ? targetUser.images[0] : null) || targetUser.avatar || targetUser.image || '') ? (
-    <img src={(targetUser.images && targetUser.images.length > 0 ? targetUser.images[0] : null) || targetUser.avatar || targetUser.image || ''} alt={targetUser.name} className="w-full h-full object-cover" />
-  ) : (
+                              <img src={(targetUser.images && targetUser.images.length > 0 ? targetUser.images[0] : null) || targetUser.avatar || targetUser.image || ''} alt={targetUser.name} className="w-full h-full object-cover" />
+                            ) : (
                               targetUser.name?.charAt(0) || 'U'
                             )}
                           </div>
@@ -672,10 +652,10 @@ export default function ProfilePage() {
                     <Link href={`/listings/${listingSlug}`} className="block">
                       <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                         <img 
-    src={(listing.images && listing.images.length > 0 ? listing.images[0] : null) || listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
-    alt={listing.title} 
-    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-  />
+                          src={(listing.images && listing.images.length > 0 ? listing.images[0] : null) || listing.imageUrl || listing.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+                          alt={listing.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                        />
                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 items-center">
                           <span className={`px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
                             isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'
@@ -752,13 +732,13 @@ export default function ProfilePage() {
                     <Link href={`/listings/${listingSlug}`} className="block">
                       <div className="h-52 w-full bg-slate-100 relative overflow-hidden flex items-center justify-center">
                         <img 
-    src={(item.images && item.images.length > 0 ? item.images[0] : null) || item.imageUrl || item.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
-    alt={item.title} 
-    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-    onError={(e: any) => { 
-      e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
-    }}
-  />
+                          src={(item.images && item.images.length > 0 ? item.images[0] : null) || item.imageUrl || item.image || 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'} 
+                          alt={item.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                          onError={(e: any) => { 
+                            e.target.src = 'https://placehold.co/600x400/f1f5f9/64748b?text=No+Image+Available'; 
+                          }}
+                        />
                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 items-center">
                           <span className={`px-3 py-1 rounded text-xs font-normal uppercase tracking-wide border shadow-sm ${
                             isCommercial ? 'bg-sky-100 text-blue-800 border-sky-300' : 'bg-slate-100 text-black border-slate-200'

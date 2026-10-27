@@ -392,7 +392,7 @@ export default function NewListingPage() {
       if (audioCtx && audioCtx.state !== 'closed') {
         audioCtx.close();
       }
-      setError(err.message || 'Error compressing or uploading video to GCS.');
+      setError(err.message || 'Error uploading video to GCS.');
     } finally {
       setUploadingVideo(false);
     }
@@ -685,7 +685,7 @@ export default function NewListingPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>Compressing & Uploading video to GCS... (this may take a minute for large files)</span>
+                        <span>Uploading video... (this may take a minute for large files)</span>
                       </div>
                     ) : (
                       <span className="text-slate-600">📁 Click to upload & compress video file (max 500MB)</span>
@@ -743,7 +743,7 @@ export default function NewListingPage() {
               )}
             </div>
 
-            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Compressing & uploading image(s) under 15MB limit...</p>}
+            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Uploading image(s) under 15MB limit...</p>}
           </div>
 
           <div>
@@ -772,7 +772,7 @@ export default function NewListingPage() {
               disabled={submitting || uploadingImage || uploadingVideo}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
-              {submitting ? 'Creating Listing...' : uploadingVideo ? 'Compressing & Uploading Video...' : 'Publish Listing'}
+              {submitting ? 'Creating Listing...' : uploadingVideo ? 'Uploading Video...' : 'Publish Listing'}
             </button>
           </div>
         </form>

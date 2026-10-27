@@ -1,10 +1,13 @@
 // app/members/page.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 // Haversine formula to calculate distance in miles between two coordinate pairs
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -72,9 +75,12 @@ export default function MembersPage() {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  const [members, setMembers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  // SWR caches members data in memory for instant navigation
+  const { data: dataJson, error: swrError, isLoading } = useSWR(
+    '/api/users',
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60000 }
+  );
   
   // Filter & Sort States
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,80 +88,61 @@ export default function MembersPage() {
   const [maxRadius, setMaxRadius] = useState('25');
   const [sortBy, setSortBy] = useState('date_desc');
 
-  useEffect(() => {
-    fetchMembers();
-  }, [session]);
+  const users = Array.isArray(dataJson) ? dataJson : (dataJson?.users || []);
 
-  const fetchMembers = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const res = await fetch('/api/users');
-      if (!res.ok) throw new Error('Failed to fetch members data');
-      const data = await res.json();
-      
-      const users = Array.isArray(data) ? data : (data.users || []);
+  // Find logged-in user session match
+  const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
+  const currentDbUser = currentUserEmail 
+    ? users.find((u: any) => u.email?.toLowerCase()?.trim() === currentUserEmail)
+    : null;
 
-      // Find logged-in user session match
-      const currentUserEmail = session?.user?.email?.toLowerCase()?.trim();
-      const currentDbUser = currentUserEmail 
-        ? users.find((u: any) => u.email?.toLowerCase()?.trim() === currentUserEmail)
-        : null;
+  // Determine center reference coordinates (Logged-in user -> Fallback city -> Default region center)
+  const userCoords = currentDbUser ? getCoordsForUser(currentDbUser) : null;
+  const referenceCoords = userCoords || (users.length > 0 ? getCoordsForUser(users[0]) : null) || { lat: 27.4984, lng: -82.5647 };
 
-      // Determine center reference coordinates (Logged-in user -> Fallback city -> Default region center)
-      const userCoords = currentDbUser ? getCoordsForUser(currentDbUser) : null;
-      const referenceCoords = userCoords || (users.length > 0 ? getCoordsForUser(users[0]) : null) || { lat: 27.4984, lng: -82.5647 };
+  const members = useMemo(() => {
+    return users.map((user: any) => {
+      let computedDistance = 0;
+      const targetCoords = getCoordsForUser(user);
 
-      const mappedMembers = users.map((user: any) => {
-        let computedDistance = 0;
-        const targetCoords = getCoordsForUser(user);
+      if (referenceCoords && targetCoords) {
+        computedDistance = calculateDistance(
+          referenceCoords.lat,
+          referenceCoords.lng,
+          targetCoords.lat,
+          targetCoords.lng
+        );
+      }
 
-        if (referenceCoords && targetCoords) {
-          computedDistance = calculateDistance(
-            referenceCoords.lat,
-            referenceCoords.lng,
-            targetCoords.lat,
-            targetCoords.lng
-          );
-        }
-
-        return {
-          ...user,
-          name: user.name || 'Community Member',
-          city: user.city || '',
-          churchName: user.churchName || user.church || '',
-          createdAt: user.createdAt || Date.now(),
-          distance: computedDistance,
-          reviews: user.reviews || [],
-          image: (user.images && user.images.length > 0) ? user.images[0] : (user.avatar || user.image || user.avatarUrl || ''),
-          bio: user.bio || 'Community participant and member.',
-        };
-      });
-
-      setMembers(mappedMembers);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Failed to load members.');
-      setMembers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        ...user,
+        name: user.name || 'Community Member',
+        city: user.city || '',
+        churchName: user.churchName || user.church || '',
+        createdAt: user.createdAt || Date.now(),
+        distance: computedDistance,
+        reviews: user.reviews || [],
+        image: (user.images && user.images.length > 0) ? user.images[0] : (user.avatar || user.image || user.avatarUrl || ''),
+        bio: user.bio || 'Community participant and member.',
+      };
+    });
+  }, [users, referenceCoords]);
 
   // Dynamically build unique City > Church options sorted alphabetically
-  const uniqueHierarchies = Array.from(
-    new Set(
-      members.map((user) => {
-        const { city, church, hierarchyString } = getMemberHierarchy(user);
-        return (user.city || user.churchName || user.church) ? hierarchyString : null;
-      }).filter(Boolean)
-    )
-  ).sort((a: any, b: any) => a.localeCompare(b));
+  const uniqueHierarchies = useMemo(() => {
+    return Array.from(
+      new Set(
+        members.map((user: any) => {
+          const { city, church, hierarchyString } = getMemberHierarchy(user);
+          return (user.city || user.churchName || user.church) ? hierarchyString : null;
+        }).filter(Boolean)
+      )
+    ).sort((a: any, b: any) => a.localeCompare(b));
+  }, [members]);
 
   // Filter and Sort Logic
   const filteredAndSortedMembers = useMemo(() => {
-    let result = members.filter((user) => {
+    let result = members.filter((user: any) => {
       const displayName = user.name || '';
       const displayCity = user.city || '';
       const displayChurch = user.churchName || '';
@@ -175,7 +162,7 @@ export default function MembersPage() {
     });
 
     // Sorting logic
-    result.sort((a, b) => {
+    result.sort((a: any, b: any) => {
       switch (sortBy) {
         case 'date_desc':
           return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
@@ -196,13 +183,15 @@ export default function MembersPage() {
     return result;
   }, [members, searchTerm, selectedHierarchy, maxRadius, sortBy]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center text-slate-500 font-medium text-lg">
         Loading members...
       </div>
     );
   }
+
+  const error = swrError ? (swrError.message || 'Failed to load members.') : '';
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
