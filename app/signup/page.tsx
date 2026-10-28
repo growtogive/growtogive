@@ -297,7 +297,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-1 space-y-4 px-[10px] sm:px-6 max-w-xl mx-auto">
+      <main className="w-full pt-1 space-y-4 px-2.5 sm:px-6 max-w-xl mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
           <div className="space-y-0.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-500">
