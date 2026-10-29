@@ -297,8 +297,14 @@ export default function NewListingPage() {
           audioCtx = new AudioContextClass();
           const sourceNode = audioCtx.createMediaElementSource(videoElement);
           const destinationNode = audioCtx.createMediaStreamDestination();
+          
+          // Create GainNode and mute local speakers while recording stream
+          const gainNode = audioCtx.createGain();
+          gainNode.gain.value = 0;
+
           sourceNode.connect(destinationNode);
-          sourceNode.connect(audioCtx.destination);
+          sourceNode.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
 
           destinationNode.stream.getAudioTracks().forEach((track) => {
             mergedStream.addTrack(track);
@@ -378,7 +384,7 @@ export default function NewListingPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to upload compressed video to Google Cloud Storage.');
+        throw new Error(errData.error || 'Failed to upload video.');
       }
 
       const data = await res.json();
@@ -392,7 +398,7 @@ export default function NewListingPage() {
       if (audioCtx && audioCtx.state !== 'closed') {
         audioCtx.close();
       }
-      setError(err.message || 'Error uploading video to GCS.');
+      setError(err.message || 'Error uploading video.');
     } finally {
       setUploadingVideo(false);
     }
@@ -698,7 +704,7 @@ export default function NewListingPage() {
                       className="hidden"
                     />
                   </label>
-                  <p className="text-[11px] text-slate-500 mt-1.5">Upload an MP4 or video file to showcase your commercial storefront.</p>
+                  <p className="text-[11px] text-slate-500 mt-1.5">Upload video.</p>
                 </div>
               )}
             </div>

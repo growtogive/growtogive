@@ -243,7 +243,7 @@ export default function EditListingPage() {
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to upload image to Google Cloud Storage.');
+          throw new Error(errData.error || 'Failed to upload image.');
         }
 
         const data = await res.json();
@@ -263,7 +263,7 @@ export default function EditListingPage() {
         };
       });
     } catch (err: any) {
-      setError(err.message || 'Error uploading image(s) to GCS.');
+      setError(err.message || 'Error uploading image(s).');
     } finally {
       setUploadingImage(false);
     }
@@ -287,7 +287,7 @@ export default function EditListingPage() {
       const videoElement = document.createElement('video');
       videoElement.preload = 'metadata';
       videoElement.src = URL.createObjectURL(file);
-      videoElement.muted = false; // Must be unmuted to capture audio via Web Audio API
+      videoElement.muted = false;
       videoElement.playsInline = true;
 
       await new Promise((resolve, reject) => {
@@ -307,22 +307,25 @@ export default function EditListingPage() {
 
       if (!ctx) throw new Error('Could not initialize video compression canvas.');
 
-      // Capture video stream from canvas
       const videoStream = canvas.captureStream(30);
       const mergedStream = new MediaStream();
 
-      // Add video track
       videoStream.getVideoTracks().forEach((track) => mergedStream.addTrack(track));
 
-      // Capture and attach audio track using Web Audio API if audio exists
       try {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioContextClass) {
           audioCtx = new AudioContextClass();
           const sourceNode = audioCtx.createMediaElementSource(videoElement);
           const destinationNode = audioCtx.createMediaStreamDestination();
+          
+          // Create a GainNode and mute its output so the audio isn't heard through speakers while processing
+          const gainNode = audioCtx.createGain();
+          gainNode.gain.value = 0;
+
           sourceNode.connect(destinationNode);
-          sourceNode.connect(audioCtx.destination); // Optional: keep audible or mute via gain
+          sourceNode.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
 
           destinationNode.stream.getAudioTracks().forEach((track) => {
             mergedStream.addTrack(track);
@@ -360,7 +363,6 @@ export default function EditListingPage() {
         };
       });
 
-      // Resume audio context if suspended (browser autoplay policies)
       if (audioCtx && audioCtx.state === 'suspended') {
         await audioCtx.resume();
       }
@@ -403,7 +405,7 @@ export default function EditListingPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to upload compressed video to Google Cloud Storage.');
+        throw new Error(errData.error || 'Failed to upload video.');
       }
 
       const data = await res.json();
@@ -417,7 +419,7 @@ export default function EditListingPage() {
       if (audioCtx && audioCtx.state !== 'closed') {
         audioCtx.close();
       }
-      setError(err.message || 'Error uploading video to GCS.');
+      setError(err.message || 'Error uploading video.');
     } finally {
       setUploadingVideo(false);
     }
@@ -782,10 +784,10 @@ export default function EditListingPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>Uploading video to GCS... (this may take a minute for large files)</span>
+                        <span>Uploading video... (this may take a minute for large files)</span>
                       </div>
                     ) : (
-                      <span className="text-slate-600">📁 Click to upload & compress video file (max 500MB)</span>
+                      <span className="text-slate-600">📁 Click to upload video. (max 500MB)</span>
                     )}
                     <input
                       type="file"
@@ -795,7 +797,7 @@ export default function EditListingPage() {
                       className="hidden"
                     />
                   </label>
-                  <p className="text-[11px] text-slate-500 mt-1.5">Upload an MP4 or video file to showcase your commercial storefront.</p>
+                  <p className="text-[11px] text-slate-500 mt-1.5">Upload video.</p>
                 </div>
               )}
             </div>
@@ -836,7 +838,7 @@ export default function EditListingPage() {
               )}
             </div>
 
-            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Uploading image(s) to GCS (max 15MB)...</p>}
+            {uploadingImage && <p className="text-xs text-emerald-600 mt-1">Uploading image(s) (max 15MB)...</p>}
           </div>
 
           <div>

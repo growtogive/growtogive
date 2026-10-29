@@ -76,16 +76,16 @@ export default function Navbar() {
 
   return (
     <nav className="w-full bg-white shadow-xs border-b border-blue-500 mb-3 sticky top-0 z-50">
-      <div className="w-full px-4 sm:px-6 py-2 flex flex-wrap justify-between items-center gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex flex-wrap justify-center items-center gap-2 sm:gap-3">
         
-        {/* Logo with corrected root path */}
+        {/* Logo */}
         <Link href="/" className="flex items-center group shrink-0">
-          <div className="w-[70px] h-[70px] relative overflow-hidden flex items-center justify-center">
+          <div className="w-14 h-14 sm:w-17.5 sm:h-17.5 relative overflow-hidden flex items-center justify-center">
             <Image
               src="/logo.png"
               alt="GrowToGive Logo"
-              width={70}
-              height={70}
+              width={60}
+              height={60}
               className="object-cover group-hover:scale-105 transition-transform"
               priority
               unoptimized
@@ -93,159 +93,155 @@ export default function Navbar() {
           </div>
         </Link>
 
-        {/* Navigation Actions */}
-        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-          
-          {status === 'loading' ? (
-            <span className="text-gray-400 text-sm">Loading...</span>
-          ) : session ? (
-            <>
-              {/* Share Referral Link Button (Icon Only) */}
-              {userId && (
-                <button
-                  onClick={handleShare}
-                  className="flex items-center justify-center p-2.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors border border-emerald-200 cursor-pointer"
-                  title="Copy your referral link"
-                >
-                  {copied ? (
-                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                    </svg>
-                  )}
-                </button>
-              )}
-
-              {/* NEW + Button */}
-              <Link
-                href="/listings/new"
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-md text-xs transition-all shadow-xs whitespace-nowrap"
-              >
-                + NEW
-              </Link>
-
-              {/* Marketplace Link */}
-              <Link
-                href="/marketplace"
-                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
-                  pathname?.startsWith('/marketplace') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
-                }`}
-              >
-                <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
-                  Marketplace
-                </span>
-              </Link>
-
-              {/* Members Link */}
-              <Link
-                href="/members"
-                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
-                  pathname?.startsWith('/members') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
-                }`}
-              >
-                <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
-                  Members
-                </span>
-              </Link>
-
-              {/* Messages Link with Notification Badge */}
-              <Link
-                href="/messages"
-                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
-                  pathname?.startsWith('/messages') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
-                }`}
-              >
-                <div className="relative">
-                  <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] font-black w-4 h-4 flex items-center justify-center rounded-full shadow-sm">
-                      {unreadCount}
-                    </span>
-                  )}
-                </div>
-                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
-                  Messages {unreadCount > 0 && `(${unreadCount})`}
-                </span>
-              </Link>
-
-              {/* Profile Link */}
-              <Link
-                href="/profile"
-                className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
-                  pathname?.startsWith('/profile') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
-                }`}
-              >
-                <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
-                  Profile
-                </span>
-              </Link>
-              
-              {/* Admin Dashboard */}
-              {userRole === 'admin' && (
-                <Link
-                  href="/admin/dashboard"
-                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all ${
-                    pathname?.startsWith('/admin') ? 'bg-slate-200 text-blue-700 font-semibold border-b-2 border-slate-900' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-blue-600 hover:border-b-2 hover:border-slate-900'
-                  }`}
-                >
-                  <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
-                    Admin
-                  </span>
-                </Link>
-              )}
-
-              {/* Sign Out */}
+        {status === 'loading' ? (
+          <span className="text-gray-400 text-sm">Loading...</span>
+        ) : session ? (
+          <>
+            {/* Share Referral Link Button */}
+            {userId && (
               <button
-                onClick={() =>
-                  signOut({
-                    callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://growtogive.com'}/login`,
-                  })
-                }
-                className="group relative flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-rose-600 hover:border-b-2 hover:border-slate-900 transition-all cursor-pointer"
-                title="Sign Out"
+                onClick={handleShare}
+                className="flex flex-col items-center justify-center px-3 py-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors border border-emerald-200 cursor-pointer"
+                title="Copy your referral link"
+              >
+                {copied ? (
+                  <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                )}
+                <span className="text-[10px] font-medium leading-tight mt-0.5">Share</span>
+              </button>
+            )}
+
+            {/* NEW + Button */}
+            <Link
+              href="/listings/new"
+              className="flex flex-col items-center justify-center px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-md transition-all shadow-xs whitespace-nowrap"
+            >
+              <span className="text-sm leading-none font-black">+</span>
+              <span className="text-[10px] font-medium leading-tight mt-1">New</span>
+            </Link>
+
+            {/* Marketplace Link */}
+            <Link
+              href="/marketplace"
+              className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-all ${
+                pathname?.startsWith('/marketplace')
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 font-semibold'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-blue-600 border border-transparent'
+              }`}
+            >
+              <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              <span className="text-[10px] font-medium leading-tight mt-0.5">Marketplace</span>
+            </Link>
+
+            {/* Members Link */}
+            <Link
+              href="/members"
+              className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-all ${
+                pathname?.startsWith('/members')
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 font-semibold'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-blue-600 border border-transparent'
+              }`}
+            >
+              <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="text-[10px] font-medium leading-tight mt-0.5">Members</span>
+            </Link>
+
+            {/* Messages Link with Notification Badge */}
+            <Link
+              href="/messages"
+              className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-all ${
+                pathname?.startsWith('/messages')
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 font-semibold'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-blue-600 border border-transparent'
+              }`}
+            >
+              <div className="relative">
+                <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 bg-rose-500 text-white text-[9px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full shadow-xs">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-medium leading-tight mt-0.5">Messages</span>
+            </Link>
+
+            {/* Profile Link */}
+            <Link
+              href="/profile"
+              className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-all ${
+                pathname?.startsWith('/profile')
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 font-semibold'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-blue-600 border border-transparent'
+              }`}
+            >
+              <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="text-[10px] font-medium leading-tight mt-0.5">Profile</span>
+            </Link>
+            
+            {/* Admin Dashboard */}
+            {userRole === 'admin' && (
+              <Link
+                href="/admin/dashboard"
+                className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-md transition-all ${
+                  pathname?.startsWith('/admin')
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200 font-semibold'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-blue-600 border border-transparent'
+                }`}
               >
                 <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-semibold">
-                  Logout
-                </span>
-              </button>
-            </>
-          ) : (
-            <div className="flex items-center gap-3">
-              <Link
-                href="/login"
-                className="px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:border-b-2 hover:border-slate-900 rounded-md transition-colors"
-              >
-                Sign In
+                <span className="text-[10px] font-medium leading-tight mt-0.5">Admin</span>
               </Link>
-              <Link
-                href="/signup"
-                className="px-3.5 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors shadow-xs"
-              >
-                Sign Up
-              </Link>
-            </div>
-          )}
-        </div>
+            )}
+
+            {/* Sign Out */}
+            <button
+              onClick={() =>
+                signOut({
+                  callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://growtogive.com'}/login`,
+                })
+              }
+              className="flex flex-col items-center justify-center px-3 py-1.5 rounded-md bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-rose-600 border border-transparent transition-all cursor-pointer"
+              title="Sign Out"
+            >
+              <svg className="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="text-[10px] font-medium leading-tight mt-0.5">Logout</span>
+            </button>
+          </>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 hover:border-b-2 hover:border-slate-900 rounded-md transition-colors"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/signup"
+              className="px-3.5 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors shadow-xs"
+            >
+              Sign Up
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Restriction Modal Popup */}

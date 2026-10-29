@@ -1,7 +1,7 @@
 // app/listings/[slug]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -94,6 +94,8 @@ export default function ListingDetailPage() {
   const [editComment, setEditComment] = useState('');
 
   const [mapLoaded, setMapLoaded] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -119,7 +121,7 @@ export default function ListingDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (!mapLoaded || !listing) return;
+    if (!mapLoaded || !listing || !mapRef.current) return;
 
     const isCommercial = listing.type === 'COMMERCIAL' || listing.isCommercial;
     const lat = isCommercial ? listing.latitude : (listing.latitude || listing.author?.latitude);
@@ -135,24 +137,28 @@ export default function ListingDetailPage() {
         pinLng = jittered.lng;
       }
 
-      const mapElement = document.getElementById('listing-google-map');
-      if (mapElement && (window as any).google) {
-        const map = new (window as any).google.maps.Map(mapElement, {
-          center: { lat: pinLat, lng: pinLng },
-          zoom: 14,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-        });
+      if ((window as any).google && (window as any).google.maps) {
+        if (!mapInstanceRef.current) {
+          mapInstanceRef.current = new (window as any).google.maps.Map(mapRef.current, {
+            center: { lat: pinLat, lng: pinLng },
+            zoom: 14,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+          });
 
-        new (window as any).google.maps.Marker({
-          position: { lat: pinLat, lng: pinLng },
-          map: map,
-          title: isCommercial ? listing.title : 'Approximate Location',
-        });
+          new (window as any).google.maps.Marker({
+            position: { lat: pinLat, lng: pinLng },
+            map: mapInstanceRef.current,
+            title: isCommercial ? listing.title : 'Approximate Location',
+          });
+        } else {
+          // Update center if listing data changes without remounting the map DOM node
+          mapInstanceRef.current.setCenter({ lat: pinLat, lng: pinLng });
+        }
       }
     }
-  }, [mapLoaded, listing]);
+  }, [mapLoaded, listing?.latitude, listing?.longitude]);
 
   const [otherListings, setOtherListings] = useState<any[]>([]);
 
@@ -342,7 +348,6 @@ export default function ListingDetailPage() {
   const storefrontAddress = listing.location || '';
   const googleMapsSearchUrl = storefrontAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storefrontAddress)}` : '#';
 
-  // Fallback check: Map over listing.images, or fallback to listing.imageUrl
   const listingImages = (listing.images && listing.images.length > 0) ? listing.images : (listing.imageUrl ? [listing.imageUrl] : []);
   const currentActiveImage = listingImages[activeImageIndex] || listingImages[0];
 
@@ -638,7 +643,7 @@ export default function ListingDetailPage() {
                   {isCommercial ? 'Exact address pin' : 'Shifted slightly for author privacy'}
                 </span>
               </div>
-              <div id="listing-google-map" className="w-full h-72 rounded-2xl border border-slate-200 bg-slate-200 shadow-inner"></div>
+              <div ref={mapRef} className="w-full h-72 rounded-2xl border border-slate-200 bg-slate-200 shadow-inner"></div>
             </div>
           ) : (
             <div className="border-t border-slate-200 p-6 bg-slate-50 text-center text-xs text-slate-400">

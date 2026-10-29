@@ -121,17 +121,15 @@ export default function ChristmasAdminPage() {
   };
 
   const getFamilyTags = (app: any, appIndex: number) => {
-    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const familyLetter = alphabet[appIndex % alphabet.length] || `A${appIndex}`;
-    
-    let tagCounter = 1;
+    const familyNumber = appIndex + 1;
     const tags: any[] = [];
 
     if (app.kids && Array.isArray(app.kids)) {
-      app.kids.forEach((kid: any) => {
+      app.kids.forEach((kid: any, kidIndex: number) => {
+        const childNumber = kidIndex + 1;
         if (kid.giftOne) {
           tags.push({
-            tagId: `${familyLetter}-${tagCounter++}`,
+            tagId: `${familyNumber}-${childNumber}A`,
             kid,
             giftText: kid.giftOne,
             giftNumber: 1,
@@ -139,7 +137,7 @@ export default function ChristmasAdminPage() {
         }
         if (kid.giftTwo) {
           tags.push({
-            tagId: `${familyLetter}-${tagCounter++}`,
+            tagId: `${familyNumber}-${childNumber}B`,
             kid,
             giftText: kid.giftTwo,
             giftNumber: 2,
@@ -148,7 +146,7 @@ export default function ChristmasAdminPage() {
       });
     }
 
-    return { familyLetter, tags };
+    return { familyNumber, tags };
   };
 
   const getKidGiftStatus = (kid: any, giftNumber: number) => {
@@ -210,8 +208,8 @@ export default function ChristmasAdminPage() {
               background: #fff;
             }
             .page {
-              width: 7.5in; /* 8.5in - 2 * 0.5in margin */
-              height: 10.0in; /* 11in - 2 * 0.5in margin */
+              width: 7.5in;
+              height: 10.0in;
               box-sizing: border-box;
               page-break-after: always;
               display: flex;
@@ -228,7 +226,6 @@ export default function ChristmasAdminPage() {
               align-content: center;
               width: 100%;
             }
-            // AFTER:
             .tag-card {
               width: 3.5in;
               height: 3.1in;
@@ -272,7 +269,7 @@ export default function ChristmasAdminPage() {
         </div>
         <div class="tag-body">
           <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 12px;">
-            <span style="color: #dc2626;">Tag ID: #${tagIdCode}</span>
+            <span style="color: #dc2626;">Tag ID: ${tagIdCode}</span>
             <span>Age: ${kid.age} (${kid.gender})</span>
           </div>
           <p style="margin: 0 0 10px 0;"><strong>Child Name:</strong> ${kid.name}</p>
@@ -368,7 +365,7 @@ export default function ChristmasAdminPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Tag ID, Child Name, or Family..."
+              placeholder="Search by Tag ID (e.g. 11-5A), Child Name, or Family..."
               className="w-full px-3 py-2 pr-14 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
             />
             <span className="absolute right-2.5 bg-sky-100 text-sky-800 text-xs font-bold px-2 py-0.5 rounded-md pointer-events-none">
@@ -424,7 +421,7 @@ export default function ChristmasAdminPage() {
               <p className="p-6 text-center text-gray-400">No applications submitted yet.</p>
             ) : (
               applications.map((app, appIndex) => {
-                const { familyLetter, tags } = getFamilyTags(app, appIndex);
+                const { familyNumber, tags } = getFamilyTags(app, appIndex);
 
                 const filteredTags = tags.filter((tag) => {
                   const currentStatus = getKidGiftStatus(tag.kid, tag.giftNumber);
@@ -455,7 +452,7 @@ export default function ChristmasAdminPage() {
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="text-base font-bold text-gray-900">
-                          Family {familyLetter}: {app.momName}
+                          Family {familyNumber}: {app.momName}
                         </h3>
                         <p className="text-xs text-gray-500">Phone: {app.phone} | Email: {app.email || "N/A"}</p>
                         <p className="text-xs text-blue-600 font-semibold mt-1">🤝 Referred By: {app.referredBy}</p>
@@ -490,7 +487,7 @@ export default function ChristmasAdminPage() {
                           <div key={`${tag.kid.id}-${tag.giftNumber}`} className="bg-white p-4 rounded-lg border shadow-xs space-y-3 relative border-l-4 border-l-red-600">
                             <div className="flex justify-between items-center border-b pb-2">
                               <span className="bg-red-600 text-white font-extrabold text-xs px-2 py-0.5 rounded">
-                                Tag ID: #{tag.tagId}
+                                Tag ID: {tag.tagId}
                               </span>
                               <span className="text-xs font-semibold text-gray-600">{tag.kid.gender} Age {tag.kid.age}</span>
                             </div>

@@ -1,7 +1,7 @@
 // app/marketplace/page.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -47,17 +47,64 @@ export default function MarketplacePage() {
   const [maxRadius, setMaxRadius] = useState('25');
   const [sortBy, setSortBy] = useState('date_desc');
 
-  // Dynamically build unique City > Church options sorted alphabetically from authors
-  const uniqueHierarchies = useMemo(() => Array.from(
-    new Set(
-      listings.map((item: any) => {
-        const { city, church } = getAuthorHierarchy(item);
-        return (item.author?.city || item.author?.churchName || item.author?.church) 
-          ? `${city} > ${church}` 
-          : null;
-      }).filter(Boolean)
-    )
-  ).sort((a: any, b: any) => a.localeCompare(b)), [listings]);
+  // Autocomplete dropdown state for City / Church filter
+  const [hierarchySearchInput, setHierarchySearchInput] = useState('');
+  const [isHierarchyDropdownOpen, setIsHierarchyDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsHierarchyDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Dynamically build grouped & sorted options: City, then City > Church 1, City > Church 2, etc.
+  const groupedHierarchyOptions = useMemo(() => {
+    const citiesMap = new Map<string, Set<string>>();
+
+    listings.forEach((item: any) => {
+      const { city, church } = getAuthorHierarchy(item);
+      if (item.author?.city || item.author?.churchName || item.author?.church) {
+        if (city && city !== 'General City') {
+          if (!citiesMap.has(city)) {
+            citiesMap.set(city, new Set());
+          }
+          if (church && church !== 'General Church') {
+            citiesMap.get(city)?.add(church);
+          }
+        }
+      }
+    });
+
+    const sortedCities = Array.from(citiesMap.keys()).sort((a, b) => a.localeCompare(b));
+    const list: { label: string; value: string; type: 'city' | 'hierarchy' }[] = [];
+
+    sortedCities.forEach((city) => {
+      // Add City Only option
+      list.push({ label: `${city} (All)`, value: city, type: 'city' });
+
+      // Add sorted Churches under this city
+      const churches = Array.from(citiesMap.get(city) || []).sort((a, b) => a.localeCompare(b));
+      churches.forEach((church) => {
+        const hierStr = `${city} > ${church}`;
+        list.push({ label: hierStr, value: hierStr, type: 'hierarchy' });
+      });
+    });
+
+    return list;
+  }, [listings]);
+
+  // Filtered list based on user typing in the autocomplete box
+  const filteredHierarchyOptions = useMemo(() => {
+    if (!hierarchySearchInput.trim()) return groupedHierarchyOptions;
+    const query = hierarchySearchInput.toLowerCase();
+    return groupedHierarchyOptions.filter((opt) => opt.label.toLowerCase().includes(query));
+  }, [groupedHierarchyOptions, hierarchySearchInput]);
 
   const toggleType = (type: string) => {
     if (selectedTypes.includes(type)) {
@@ -84,7 +131,11 @@ export default function MarketplacePage() {
       const matchesCategory = selectedCategory === 'ALL' || item.category?.toUpperCase() === selectedCategory.toUpperCase();
       
       const { city: displayCity, hierarchyString: itemHierarchy } = getAuthorHierarchy(item);
-      const matchesHierarchy = selectedHierarchy === 'ALL' || itemHierarchy === selectedHierarchy || displayCity === selectedHierarchy;
+      
+      const matchesHierarchy = 
+        selectedHierarchy === 'ALL' || 
+        itemHierarchy === selectedHierarchy || 
+        displayCity.toLowerCase() === selectedHierarchy.toLowerCase();
 
       const distanceVal = item.distance !== undefined && item.distance !== null ? Number(item.distance) : 0;
       const matchesDistance = maxRadius === 'ALL' || distanceVal <= Number(maxRadius);
@@ -136,7 +187,7 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans pb-16">
-      <main className="w-full pt-1 space-y-4 px-2.5 sm:px-6">
+      <main className="w-full pt-1 space-y-4 px-3 sm:px-6">
         
         {/* Header & Subheading */}
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -150,62 +201,119 @@ export default function MarketplacePage() {
           </div>
         </div>
 
-        {/* Control Bar */}
-        <div className="bg-white px-3 pt-3.75 pb-3.75 border-b-2 border-gray-400 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
-          <div className="flex flex-wrap items-center gap-2.5 flex-1">
+        {/* Control Bar (Expanded & Responsive for Mobile) */}
+        <div className="bg-white p-3.5 sm:px-3 sm:py-3.75 border-b-2 border-gray-400 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 flex-wrap">
+            
+            {/* Search Input */}
             <input
               type="text"
               placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-84 max-w-full shrink-0 font-medium"
+              className="px-3.5 py-3 sm:py-2 border border-slate-300 bg-slate-50 text-base sm:text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 w-full sm:w-60 min-w-50 shrink-0 font-medium"
             />
 
-            <select
-              value={selectedHierarchy}
-              onChange={(e) => setSelectedHierarchy(e.target.value)}
-              className="px-2.5 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
-            >
-              <option value="ALL">All Cities & Churches</option>
-              {uniqueHierarchies.map((hier: any) => (
-                <option key={hier} value={hier}>{hier}</option>
-              ))}
-            </select>
+            {/* Searchable Autocomplete City / Church Filter */}
+            <div className="relative w-full sm:w-64 min-w-55 shrink-0" ref={dropdownRef}>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="Filter City / Church..."
+                  value={hierarchySearchInput}
+                  onChange={(e) => {
+                    setHierarchySearchInput(e.target.value);
+                    setIsHierarchyDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsHierarchyDropdownOpen(true)}
+                  className="w-full px-3.5 py-3 sm:py-2 pr-8 border border-slate-300 bg-slate-50 text-base sm:text-xs rounded-lg font-medium focus:outline-none focus:ring-1 focus:ring-blue-400 truncate"
+                />
+                {selectedHierarchy !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedHierarchy('ALL');
+                      setHierarchySearchInput('');
+                    }}
+                    className="absolute right-2.5 text-slate-400 hover:text-slate-700 font-bold text-sm"
+                    title="Clear City Filter"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
 
-            <div className="flex items-center gap-2 px-2.5 py-2 border border-sky-200 bg-sky-50 rounded-lg">
-              <label className="flex items-center gap-1 cursor-pointer font-medium text-[11px] text-sky-900">
+              {isHierarchyDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto text-xs">
+                  <div
+                    onClick={() => {
+                      setSelectedHierarchy('ALL');
+                      setHierarchySearchInput('');
+                      setIsHierarchyDropdownOpen(false);
+                    }}
+                    className="px-3.5 py-2.5 hover:bg-slate-100 cursor-pointer font-semibold text-blue-600 border-b border-slate-100"
+                  >
+                    All Cities & Churches
+                  </div>
+                  {filteredHierarchyOptions.length === 0 ? (
+                    <div className="px-3.5 py-3 text-slate-400 text-center">No matching cities found</div>
+                  ) : (
+                    filteredHierarchyOptions.map((opt) => (
+                      <div
+                        key={opt.value}
+                        onClick={() => {
+                          setSelectedHierarchy(opt.value);
+                          setHierarchySearchInput(opt.label);
+                          setIsHierarchyDropdownOpen(false);
+                        }}
+                        className={`px-3.5 py-2.5 hover:bg-blue-50 cursor-pointer truncate ${
+                          opt.type === 'city' ? 'font-bold text-slate-900 bg-slate-50/50' : 'pl-6 text-slate-700'
+                        }`}
+                      >
+                        {opt.label}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Type Checkboxes */}
+            <div className="flex items-center justify-around sm:justify-start gap-4 px-4 py-3 sm:py-2 border border-sky-200 bg-sky-50 rounded-lg w-full sm:w-auto min-w-52.5 shrink-0">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs sm:text-xs text-sky-900">
                 <input
                   type="checkbox"
                   checked={selectedTypes.includes('OFFER')}
                   onChange={() => toggleType('OFFER')}
-                  className="rounded text-blue-600 focus:ring-0 cursor-pointer h-3.5 w-3.5"
+                  className="rounded text-blue-600 focus:ring-0 cursor-pointer h-4 w-4"
                 />
                 Offers
               </label>
-              <label className="flex items-center gap-1 cursor-pointer font-medium text-[11px] text-sky-900">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs sm:text-xs text-sky-900">
                 <input
                   type="checkbox"
                   checked={selectedTypes.includes('REQUEST')}
                   onChange={() => toggleType('REQUEST')}
-                  className="rounded text-blue-600 focus:ring-0 cursor-pointer h-3.5 w-3.5"
+                  className="rounded text-blue-600 focus:ring-0 cursor-pointer h-4 w-4"
                 />
                 Requests
               </label>
-              <label className="flex items-center gap-1 cursor-pointer font-medium text-[11px] text-sky-900">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs sm:text-xs text-sky-900">
                 <input
                   type="checkbox"
                   checked={selectedTypes.includes('COMMERCIAL')}
                   onChange={() => toggleType('COMMERCIAL')}
-                  className="rounded text-blue-600 focus:ring-0 cursor-pointer h-3.5 w-3.5"
+                  className="rounded text-blue-600 focus:ring-0 cursor-pointer h-4 w-4"
                 />
                 Commercial
               </label>
             </div>
 
+            {/* Radius Select */}
             <select
               value={maxRadius}
               onChange={(e) => setMaxRadius(e.target.value)}
-              className="px-2.5 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer"
+              className="px-3.5 py-3 sm:py-2 border border-slate-300 bg-slate-50 text-base sm:text-xs rounded-lg font-medium cursor-pointer w-full sm:w-auto min-w-25 shrink-0"
             >
               <option value="5">5 mi</option>
               <option value="10">10 mi</option>
@@ -214,10 +322,11 @@ export default function MarketplacePage() {
               <option value="100">100 mi</option>
             </select>
 
+            {/* Category Select */}
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-2.5 py-2 border border-slate-200 bg-slate-50 rounded-lg font-bold text-slate-700 cursor-pointer text-xs"
+              className="px-3.5 py-3 sm:py-2 border border-slate-300 bg-slate-50 rounded-lg font-bold text-slate-700 cursor-pointer text-base sm:text-xs w-full sm:w-auto min-w-42.5 shrink-0"
             >
               <option value="ALL">All Categories (34)</option>
               {LISTING_CATEGORIES.map((catName) => (
@@ -227,10 +336,11 @@ export default function MarketplacePage() {
               ))}
             </select>
 
+            {/* Sort Select */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-2 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg font-medium cursor-pointer w-32 truncate"
+              className="px-3.5 py-3 sm:py-2 border border-slate-300 bg-slate-50 text-base sm:text-xs rounded-lg font-medium cursor-pointer w-full sm:w-auto min-w-37.5 shrink-0"
             >
               <option value="date_desc">Newest First</option>
               <option value="date_asc">Oldest First</option>
@@ -240,23 +350,25 @@ export default function MarketplacePage() {
               <option value="rating">Star Rating</option>
             </select>
 
+            {/* Clear Button */}
             <button
               onClick={() => {
                 setSearchTerm('');
                 setSelectedTypes(['OFFER', 'REQUEST', 'COMMERCIAL']);
                 setSelectedCategory('ALL');
                 setSelectedHierarchy('ALL');
+                setHierarchySearchInput('');
                 setMaxRadius('25');
                 setSortBy('date_desc');
               }}
-              className="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold transition-all whitespace-nowrap"
+              className="px-4 py-3 sm:py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold transition-all w-full sm:w-auto text-center shrink-0"
             >
-              × Clear
+              X Clear
             </button>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 ml-auto">
-            <div className="text-slate-500 font-medium whitespace-nowrap">
+          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
+            <div className="text-slate-500 font-medium whitespace-nowrap text-xs sm:text-xs">
               <span className="text-blue-600 font-black">{filteredAndSortedListings.length}</span> listings
             </div>
           </div>
