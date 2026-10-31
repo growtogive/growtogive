@@ -39,18 +39,18 @@ export default function PostDetailPage() {
 
   // Sync quiz passed state and attendance when post data loads/updates
   useEffect(() => {
-    if (post) {
+    if (post && currentUserId) {
       if (post.quiz?.attempts && Array.isArray(post.quiz.attempts)) {
-        // Check both user ID match and passed === true across all attempts
+        // Check if the current user has a passed attempt for this quiz
         const passedAttempt = post.quiz.attempts.find((a: any) => 
-          (a.userId === currentUserId || !a.userId) && a.passed === true
+          a.userId === currentUserId && a.passed === true
         );
         if (passedAttempt) {
           setHasPassed(true);
         }
       }
 
-      if (post.event?.attendees && currentUserId) {
+      if (post.event?.attendees) {
         const userAttendee = post.event.attendees.find((a: any) => a.userId === currentUserId);
         if (userAttendee) {
           setAttendingStatus(userAttendee.status);
@@ -75,21 +75,26 @@ export default function PostDetailPage() {
 
     setSubmittingQuiz(true);
     try {
-      const res = await fetch('/api/posts/quiz/submit', {
+      const res = await fetch('/api/quiz/submit', { // Pointing to your quiz submission route
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quizId: post.quiz.id, answers }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit quiz');
-
+      
+      // If the backend responds with alreadyPassed or success/passed
       const isPassed = Boolean(data.passed || data.alreadyPassed);
+      
+      if (!res.ok && !data.alreadyPassed) {
+        throw new Error(data.error || 'Failed to submit quiz');
+      }
+
       setQuizResult({ success: data.success, passed: isPassed, message: data.message, score: data.score });
       
       if (isPassed) {
         setHasPassed(true);
       }
-      mutate(); // Refresh post cache
+      mutate(); // Refresh post cache to pull in the new attempt record
     } catch (err: any) {
       setQuizResult({ success: false, message: err.message });
     } finally {

@@ -1,4 +1,3 @@
-// app/api/posts/[slug]/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -9,7 +8,7 @@ async function findPost(identifier: string) {
     where: { slug: identifier },
     include: {
       category: true,
-      quiz: { include: { questions: true } },
+      quiz: { include: { questions: true, attempts: true } }, // <--- Included attempts here
       event: { include: { attendees: { include: { user: true } } } },
     },
   });
@@ -18,7 +17,7 @@ async function findPost(identifier: string) {
       where: { id: identifier },
       include: {
         category: true,
-        quiz: { include: { questions: true } },
+        quiz: { include: { questions: true, attempts: true } }, // <--- Included attempts here too
         event: { include: { attendees: { include: { user: true } } } },
       },
     });
@@ -65,8 +64,6 @@ export async function PUT(request: Request, context: { params: Promise<{ slug: s
       return NextResponse.json({ error: 'Post not found.' }, { status: 404 });
     }
 
-    // Optional: Update slug if title changed, or keep existing slug
-    // For now, we update the main fields while preserving the slug or updating it if needed
     const updatedPost = await prisma.post.update({
       where: { id: existingPost.id },
       data: {
@@ -80,7 +77,7 @@ export async function PUT(request: Request, context: { params: Promise<{ slug: s
       },
       include: {
         category: true,
-        quiz: { include: { questions: true } },
+        quiz: { include: { questions: true, attempts: true } }, // <--- Included attempts on update return
         event: { include: { attendees: { include: { user: true } } } },
       },
     });

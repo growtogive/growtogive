@@ -1,7 +1,6 @@
-// app/api/posts/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
@@ -10,7 +9,12 @@ export async function GET(request: Request) {
       orderBy: { createdAt: 'desc' },
       include: {
         category: true,
-        quiz: { include: { questions: true } },
+        quiz: { 
+          include: { 
+            questions: true,
+            attempts: true // <--- Crucial so attempts are fetched globally too
+          } 
+        },
         event: true,
       },
     });
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
       category = await prisma.postCategory.create({ data: { name: categoryName.trim() } });
     }
 
-    // 4. Create post with explicit slug (authorId removed since it's not in your schema)
+    // 4. Create post
     const newPost = await prisma.post.create({
       data: {
         slug: uniqueSlug,
@@ -71,7 +75,7 @@ export async function POST(request: Request) {
         videoUrl: videoUrl || null,
         price: price !== null && price !== '' ? parseFloat(price) : null,
         isSticky: Boolean(isSticky),
-        authorId: (session.user as any).id,
+        authorId: (session.user as any).id, // Remove this line if your Post model doesn't have an authorId field
         categoryId: category.id,
         quiz: quiz?.questions && quiz.questions.length > 0 ? {
           create: {
@@ -98,7 +102,12 @@ export async function POST(request: Request) {
       },
       include: {
         category: true,
-        quiz: { include: { questions: true } },
+        quiz: { 
+          include: { 
+            questions: true,
+            attempts: true // <--- Crucial so new posts return quiz attempts properly
+          } 
+        },
         event: { include: { attendees: { include: { user: true } } } },
       },
     });
