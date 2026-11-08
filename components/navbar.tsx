@@ -21,10 +21,13 @@ export default function Navbar() {
   // Modal state for restricted access attempts on Share Link
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
 
-  // --- HIDE NAVBAR ON CHRISTMAS APPLY PAGE ---
-  if (pathname?.startsWith('/christmas/apply')) {
-    return null;
-  }
+  // --- HIDE NAVBAR ON FULLSCREEN PAGES ---
+if (
+  pathname?.startsWith('/christmas/apply') || 
+  pathname === '/thanksgiving'
+) {
+  return null;
+}
 
   useEffect(() => {
     if (session) {
