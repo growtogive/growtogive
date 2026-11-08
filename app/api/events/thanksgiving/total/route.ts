@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server';
-// import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    // const aggregate = await prisma.eventRsvp.aggregate({
-    //   where: { eventId: 'thanksgiving-2026', status: 'CONFIRMED' },
-    //   _sum: { numAttending: true },
-    // });
-    // const total = aggregate._sum.numAttending || 0;
+    const attendees = await prisma.eventAttendee.findMany({
+      where: { eventId: 'thanksgiving-2026' },
+      select: { 
+        guestCount: true 
+      },
+    });
 
-    const total = 0; // Replace with your database query result
+    const total = attendees.reduce(
+      (sum: number, record: any) => sum + (Number(record.guestCount) || 0) + 1,
+      0
+    );
+
     return NextResponse.json({ total });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error fetching total attendees:', error);
     return NextResponse.json({ total: 0 }, { status: 500 });
   }
 }

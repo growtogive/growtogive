@@ -222,6 +222,7 @@ model EventAttendee {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   status    String   @default("ATTENDING")
+  guestCount Int     @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

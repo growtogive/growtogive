@@ -12,6 +12,7 @@ export async function POST(req: Request) {
 
     const eventId = 'thanksgiving-2026';
     const cleanEmail = email.trim().toLowerCase();
+    const guestCountValue = parseInt(numAttending) || 1;
 
     // 1. Ensure the parent Event record exists in the database
     await prisma.event.upsert({
@@ -40,18 +41,20 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. Upsert attendance using your existing eventId_userId unique constraint
+    // 3. Upsert attendance including guestCount
     const attendee = await prisma.eventAttendee.upsert({
       where: { 
         eventId_userId: { eventId, userId: dbUser.id } 
       },
       update: {
         status: 'ATTENDING',
+        guestCount: guestCountValue,
       },
       create: {
         eventId,
         userId: dbUser.id,
         status: 'ATTENDING',
+        guestCount: guestCountValue,
       },
     });
 

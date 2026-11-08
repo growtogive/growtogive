@@ -1,39 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
+import React, { useEffect, useState } from 'react';
 
-interface Attendee {
-  id: string;
-  status: string;
-  user: {
-    name: string | null;
-    email: string;
-  };
-  createdAt: string;
-}
-
-export default function ThanksgivingAttendeesAdminPage() {
-  const [attendees, setAttendees] = useState<Attendee[]>([]);
+export default function ThanksgivingAdminPage() {
+  const [attendees, setAttendees] = useState<any[]>([]);
+  const [totals, setTotals] = useState({ totalAttendees: 0, totalGuests: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
 
-  const eventId = 'thanksgiving-2026';
-
-  useEffect(() => {
-    fetchAttendees();
-  }, []);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    guestCount: 0,
+  });
 
   const fetchAttendees = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/events/${eventId}/attendees`);
+      const res = await fetch('/api/admin/thanksgiving');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch attendees');
+      
       setAttendees(data.attendees || []);
+      setTotals(data.totals || { totalAttendees: 0, totalGuests: 0 });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -41,141 +30,146 @@ export default function ThanksgivingAttendeesAdminPage() {
     }
   };
 
-  // Filter attendees based on search input
-  const filteredAttendees = attendees.filter((a) => {
-    const name = a.user.name?.toLowerCase() || '';
-    const email = a.user.email.toLowerCase();
-    const query = searchTerm.toLowerCase();
-    return name.includes(query) || email.includes(query);
-  });
+  useEffect(() => {
+    fetchAttendees();
+  }, []);
 
-  // Bulk BCC Email Generator
   const handleCopyBccEmails = () => {
     const emails = attendees
-      .filter((a) => a.status === 'ATTENDING' && a.user.email)
-      .map((a) => a.user.email)
-      .join(', ');
+      .map((a) => a.user?.email)
+      .filter((email): email is string => Boolean(email));
+    
+    const uniqueEmails = Array.from(new Set(emails)).join(', ');
 
-    if (!emails) {
-      alert('No attending emails found to copy.');
+    if (!uniqueEmails) {
+      alert('No attendee emails found to copy.');
       return;
     }
 
-    navigator.clipboard.writeText(emails);
+    navigator.clipboard.writeText(uniqueEmails);
     setCopied(true);
-    setTimeout(() => setCopied(false), 4000);
+    setTimeout(() => setCopied(false), 3000);
   };
 
-  const totalAttendingCount = attendees.filter((a) => a.status === 'ATTENDING').length;
+  const handleEditClick = (attendee: any) => {
+    setEditingId(attendee.id);
+    setEditForm({
+      guestCount: attendee.guestCount ?? 0,
+    });
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-teal-300 font-medium">
-        Loading attendees list...
-      </div>
-    );
-  }
+  const handleSave = async (attendeeId: string) => {
+    try {
+      const res = await fetch('/api/admin/thanksgiving', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attendeeId,
+          guestCount: Number(editForm.guestCount),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update record');
+
+      setEditingId(null);
+      fetchAttendees();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-gray-600">Loading admin records...</div>;
+  if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 sm:p-10 font-sans selection:bg-teal-500 selection:text-white">
-      <div className="max-w-4xl mx-auto space-y-8">
-        
-        {/* Header & Logo */}
-        <div className="flex flex-col sm:flex-row justify-between items-center bg-blue-950/60 backdrop-blur-md border border-blue-800/50 rounded-3xl p-6 shadow-2xl gap-4">
-          <div className="flex items-center gap-4">
-            <div className="relative w-24 h-12">
-              <Image 
-                src="/uploads/Logo community transparent.png" 
-                alt="GrowToGive Logo" 
-                fill 
-                className="object-contain"
-                priority
-              />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-white">Thanksgiving Event Attendees</h1>
-              <p className="text-xs text-teal-300 font-semibold">Total Confirmed Attending: {totalAttendingCount}</p>
-            </div>
-          </div>
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-2xl font-bold text-gray-900">Thanksgiving Event Admin Dashboard</h1>
+        <button
+          onClick={handleCopyBccEmails}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
+        >
+          {copied ? 'Copied BCC Emails!' : 'Copy Bulk BCC Emails'}
+        </button>
+      </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleCopyBccEmails}
-              className="px-4 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl transition shadow-lg cursor-pointer flex items-center gap-2"
-            >
-              {copied ? '✓ BCC Emails Copied!' : '📋 Copy All BCC Emails'}
-            </button>
-            <Link
-              href="/thanksgiving-event"
-              target="_blank"
-              className="px-4 py-2.5 bg-blue-900 hover:bg-blue-800 text-blue-200 font-bold text-xs rounded-xl transition"
-            >
-              View Public Page ↗
-            </Link>
-          </div>
+      {/* Totals Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+          <p className="text-sm font-medium text-gray-500">Total Attendee Records</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{totals.totalAttendees}</p>
         </div>
+        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+          <p className="text-sm font-medium text-gray-500">Total People (incl. Guests)</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{totals.totalGuests}</p>
+        </div>
+      </div>
 
-        {error && (
-          <div className="p-4 bg-rose-950 border border-rose-500/50 text-rose-200 text-xs font-semibold rounded-xl">
-            {error}
-          </div>
-        )}
-
-        {/* Search & Table Section */}
-        <div className="bg-blue-950/60 backdrop-blur-md border border-blue-800/50 rounded-3xl p-6 shadow-2xl space-y-4">
-          <div className="flex justify-between items-center">
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-80 p-3 bg-slate-900 border border-blue-900 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-400 transition"
-            />
-            <span className="text-xs text-blue-300 font-medium">Showing {filteredAttendees.length} records</span>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl border border-blue-900/60 bg-slate-900/80">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-blue-900 text-[11px] font-bold text-teal-400 uppercase tracking-wider bg-slate-950/50">
-                  <th className="p-4">Attendee Name</th>
-                  <th className="p-4">Email Address</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Registered Date</th>
+      {/* Table & Inline Editing UI */}
+      <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendee</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guests</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {attendees.map((attendee) => {
+              const isEditing = editingId === attendee.id;
+              return (
+                <tr key={attendee.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {attendee.user?.name || 'Unnamed User'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div>{attendee.user?.email}</div>
+                    <div className="text-xs text-gray-400">{attendee.user?.userPhone || 'No phone'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        className="w-20 border rounded px-2 py-1 text-sm"
+                        value={editForm.guestCount}
+                        onChange={(e) => setEditForm({ ...editForm, guestCount: parseInt(e.target.value) || 0 })}
+                      />
+                    ) : (
+                      attendee.guestCount
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    {isEditing ? (
+                      <div className="space-x-2">
+                        <button
+                          onClick={() => handleSave(attendee.id)}
+                          className="text-indigo-600 hover:text-indigo-900 font-semibold"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleEditClick(attendee)}
+                        className="text-indigo-600 hover:text-indigo-900 font-semibold"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-blue-900/40 text-xs">
-                {filteredAttendees.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="p-6 text-center text-slate-500 font-medium">
-                      No attendees found matching your search.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAttendees.map((attendee) => (
-                    <tr key={attendee.id} className="hover:bg-blue-950/40 transition">
-                      <td className="p-4 font-bold text-white">{attendee.user.name || 'Unnamed Guest'}</td>
-                      <td className="p-4 text-blue-200">{attendee.user.email}</td>
-                      <td className="p-4">
-                        <span className="px-2.5 py-1 bg-teal-500/10 border border-teal-500/30 text-teal-300 font-bold rounded-full text-[10px] uppercase">
-                          {attendee.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-slate-400">
-                        {new Date(attendee.createdAt).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
