@@ -6,7 +6,7 @@ import Image from 'next/image';
 export default function ThanksgivingEventPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [numAttending, setNumAttending] = useState('1');
+  const [numAttending, setNumAttending] = useState('');
   const [totalAttendees, setTotalAttendees] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -33,10 +33,15 @@ export default function ThanksgivingEventPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError('');
 
-    const count = parseInt(numAttending) || 1;
+    const count = parseInt(numAttending, 10);
+    if (isNaN(count) || count < 1) {
+      setError('Please enter a number greater than 0.');
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const res = await fetch('/api/events/thanksgiving/rsvp', {
@@ -69,7 +74,7 @@ export default function ThanksgivingEventPage() {
     <div className="min-h-screen bg-white text-gray-900 flex flex-col justify-center items-center px-4 py-12 font-sans selection:bg-teal-500 selection:text-white">
       <div className="w-full max-w-xl bg-gray-50 border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl space-y-8">
         
-        {/* Header Section: Logo on Upper Left & Title on Same Row */}
+        {/* Header Section */}
         <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
           <div className="relative w-28 h-14 shrink-0">
             <Image 
@@ -95,7 +100,7 @@ export default function ThanksgivingEventPage() {
           </div>
         </div>
 
-        {/* Event Date & Info */}
+        {/* Event Info */}
         <div className="text-center space-y-2">
           <p className="text-teal-700 font-bold text-sm sm:text-base">
             Sunday Nov 22, 2026 at 2pm
@@ -105,8 +110,8 @@ export default function ThanksgivingEventPage() {
           </p>
         </div>
 
-        {/* Location & Directions Card */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 shadow-sm">
+        {/* Location & Video Section */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-teal-600">Event Address</p>
@@ -122,7 +127,51 @@ export default function ThanksgivingEventPage() {
             </a>
           </div>
 
-          <div className="w-full h-44 rounded-xl overflow-hidden border border-gray-200 mt-2">
+          {/* Official Canva Smart Embed Video Player */}
+          <div className="space-y-1.5">
+            <div style={{
+              position: 'relative',
+              width: '100%',
+              height: 0,
+              paddingTop: '56.2500%',
+              paddingBottom: 0,
+              boxShadow: '0 2px 8px 0 rgba(63,69,81,0.16)',
+              marginTop: '0.5em',
+              marginBottom: '0.5em',
+              overflow: 'hidden',
+              borderRadius: '8px',
+              willChange: 'transform'
+            }}>
+              <iframe
+                loading="lazy"
+                style={{
+                  position: 'absolute',
+                  width: '100%',
+                  height: '100%',
+                  top: 0,
+                  left: 0,
+                  border: 'none',
+                  padding: 0,
+                  margin: 0
+                }}
+                src="https://www.canva.com/design/DAGaAUWn4Hk/yV6yBKAjhopQg7Ywvqx_ZA/watch?embed"
+                allowFullScreen
+                allow="fullscreen"
+              />
+            </div>
+            <div className="text-[11px] text-gray-500 font-medium text-center">
+              <a
+                href="https://www.canva.com/design/DAGaAUWn4Hk/yV6yBKAjhopQg7Ywvqx_ZA/watch?utm_content=DAGaAUWn4Hk&utm_campaign=designshare&utm_medium=embeds&utm_source=link"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-teal-600 hover:underline font-semibold"
+              >
+              </a>
+            </div>
+          </div>
+
+          {/* Map Display */}
+          <div className="w-full h-44 rounded-xl overflow-hidden border border-gray-200 mt-3">
             <iframe
               title="Event Location Map"
               width="100%"
@@ -134,7 +183,7 @@ export default function ThanksgivingEventPage() {
           </div>
         </div>
 
-        {/* RSVP Form or Success State */}
+        {/* RSVP Form */}
         {success ? (
           <div className="bg-teal-50 border border-teal-200 rounded-2xl p-6 text-center space-y-3">
             <div className="w-12 h-12 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
@@ -142,10 +191,10 @@ export default function ThanksgivingEventPage() {
             </div>
             <h3 className="text-lg font-bold text-teal-900">You're Registered!</h3>
             <p className="text-xs text-teal-800 leading-relaxed">
-              Thank you for RSVPing, <span className="font-bold text-gray-900">{name}</span>! We look forward to seeing your group of <span className="font-bold text-gray-900">{numAttending}</span> on Sunday, Nov 22.
+              Thank you for RSVPing, <span className="font-bold text-gray-900">{name}</span>! We look forward to seeing your total party of <span className="font-bold text-gray-900">{numAttending}</span> on Sunday, Nov 22.
             </p>
             <button
-              onClick={() => { setSuccess(false); setName(''); setEmail(''); setNumAttending('1'); }}
+              onClick={() => { setSuccess(false); setName(''); setEmail(''); setNumAttending(''); }}
               className="mt-3 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-xs font-bold text-white rounded-xl transition-colors cursor-pointer"
             >
               Register Another Guest
@@ -187,7 +236,7 @@ export default function ThanksgivingEventPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Number Attending</label>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Total Attending</label>
                 <input
                   type="number"
                   min="1"
@@ -195,7 +244,8 @@ export default function ThanksgivingEventPage() {
                   required
                   value={numAttending}
                   onChange={(e) => setNumAttending(e.target.value)}
-                  className="w-full p-3 bg-white border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 focus:outline-none focus:border-teal-600 transition-colors"
+                  placeholder="e.g. 1"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-xl text-xs font-semibold text-gray-900 placeholder-gray-400 focus:outline-none focus:border-teal-600 transition-colors"
                 />
               </div>
             </div>

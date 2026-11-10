@@ -11,7 +11,7 @@ export async function GET() {
     });
 
     const total = attendees.reduce(
-      (sum: number, record: any) => sum + (Number(record.guestCount) || 0) + 1,
+      (sum: number, record: any) => sum + (Number(record.guestCount) || 0),
       0
     );
 

@@ -19,8 +19,10 @@ export async function GET() {
     });
 
     const totalAttendees = attendees.length;
+    
+    // Fixed: removed the extra '+ 1' that was adding a person for every row
     const totalGuests = attendees.reduce(
-      (sum, a) => sum + 1 + (Number(a.guestCount) || 0),
+      (sum, a) => sum + (Number(a.guestCount) || 0),
       0
     );
 
