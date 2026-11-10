@@ -71,8 +71,8 @@ export default function ThanksgivingEventPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex flex-col justify-center items-center px-4 py-12 font-sans selection:bg-teal-500 selection:text-white">
-      <div className="w-full max-w-xl bg-gray-50 border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl space-y-8">
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col justify-center items-center px-2 sm:px-6 py-6 sm:py-12 font-sans selection:bg-teal-500 selection:text-white">
+      <div className="w-full max-w-3xl bg-gray-50 border border-gray-200 rounded-none sm:rounded-3xl p-4 sm:p-10 shadow-xl space-y-8">
         
         {/* Header Section */}
         <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
@@ -105,14 +105,14 @@ export default function ThanksgivingEventPage() {
           <p className="text-teal-700 font-bold text-sm sm:text-base">
             Sunday Nov 22, 2026 at 2pm
           </p>
-          <p className="text-gray-600 text-sm font-medium max-w-md mx-auto leading-relaxed">
+          <p className="text-gray-600 text-sm font-medium max-w-lg mx-auto leading-relaxed">
             Free food, fishing, t-ball, live entertainment, and more!
           </p>
         </div>
 
         {/* Location & Video Section */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 space-y-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-teal-600">Event Address</p>
               <p className="text-sm font-bold text-gray-900 mt-0.5">{address}</p>
@@ -121,14 +121,14 @@ export default function ThanksgivingEventPage() {
               href={mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-colors shrink-0 shadow-sm flex items-center gap-1.5"
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-colors shrink-0 shadow-sm flex items-center justify-center sm:justify-start gap-1.5"
             >
               📍 Get Directions
             </a>
           </div>
 
-          {/* Official Canva Smart Embed Video Player */}
-          <div className="space-y-1.5">
+          {/* Official Canva Smart Embed Video Player (Stretched Full Width) */}
+          <div className="w-full">
             <div style={{
               position: 'relative',
               width: '100%',
@@ -136,10 +136,8 @@ export default function ThanksgivingEventPage() {
               paddingTop: '56.2500%',
               paddingBottom: 0,
               boxShadow: '0 2px 8px 0 rgba(63,69,81,0.16)',
-              marginTop: '0.5em',
-              marginBottom: '0.5em',
               overflow: 'hidden',
-              borderRadius: '8px',
+              borderRadius: '12px',
               willChange: 'transform'
             }}>
               <iframe
@@ -159,19 +157,10 @@ export default function ThanksgivingEventPage() {
                 allow="fullscreen"
               />
             </div>
-            <div className="text-[11px] text-gray-500 font-medium text-center">
-              <a
-                href="https://www.canva.com/design/DAGaAUWn4Hk/yV6yBKAjhopQg7Ywvqx_ZA/watch?utm_content=DAGaAUWn4Hk&utm_campaign=designshare&utm_medium=embeds&utm_source=link"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-teal-600 hover:underline font-semibold"
-              >
-              </a>
-            </div>
           </div>
 
-          {/* Map Display */}
-          <div className="w-full h-44 rounded-xl overflow-hidden border border-gray-200 mt-3">
+          {/* Map Display (Stretched Full Width) */}
+          <div className="w-full h-56 sm:h-64 rounded-xl overflow-hidden border border-gray-200">
             <iframe
               title="Event Location Map"
               width="100%"
@@ -260,9 +249,32 @@ export default function ThanksgivingEventPage() {
           </form>
         )}
 
-        {/* Footer info */}
-        <div className="text-center pt-2 border-t border-gray-200">
-          <p className="text-[11px] text-gray-500 font-medium">
+        {/* Footer info with Distinct Donation Buttons */}
+        <div className="text-center pt-4 border-t border-gray-200 space-y-3">
+          
+          <div className="flex flex-col gap-2.5">
+            {/* Square Checkout Button */}
+            <a
+              href="https://checkout.square.site/merchant/MLEBDG9P30T1T/checkout/JMS2NWPRDW6RZJOVC2NZD6UX"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors shadow-sm text-center flex items-center justify-center gap-2"
+            >
+              <span>💳</span> Donate - Credit/Debit Card, Cash App, GPay
+            </a>
+
+            {/* PayPal Checkout Button */}
+            <a
+              href="https://www.paypal.com/ncp/payment/U9A8LFNC5C8S4"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors shadow-sm text-center flex items-center justify-center gap-2"
+            >
+              <span>🅿️</span> Donate - PayPal, Venmo, Apple Pay
+            </a>
+          </div>
+
+          <p className="text-[11px] text-gray-500 font-medium pt-2">
             GrowToGive - 941.216.1181
           </p>
         </div>
