@@ -172,7 +172,6 @@ export default function ChristmasAdminPage() {
       allTags = allTags.concat(tags);
     });
 
-    // Group tags into pages of 6
     let pagesHtml = "";
     for (let i = 0; i < allTags.length; i += 6) {
       const pageTags = allTags.slice(i, i + 6);
@@ -316,28 +315,29 @@ export default function ChristmasAdminPage() {
   if (loading) return <div className="p-12 text-center text-gray-500 font-medium">Loading Christmas Dashboard...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-10 px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
         
-        <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border">
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-xl shadow-sm border gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-gray-900">Christmas Charity Dashboard</h1>
-            <p className="text-sm text-gray-500">Manage submissions, referrals, addresses, and independent gift statuses.</p>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">Christmas Charity Dashboard</h1>
+            <p className="text-xs sm:text-sm text-gray-500">Manage submissions, referrals, addresses, and independent gift statuses.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={handlePrintTags} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm">
-              🖨️ Print All Gift Tags
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <button onClick={handlePrintTags} className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm text-center">
+              🖨️ Print Tags
             </button>
-            <button onClick={loadData} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg">
-              Refresh Data
+            <button onClick={loadData} className="flex-1 sm:flex-none px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold rounded-lg text-center">
+              Refresh
             </button>
           </div>
         </div>
 
         {/* Location Management */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Manage Drop-off / Pickup Locations</h2>
-          <form onSubmit={handleAddLocation} className="flex gap-3 max-w-md mb-4">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
+          <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3">Manage Drop-off / Pickup Locations</h2>
+          <form onSubmit={handleAddLocation} className="flex flex-col sm:flex-row gap-3 max-w-xl mb-4">
             <input
               type="text"
               value={newLocationName}
@@ -358,26 +358,26 @@ export default function ChristmasAdminPage() {
           </div>
         </div>
 
-        {/* Search and Filters Bar with Reset Button */}
-        <div className="flex flex-col md:flex-row justify-between gap-4 items-center">
-          <div className="w-full md:w-1/3 relative flex items-center">
+        {/* Search and Filters Bar */}
+        <div className="flex flex-col lg:flex-row justify-between gap-4 items-center">
+          <div className="w-full lg:w-1/3 relative flex items-center">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Tag ID (e.g. 11-5A), Child Name, or Family..."
-              className="w-full px-3 py-2 pr-14 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              placeholder="Search by Tag ID, Name, or Family..."
+              className="w-full px-3 py-2 pr-14 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
             />
             <span className="absolute right-2.5 bg-sky-100 text-sky-800 text-xs font-bold px-2 py-0.5 rounded-md pointer-events-none">
               {totalVisibleCards}
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-3 w-full md:w-auto items-center">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 w-full lg:w-auto items-center">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-white font-medium"
+              className="px-3 py-2 border rounded-lg text-sm bg-white font-medium w-full sm:w-auto"
             >
               <option value="ALL">All Statuses</option>
               <option value="PENDING">PENDING</option>
@@ -390,7 +390,7 @@ export default function ChristmasAdminPage() {
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm bg-white font-medium"
+              className="px-3 py-2 border rounded-lg text-sm bg-white font-medium w-full sm:w-auto"
             >
               <option value="ALL">All Locations</option>
               <option value="NONE">-- No Location --</option>
@@ -402,9 +402,9 @@ export default function ChristmasAdminPage() {
             {(searchQuery || statusFilter !== "ALL" || locationFilter !== "ALL") && (
               <button
                 onClick={handleResetFilters}
-                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg border transition"
+                className="col-span-2 sm:col-span-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg border transition text-center"
               >
-                Reset Filters
+                Reset
               </button>
             )}
           </div>
@@ -412,8 +412,8 @@ export default function ChristmasAdminPage() {
 
         {/* Applications List */}
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-lg font-bold text-gray-800">Submitted Families ({applications.length})</h2>
+          <div className="p-4 sm:p-6 border-b">
+            <h2 className="text-base sm:text-lg font-bold text-gray-800">Submitted Families ({applications.length})</h2>
           </div>
 
           <div className="divide-y">
@@ -448,10 +448,10 @@ export default function ChristmasAdminPage() {
                 if (filteredTags.length === 0) return null;
 
                 return (
-                  <div key={app.id} className="p-6 space-y-4 hover:bg-gray-50/50 transition">
-                    <div className="flex justify-between items-start">
+                  <div key={app.id} className="p-4 sm:p-6 space-y-4 hover:bg-gray-50/50 transition">
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                       <div>
-                        <h3 className="text-base font-bold text-gray-900">
+                        <h3 className="text-sm sm:text-base font-bold text-gray-900">
                           Family {familyNumber}: {app.momName}
                         </h3>
                         <p className="text-xs text-gray-500">Phone: {app.phone} | Email: {app.email || "N/A"}</p>
@@ -464,16 +464,16 @@ export default function ChristmasAdminPage() {
                         )}
                       </div>
                       
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
                         <Link
                           href={`/christmas/apply?edit=${app.id}`}
-                          className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-semibold border border-blue-200 transition"
+                          className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-semibold border border-blue-200 transition text-center"
                         >
-                          ✏️ Edit Application
+                          ✏️ Edit
                         </Link>
                         
                         <button onClick={() => handleDeleteApp(app.id)} className="text-xs text-red-600 hover:text-red-800 font-semibold">
-                          Delete Application
+                          Delete
                         </button>
                       </div>
                     </div>
@@ -499,9 +499,9 @@ export default function ChristmasAdminPage() {
                             <div className="flex justify-between items-center pt-2">
                               <button 
                                 onClick={() => openEditModal(tag.kid, tag.tagId)}
-                                className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded font-semibold border"
+                                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1.5 rounded font-semibold border transition"
                               >
-                                Edit Tag
+                                ✏️ Edit Tag Details
                               </button>
                             </div>
 
@@ -509,7 +509,7 @@ export default function ChristmasAdminPage() {
                               <select
                                 value={currentStatus}
                                 onChange={(e) => handleStatusChange(tag.kid.id, e.target.value, currentLocationId || null, tag.giftNumber)}
-                                className="w-full text-xs px-2 py-1 border rounded bg-white font-medium"
+                                className="w-full text-xs px-2 py-1.5 border rounded bg-white font-medium"
                               >
                                 <option value="PENDING">PENDING</option>
                                 <option value="PLACED">PLACED</option>
@@ -521,7 +521,7 @@ export default function ChristmasAdminPage() {
                               <select
                                 value={currentLocationId}
                                 onChange={(e) => handleStatusChange(tag.kid.id, currentStatus, e.target.value || null, tag.giftNumber)}
-                                className="w-full text-xs px-2 py-1 border rounded bg-white font-medium"
+                                className="w-full text-xs px-2 py-1.5 border rounded bg-white font-medium"
                               >
                                 <option value="">-- No Location Assigned --</option>
                                 {locations.map((loc) => (
@@ -543,9 +543,10 @@ export default function ChristmasAdminPage() {
 
       </div>
 
+      {/* Edit Child Modal */}
       {editingKid && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 my-8">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Edit Child Details</h3>
@@ -553,7 +554,7 @@ export default function ChristmasAdminPage() {
               </div>
               <button 
                 onClick={() => setEditingKid(null)}
-                className="text-gray-400 hover:text-gray-600 font-bold text-sm"
+                className="text-gray-400 hover:text-gray-600 font-bold text-base p-1"
               >
                 ✕
               </button>
@@ -566,7 +567,7 @@ export default function ChristmasAdminPage() {
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
                   required
                 />
               </div>
@@ -578,7 +579,7 @@ export default function ChristmasAdminPage() {
                     type="number"
                     value={editForm.age}
                     onChange={(e) => setEditForm({ ...editForm, age: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
                     required
                   />
                 </div>
@@ -603,7 +604,7 @@ export default function ChristmasAdminPage() {
                   type="text"
                   value={editForm.giftOne}
                   onChange={(e) => setEditForm({ ...editForm, giftOne: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
                 />
               </div>
 
@@ -613,7 +614,7 @@ export default function ChristmasAdminPage() {
                   type="text"
                   value={editForm.giftTwo}
                   onChange={(e) => setEditForm({ ...editForm, giftTwo: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
                 />
               </div>
 

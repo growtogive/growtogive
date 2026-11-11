@@ -39,7 +39,6 @@ model User {
   eventAttendees      EventAttendee[]
   favorites           Favorite[]      @relation("UserFavorites")
   favoritedUsers      Favorite[]      @relation("FavoritedUsers")
-  // Referral tracking relations
   referredById        String?
   referrer            User?           @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
   referrals           User[]          @relation("UserReferrals")
@@ -48,21 +47,18 @@ model User {
 
 model Listing {
   id            String   @id @default(cuid())
-  slug          String?  @unique              // Used for URLs
+  slug          String?  @unique
   title         String
   description   String
-  type          String   @default("OFFER") // "OFFER", "REQUEST", "COMMERCIAL"
+  type          String   @default("OFFER")
   category      String   
   priceInBucks  Float    @default(0.00)
-  
   imageUrl      String?  
-  images        String[]     @default([])
+  images        String[] @default([])
   videoUrl      String?
-
-  isFeatured    Boolean      @default(false)
-  isCommercial  Boolean      @default(false)
-  expiresAt     DateTime     @default(dbgenerated("NOW() + INTERVAL '14 days'"))
-  
+  isFeatured    Boolean  @default(false)
+  isCommercial  Boolean  @default(false)
+  expiresAt     DateTime @default(dbgenerated("NOW() + INTERVAL '14 days'"))
   location      String?
   city          String?
   latitude      Float?
@@ -70,10 +66,10 @@ model Listing {
   businessPhone String?
   websiteUrl    String?
   businessHours String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   authorId      String
-  author        User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   reviews       Review[]
   messages      Message[]
   favorites     Favorite[]
@@ -81,22 +77,14 @@ model Listing {
 
 model Favorite {
   id           String   @id @default(cuid())
-  
-  // The user who is doing the favoring
   userId       String
   user         User     @relation("UserFavorites", fields: [userId], references: [id], onDelete: Cascade)
-
-  // Optional: If favoriting a listing
   listingId    String?
   listing      Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
-
-  // Optional: If favoriting another user
   targetUserId String?
   targetUser   User?    @relation("FavoritedUsers", fields: [targetUserId], references: [id], onDelete: Cascade)
-
   createdAt    DateTime @default(now())
 
-  // Prevent duplicate favorites for the same listing or user
   @@unique([userId, listingId])
   @@unique([userId, targetUserId])
 }
@@ -130,16 +118,16 @@ model Transaction {
 }
 
 model Message {
-  id          String   @id @default(uuid())
-  listingId   String
-  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  senderId    String
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiverId  String
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
-  content     String   @db.Text
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  listingId  String
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String   @db.Text
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   @@index([listingId])
   @@index([receiverId])
@@ -154,8 +142,8 @@ model PostCategory {
 model Post {
   id          String       @id @default(uuid())
   authorId    String?
-  author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  slug        String  @unique
+  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  slug        String       @unique
   title       String
   description String
   images      String[]     
@@ -181,12 +169,12 @@ model Quiz {
 }
 
 model QuizQuestion {
-  id           String   @id @default(uuid())
-  quizId       String
-  quiz         Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  questionText String
-  options      String[] 
-  correctAnswer Int     
+  id            String   @id @default(uuid())
+  quizId        String
+  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionText  String
+  options       String[] 
+  correctAnswer Int      
 }
 
 model QuizAttempt {
@@ -212,46 +200,43 @@ model Event {
   eventDate    DateTime
   location     String?
   rewardAmount Float           @default(0.00)
+  requiresAuth Boolean         @default(false) // 👈 Flag for User-Only vs Public Events
   attendees    EventAttendee[]
 }
 
 model EventAttendee {
-  id        String   @id @default(uuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status    String   @default("ATTENDING")
-  guestCount Int     @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([eventId, userId])
+  id         String   @id @default(uuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId     String?  // 👈 Optional for public anonymous RSVPs
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name       String?  // 👈 Direct guest name for public events
+  email      String?  // 👈 Direct guest email for public events
+  status     String   @default("ATTENDING")
+  guestCount Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
-
-// ==========================================
-// CHRISTMAS CHARITY EVENT TABLES
-// ==========================================
 
 model Location {
   id            String         @id @default(uuid())
   name          String         @unique
   createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt @default(now()) // Added @default(now())
+  updatedAt     DateTime       @updatedAt @default(now())
   kids          ChristmasKid[]
   giftOneKids   ChristmasKid[] @relation("GiftOneLocation")
   giftTwoKids   ChristmasKid[] @relation("GiftTwoLocation")
 }
 
 model ChristmasApplication {
-  id         String               @id @default(uuid())
+  id         String         @id @default(uuid())
   momName    String
   phone      String
   email      String?
   address    String
   referredBy String
   donorNotes String?
-  createdAt  DateTime             @default(now())
+  createdAt  DateTime       @default(now())
   deletedAt  DateTime?
   kids       ChristmasKid[]
 }
@@ -260,7 +245,6 @@ model ChristmasKid {
   id            String               @id @default(uuid())
   applicationId String
   application   ChristmasApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  
   name          String
   age           Int
   gender        String
@@ -268,7 +252,6 @@ model ChristmasKid {
   giftTwo       String?
   tagNumber     String               @unique
 
-  // Independent Gift Statuses & Locations
   giftOneStatus     String    @default("PENDING")
   giftTwoStatus     String    @default("PENDING")
   giftOneLocationId String?
