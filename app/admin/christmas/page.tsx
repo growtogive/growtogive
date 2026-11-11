@@ -88,6 +88,27 @@ export default function ChristmasAdminPage() {
     setLocationFilter("ALL");
   };
 
+  const handleCopyBccEmails = () => {
+    const emails = applications
+      .map((app) => app.email)
+      .filter((email): email is string => Boolean(email && email.trim() !== ""));
+    
+    const uniqueEmails = Array.from(new Set(emails));
+
+    if (uniqueEmails.length === 0) {
+      alert("No valid email addresses found in submissions.");
+      return;
+    }
+
+    const emailString = uniqueEmails.join(", ");
+    navigator.clipboard.writeText(emailString).then(() => {
+      alert(`Copied ${uniqueEmails.length} email address(es) to clipboard for BCC! Opening Gmail...`);
+      window.open("https://mail.google.com/", "_blank");
+    }).catch(() => {
+      alert("Failed to copy emails to clipboard.");
+    });
+  };
+
   const openEditModal = (kid: any, tagId: string) => {
     setEditingKid({ ...kid, tagNumber: kid.tagNumber || tagId });
     setEditForm({
@@ -150,13 +171,39 @@ export default function ChristmasAdminPage() {
   };
 
   const getKidGiftStatus = (kid: any, giftNumber: number) => {
-    if (giftNumber === 1) return kid.giftOneStatus || kid.status || "PENDING";
-    return kid.giftTwoStatus || kid.status || "PENDING";
+    if (giftNumber === 1) return kid.giftOneStatus || kid.status || "";
+    return kid.giftTwoStatus || kid.status || "";
   };
 
   const getKidGiftLocationId = (kid: any, giftNumber: number) => {
     if (giftNumber === 1) return kid.giftOneLocationId || kid.locationId || "";
     return kid.giftTwoLocationId || kid.locationId || "";
+  };
+
+  const getStatusColorClasses = (status: string) => {
+    switch (status) {
+      case "CLAIMED":
+        return "bg-yellow-50 border-yellow-300 border-l-yellow-500 text-yellow-900";
+      case "RECEIVED":
+        return "bg-blue-50 border-blue-300 border-l-blue-500 text-blue-900";
+      case "WRAPPED":
+        return "bg-green-50 border-green-300 border-l-green-500 text-green-900";
+      default:
+        return "bg-white border-gray-200 border-l-red-600 text-gray-900";
+    }
+  };
+
+  const getBadgeColorClasses = (status: string) => {
+    switch (status) {
+      case "CLAIMED":
+        return "bg-yellow-500 text-white";
+      case "RECEIVED":
+        return "bg-blue-600 text-white";
+      case "WRAPPED":
+        return "bg-green-600 text-white";
+      default:
+        return "bg-red-600 text-white";
+    }
   };
 
   const handlePrintTags = () => {
@@ -325,6 +372,9 @@ export default function ChristmasAdminPage() {
             <p className="text-xs sm:text-sm text-gray-500">Manage submissions, referrals, addresses, and independent gift statuses.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <button onClick={handleCopyBccEmails} className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm text-center transition">
+              ✉️ Copy Emails to BCC
+            </button>
             <button onClick={handlePrintTags} className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm text-center">
               🖨️ Print Tags
             </button>
@@ -380,10 +430,9 @@ export default function ChristmasAdminPage() {
               className="px-3 py-2 border rounded-lg text-sm bg-white font-medium w-full sm:w-auto"
             >
               <option value="ALL">All Statuses</option>
-              <option value="PENDING">PENDING</option>
-              <option value="PLACED">PLACED</option>
+              <option value="">(Blank / Unclaimed)</option>
               <option value="CLAIMED">CLAIMED</option>
-              <option value="PICKED_UP">PICKED UP</option>
+              <option value="RECEIVED">RECEIVED</option>
               <option value="WRAPPED">WRAPPED</option>
             </select>
 
@@ -482,46 +531,47 @@ export default function ChristmasAdminPage() {
                       {filteredTags.map((tag) => {
                         const currentStatus = getKidGiftStatus(tag.kid, tag.giftNumber);
                         const currentLocationId = getKidGiftLocationId(tag.kid, tag.giftNumber);
+                        const cardColorClass = getStatusColorClasses(currentStatus);
+                        const badgeColorClass = getBadgeColorClasses(currentStatus);
 
                         return (
-                          <div key={`${tag.kid.id}-${tag.giftNumber}`} className="bg-white p-4 rounded-lg border shadow-xs space-y-3 relative border-l-4 border-l-red-600">
+                          <div key={`${tag.kid.id}-${tag.giftNumber}`} className={`p-4 rounded-lg border shadow-xs space-y-3 relative border-l-4 transition-colors ${cardColorClass}`}>
                             <div className="flex justify-between items-center border-b pb-2">
-                              <span className="bg-red-600 text-white font-extrabold text-xs px-2 py-0.5 rounded">
+                              <span className={`font-extrabold text-xs px-2 py-0.5 rounded ${badgeColorClass}`}>
                                 Tag ID: {tag.tagId}
                               </span>
-                              <span className="text-xs font-semibold text-gray-600">{tag.kid.gender} Age {tag.kid.age}</span>
+                              <span className="text-xs font-semibold opacity-80">{tag.kid.gender} Age {tag.kid.age}</span>
                             </div>
                             <div>
-                              <p className="text-xs text-gray-500 font-medium">Child: {tag.kid.name}</p>
-                              <p className="text-sm font-bold text-gray-800 mt-0.5">🎁 Gift {tag.giftNumber}: {tag.giftText}</p>
+                              <p className="text-xs opacity-75 font-medium">Child: {tag.kid.name}</p>
+                              <p className="text-sm font-bold mt-0.5">🎁 Gift {tag.giftNumber}: {tag.giftText}</p>
                             </div>
 
                             <div className="flex justify-between items-center pt-2">
                               <button 
                                 onClick={() => openEditModal(tag.kid, tag.tagId)}
-                                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1.5 rounded font-semibold border transition"
+                                className="text-xs bg-white/80 hover:bg-white text-gray-700 px-2.5 py-1.5 rounded font-semibold border transition shadow-xs"
                               >
                                 ✏️ Edit Tag Details
                               </button>
                             </div>
 
-                            <div className="space-y-1.5 pt-2 border-t">
+                            <div className="space-y-1.5 pt-2 border-t border-black/10">
                               <select
                                 value={currentStatus}
                                 onChange={(e) => handleStatusChange(tag.kid.id, e.target.value, currentLocationId || null, tag.giftNumber)}
-                                className="w-full text-xs px-2 py-1.5 border rounded bg-white font-medium"
+                                className="w-full text-xs px-2 py-1.5 border rounded bg-white font-medium text-gray-900"
                               >
-                                <option value="PENDING">PENDING</option>
-                                <option value="PLACED">PLACED</option>
+                                <option value="">-- No Status (Blank) --</option>
                                 <option value="CLAIMED">CLAIMED</option>
-                                <option value="PICKED_UP">PICKED UP</option>
+                                <option value="RECEIVED">RECEIVED</option>
                                 <option value="WRAPPED">WRAPPED</option>
                               </select>
 
                               <select
                                 value={currentLocationId}
                                 onChange={(e) => handleStatusChange(tag.kid.id, currentStatus, e.target.value || null, tag.giftNumber)}
-                                className="w-full text-xs px-2 py-1.5 border rounded bg-white font-medium"
+                                className="w-full text-xs px-2 py-1.5 border rounded bg-white font-medium text-gray-900"
                               >
                                 <option value="">-- No Location Assigned --</option>
                                 {locations.map((loc) => (

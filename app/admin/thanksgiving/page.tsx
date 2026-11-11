@@ -36,7 +36,7 @@ export default function ThanksgivingAdminPage() {
 
   const handleCopyBccEmails = () => {
     const emails = attendees
-      .map((a) => a.user?.email)
+      .map((a) => a.email || a.user?.email)
       .filter((email): email is string => Boolean(email));
     
     const uniqueEmails = Array.from(new Set(emails)).join(', ');
@@ -134,13 +134,17 @@ export default function ThanksgivingAdminPage() {
         ) : (
           attendees.map((attendee) => {
             const isEditing = editingId === attendee.id;
+            const displayName = attendee.name || attendee.user?.name || attendee.email || attendee.user?.email || 'Unnamed User';
+            const displayEmail = attendee.email || attendee.user?.email || 'No email';
+            const displayPhone = attendee.phone || attendee.user?.userPhone || 'No phone';
+
             return (
               <div key={attendee.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
                 <div className="flex justify-between items-start border-b pb-2">
                   <div>
-                    <h3 className="text-sm font-bold text-gray-900">{attendee.user?.name || 'Unnamed User'}</h3>
-                    <p className="text-xs text-gray-500">{attendee.user?.email}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{attendee.user?.userPhone || 'No phone'}</p>
+                    <h3 className="text-sm font-bold text-gray-900">{displayName}</h3>
+                    <p className="text-xs text-gray-500">{displayEmail}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{displayPhone}</p>
                   </div>
                   <span className="bg-indigo-50 text-indigo-700 font-bold text-xs px-2.5 py-1 rounded-full border border-indigo-100">
                     Guests: {isEditing ? (
@@ -215,14 +219,18 @@ export default function ThanksgivingAdminPage() {
               ) : (
                 attendees.map((attendee) => {
                   const isEditing = editingId === attendee.id;
+                  const displayName = attendee.name || attendee.user?.name || attendee.email || attendee.user?.email || 'Unnamed User';
+                  const displayEmail = attendee.email || attendee.user?.email || 'No email';
+                  const displayPhone = attendee.phone || attendee.user?.userPhone || 'No phone';
+
                   return (
                     <tr key={attendee.id} className="hover:bg-gray-50/50 transition">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900 max-w-xs truncate">
-                        {attendee.user?.name || 'Unnamed User'}
+                        {displayName}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                        <div>{attendee.user?.email}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{attendee.user?.userPhone || 'No phone'}</div>
+                        <div>{displayEmail}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{displayPhone}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {isEditing ? (
