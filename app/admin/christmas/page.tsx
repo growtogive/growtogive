@@ -32,15 +32,21 @@ export default function ChristmasAdminPage() {
     giftTwo: "",
   });
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
       const [appData, locData] = await Promise.all([
         getAdminChristmasData(),
         getLocations(),
       ]);
       
-      const sortedApps = (appData || []).sort((a: any, b: any) => 
+      // Sort applications and their kids strictly by creation date ascending
+      const sortedApps = (appData || []).map((app: any) => ({
+        ...app,
+        kids: (app.kids || []).sort((a: any, b: any) => 
+          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+        )
+      })).sort((a: any, b: any) => 
         new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
       );
 
@@ -49,24 +55,24 @@ export default function ChristmasAdminPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, []);
 
   const handleStatusChange = async (kidId: string, status: string, locationId: string | null, giftNumber: number) => {
     const res = await updateKidStatusAndLocation(kidId, status, locationId, giftNumber);
-    if (res.success) loadData();
+    if (res.success) loadData(false); // Background refresh without loading flash
     else alert(res.error || "Failed to update status");
   };
 
   const handleDeleteApp = async (appId: string) => {
     if (!confirm("Are you sure you want to delete this application? Pending tags will automatically resequence.")) return;
     const res = await deleteChristmasApplication(appId);
-    if (res.success) loadData();
+    if (res.success) loadData(false);
     else alert(res.error || "Failed to delete");
   };
 
@@ -76,7 +82,7 @@ export default function ChristmasAdminPage() {
     const res = await createLocation(newLocationName);
     if (res.success) {
       setNewLocationName("");
-      loadData();
+      loadData(false);
     } else {
       alert(res.error || "Failed to add location");
     }
@@ -135,7 +141,7 @@ export default function ChristmasAdminPage() {
 
     if (res.success) {
       setEditingKid(null);
-      loadData();
+      loadData(false); // Background refresh without loading flash
     } else {
       alert(res.error || "Failed to update tag details");
     }
@@ -378,7 +384,7 @@ export default function ChristmasAdminPage() {
             <button onClick={handlePrintTags} className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm text-center">
               🖨️ Print Tags
             </button>
-            <button onClick={loadData} className="flex-1 sm:flex-none px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold rounded-lg text-center">
+            <button onClick={() => loadData(false)} className="flex-1 sm:flex-none px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold rounded-lg text-center">
               Refresh
             </button>
           </div>
