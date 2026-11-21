@@ -30,28 +30,35 @@ export async function createLocation(name: string) {
 // ADMIN CHRISTMAS ACTIONS
 // ==========================================
 
-// Fetch all active (non-deleted) applications and their kids
+// Fetch all active (non-deleted) applications strictly by date created ascending
 export async function getAdminChristmasData() {
   return await prisma.christmasApplication.findMany({
     where: { deletedAt: null },
     include: {
       kids: {
-        include: { 
+        include: {
           location: true,
           giftOneLocation: true,
           giftTwoLocation: true,
         },
+        orderBy: [
+          { tagNumber: "asc" },
+          { id: "asc" },
+        ],
       },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { createdAt: "asc" },
+      { id: "asc" },
+    ],
   });
 }
 
-// Update a specific gift's status or location independently
+// Update a specific gift's status or location independently without resequencing
 export async function updateKidStatusAndLocation(
-  kidId: string, 
-  status: string, 
-  locationId: string | null, 
+  kidId: string,
+  status: string,
+  locationId: string | null,
   giftNumber: number
 ) {
   try {
@@ -74,10 +81,6 @@ export async function updateKidStatusAndLocation(
       data: updateData,
     });
 
-    if (!locationId) {
-      await resequencePendingApplications();
-    }
-
     return { success: true };
   } catch (error) {
     console.error("Error updating kid status and location:", error);
@@ -87,14 +90,14 @@ export async function updateKidStatusAndLocation(
 
 // Update a kid/tag's details (name, age, gender, gifts, tag number)
 export async function updateKidDetails(
-  kidId: string, 
-  data: { 
-    name: string; 
-    age: number | string; 
-    gender: string; 
-    giftOne: string; 
-    giftTwo: string; 
-    tagNumber: number | string; 
+  kidId: string,
+  data: {
+    name: string;
+    age: number | string;
+    gender: string;
+    giftOne: string;
+    giftTwo: string;
+    tagNumber: number | string;
   }
 ) {
   try {

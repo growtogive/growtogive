@@ -11,6 +11,31 @@ import {
   deleteChristmasApplication 
 } from "@/actions/locations";
 
+const sortAppsByCreatedAtAsc = (a: any, b: any): number => {
+  const timeA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+  const timeB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+  if (timeA !== timeB) return timeA - timeB;
+  return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+};
+
+const sortKidsDeterministically = (a: any, b: any): number => {
+  const tagCompare = String(a?.tagNumber ?? "").localeCompare(
+    String(b?.tagNumber ?? ""),
+    undefined,
+    { numeric: true, sensitivity: "base" }
+  );
+  if (tagCompare !== 0) return tagCompare;
+  return String(a?.id ?? "").localeCompare(String(b?.id ?? ""));
+};
+
+const sortApplicationsAndKids = (appData: any[]) =>
+  [...(appData || [])]
+    .map((app: any) => ({
+      ...app,
+      kids: [...(app.kids || [])].sort(sortKidsDeterministically),
+    }))
+    .sort(sortAppsByCreatedAtAsc);
+
 export default function ChristmasAdminPage() {
   const [applications, setApplications] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -39,18 +64,8 @@ export default function ChristmasAdminPage() {
         getAdminChristmasData(),
         getLocations(),
       ]);
-      
-      // Sort applications and their kids strictly by creation date ascending
-      const sortedApps = (appData || []).map((app: any) => ({
-        ...app,
-        kids: (app.kids || []).sort((a: any, b: any) => 
-          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-        )
-      })).sort((a: any, b: any) => 
-        new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-      );
 
-      setApplications(sortedApps);
+      setApplications(sortApplicationsAndKids(appData || []));
       setLocations(locData || []);
     } catch (err) {
       console.error(err);
@@ -63,10 +78,29 @@ export default function ChristmasAdminPage() {
     loadData(true);
   }, []);
 
-  const handleStatusChange = async (kidId: string, status: string, locationId: string | null, giftNumber: number) => {
+  const handleStatusChange = async (
+    kidId: string,
+    status: string,
+    locationId: string | null,
+    giftNumber: number
+  ) => {
     const res = await updateKidStatusAndLocation(kidId, status, locationId, giftNumber);
-    if (res.success) loadData(false); // Background refresh without loading flash
-    else alert(res.error || "Failed to update status");
+    if (!res.success) {
+      alert(res.error || "Failed to update status");
+      return;
+    }
+
+    setApplications((prevApps) =>
+      prevApps.map((app) => ({
+        ...app,
+        kids: (app.kids || []).map((kid: any) => {
+          if (kid.id !== kidId) return kid;
+          return giftNumber === 1
+            ? { ...kid, giftOneStatus: status, giftOneLocationId: locationId }
+            : { ...kid, giftTwoStatus: status, giftTwoLocationId: locationId };
+        }),
+      }))
+    );
   };
 
   const handleDeleteApp = async (appId: string) => {
@@ -141,7 +175,7 @@ export default function ChristmasAdminPage() {
 
     if (res.success) {
       setEditingKid(null);
-      loadData(false); // Background refresh without loading flash
+      loadData(false);
     } else {
       alert(res.error || "Failed to update tag details");
     }
