@@ -70,7 +70,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       if (!res.ok) throw new Error(resData.error || resData.message || 'Failed to delete user');
 
       alert(resData.message || 'User deleted successfully');
-      window.location.href = '/marketplace';
+      window.location.href = '/members';
     } catch (err: any) {
       alert(err.message);
     } finally {

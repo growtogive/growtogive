@@ -13,7 +13,7 @@ export default function MessagesPage() {
   const [sent, setSent] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
-  
+
   // Reply Modal state
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [replyContent, setReplyContent] = useState('');
@@ -84,41 +84,46 @@ export default function MessagesPage() {
   };
 
   if (status === 'loading' || loading) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium">Loading messages...</div>;
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-medium">
+        Loading messages...
+      </div>
+    );
   }
 
   const messagesList = activeTab === 'received' ? received : sent;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
-      <header className="w-full bg-white border-b-2 border-emerald-500 sticky top-0 z-40 shadow-sm">
-        <div className="w-full mx-auto px-4 py-3.5 flex justify-between items-center" style={{ maxWidth: '750px' }}>
-          <Link href="/marketplace" className="flex items-center gap-2.5">
-            <span className="text-2xl">🌱</span>
-            <span className="text-xl font-black tracking-tight text-slate-900">GrowToGive</span>
-          </Link>
-          <Link href="/profile" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all">
-            ← Back to Profile
-          </Link>
-        </div>
-      </header>
-
-      <main className="w-full mx-auto px-4 pt-8 space-y-6" style={{ maxWidth: '750px' }}>
+      <main
+        className="w-full mx-auto px-4 pt-8 space-y-6"
+        style={{ maxWidth: '750px' }}
+      >
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-black text-slate-900">Your Messages</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Secure internal communications regarding marketplace listings.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Secure internal communications regarding marketplace listings.
+            </p>
           </div>
           <div className="flex bg-slate-200 p-1 rounded-xl text-xs font-bold">
             <button
               onClick={() => setActiveTab('received')}
-              className={`px-4 py-2 rounded-lg transition-all ${activeTab === 'received' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}
+              className={`px-4 py-2 rounded-lg transition-all ${
+                activeTab === 'received'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600'
+              }`}
             >
               Inbox ({received.length})
             </button>
             <button
               onClick={() => setActiveTab('sent')}
-              className={`px-4 py-2 rounded-lg transition-all ${activeTab === 'sent' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}
+              className={`px-4 py-2 rounded-lg transition-all ${
+                activeTab === 'sent'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600'
+              }`}
             >
               Sent ({sent.length})
             </button>
@@ -132,21 +137,42 @@ export default function MessagesPage() {
         ) : (
           <div className="space-y-4">
             {messagesList.map((msg: any) => {
-              const otherUser = activeTab === 'received' ? msg.sender : msg.receiver;
-              const formattedDate = new Date(msg.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              const otherUser =
+                activeTab === 'received' ? msg.sender : msg.receiver;
+              const formattedDate = new Date(msg.createdAt).toLocaleDateString(
+                'en-US',
+                {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }
+              );
 
               return (
-                <div key={msg.id} className={`bg-white rounded-2xl border p-6 shadow-xs space-y-3 transition-all ${activeTab === 'received' && !msg.isRead ? 'border-emerald-400 bg-emerald-50/20 ring-2 ring-emerald-100' : 'border-slate-200'}`}>
+                <div
+                  key={msg.id}
+                  className={`bg-white rounded-2xl border p-6 shadow-xs space-y-3 transition-all ${
+                    activeTab === 'received' && !msg.isRead
+                      ? 'border-emerald-400 bg-emerald-50/20 ring-2 ring-emerald-100'
+                      : 'border-slate-200'
+                  }`}
+                >
                   <div className="flex justify-between items-start gap-4">
                     <div>
                       <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md uppercase">
                         Listing: {msg.listing?.title || 'Marketplace Item'}
                       </span>
                       <h3 className="text-sm font-bold text-slate-900 mt-2">
-                        {activeTab === 'received' ? `From: ${otherUser?.name || 'Member'}` : `To: ${otherUser?.name || 'Member'}`}
+                        {activeTab === 'received'
+                          ? `From: ${otherUser?.name || 'Member'}`
+                          : `To: ${otherUser?.name || 'Member'}`}
                       </h3>
                     </div>
-                    <span className="text-[11px] text-slate-400 font-medium">{formattedDate}</span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {formattedDate}
+                    </span>
                   </div>
 
                   <p className="text-slate-700 text-sm bg-slate-50 border border-slate-100 p-4 rounded-xl whitespace-pre-line leading-relaxed">
@@ -154,13 +180,21 @@ export default function MessagesPage() {
                   </p>
 
                   <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
-                    <Link href={`/listings/${msg.listingId}`} className="text-blue-600 hover:underline font-bold">
+                    <Link
+                      href={`/listings/${msg.listingId}`}
+                      className="text-blue-600 hover:underline font-bold"
+                    >
                       View Listing ↗
                     </Link>
                     {activeTab === 'received' && (
                       <button
                         onClick={() => {
-                          setReplyingTo({ listingId: msg.listingId, senderId: msg.senderId, recipientName: msg.sender?.name, listingTitle: msg.listing?.title });
+                          setReplyingTo({
+                            listingId: msg.listingId,
+                            senderId: msg.senderId,
+                            recipientName: msg.sender?.name,
+                            listingTitle: msg.listing?.title,
+                          });
                           setReplyContent('');
                           setReplyError('');
                         }}
@@ -181,11 +215,27 @@ export default function MessagesPage() {
       {replyingTo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md w-full shadow-2xl relative space-y-4">
-            <button onClick={() => setReplyingTo(null)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl">×</button>
-            <h3 className="text-xl font-black text-slate-900">Reply to {replyingTo.recipientName}</h3>
-            <p className="text-xs text-slate-500">Regarding: <span className="font-bold text-slate-700">{replyingTo.listingTitle}</span></p>
+            <button
+              onClick={() => setReplyingTo(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 font-bold text-xl"
+            >
+              ×
+            </button>
+            <h3 className="text-xl font-black text-slate-900">
+              Reply to {replyingTo.recipientName}
+            </h3>
+            <p className="text-xs text-slate-500">
+              Regarding:{' '}
+              <span className="font-bold text-slate-700">
+                {replyingTo.listingTitle}
+              </span>
+            </p>
 
-            {replyError && <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">{replyError}</div>}
+            {replyError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">
+                {replyError}
+              </div>
+            )}
 
             <form onSubmit={handleSendReply} className="space-y-4">
               <textarea
@@ -197,8 +247,18 @@ export default function MessagesPage() {
                 className="w-full px-4 py-3 border border-slate-200 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
               />
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setReplyingTo(null)} className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl">Cancel</button>
-                <button type="submit" disabled={sendingReply} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => setReplyingTo(null)}
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingReply}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
+                >
                   {sendingReply ? 'Sending...' : 'Send Message'}
                 </button>
               </div>
