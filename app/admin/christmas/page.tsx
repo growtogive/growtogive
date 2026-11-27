@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { 
-  getLocations, 
-  createLocation, 
-  getAdminChristmasData, 
-  updateKidStatusAndLocation, 
+import {
+  getLocations,
+  createLocation,
+  getAdminChristmasData,
+  updateKidStatusAndLocation,
   updateKidDetails,
-  deleteChristmasApplication 
+  deleteChristmasApplication,
 } from "@/actions/locations";
 
 const sortAppsByCreatedAtAsc = (a: any, b: any): number => {
@@ -35,6 +35,14 @@ const sortApplicationsAndKids = (appData: any[]) =>
       kids: [...(app.kids || [])].sort(sortKidsDeterministically),
     }))
     .sort(sortAppsByCreatedAtAsc);
+
+const escapeHtml = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 export default function ChristmasAdminPage() {
   const [applications, setApplications] = useState<any[]>([]);
@@ -132,7 +140,7 @@ export default function ChristmasAdminPage() {
     const emails = applications
       .map((app) => app.email)
       .filter((email): email is string => Boolean(email && email.trim() !== ""));
-    
+
     const uniqueEmails = Array.from(new Set(emails));
 
     if (uniqueEmails.length === 0) {
@@ -220,6 +228,12 @@ export default function ChristmasAdminPage() {
     return kid.giftTwoLocationId || kid.locationId || "";
   };
 
+  const getLocationName = (locationId: string) => {
+    if (!locationId) return "Unassigned";
+    const found = locations.find((loc: any) => loc.id === locationId);
+    return found ? found.name : "Unassigned";
+  };
+
   const getStatusColorClasses = (status: string) => {
     switch (status) {
       case "CLAIMED":
@@ -244,6 +258,243 @@ export default function ChristmasAdminPage() {
       default:
         return "bg-red-600 text-white";
     }
+  };
+
+  const buildFamilySheetHtml = (
+    app: any,
+    familyNumber: number,
+    tags: any[],
+    pageBreakAfter: boolean
+  ) => {
+    const rowsHtml =
+      tags.length > 0
+        ? tags
+            .map((tag) => {
+              const status = getKidGiftStatus(tag.kid, tag.giftNumber) || "UNCLAIMED";
+              const locName = getLocationName(getKidGiftLocationId(tag.kid, tag.giftNumber));
+
+              return `
+                <tr>
+                  <td>${escapeHtml(tag.tagId)}</td>
+                  <td>${escapeHtml(tag.kid.name)}</td>
+                  <td class="center">${escapeHtml(tag.kid.age)}</td>
+                  <td class="center">${escapeHtml(tag.kid.gender)}</td>
+                  <td>${escapeHtml(tag.giftText)}</td>
+                  <td>${escapeHtml(locName)}</td>
+                  <td class="center">${escapeHtml(status)}</td>
+                </tr>
+              `;
+            })
+            .join("")
+        : `
+          <tr>
+            <td colspan="7" class="center empty-row">No gift tags listed for this family.</td>
+          </tr>
+        `;
+
+    return `
+      <section class="family-page ${pageBreakAfter ? "page-break" : "last-page"}">
+        <div class="header-bar">
+          <h1>Family ${escapeHtml(familyNumber)}: ${escapeHtml(app.momName || "N/A")}</h1>
+          <div class="meta">Total Tags: ${tags.length}</div>
+        </div>
+
+        <div class="mom-box">
+          <div class="mom-grid">
+            <div class="mom-item"><span class="mom-label">Mom:</span> ${escapeHtml(app.momName || "N/A")}</div>
+            <div class="mom-item"><span class="mom-label">Phone:</span> ${escapeHtml(app.phone || "N/A")}</div>
+            <div class="mom-item"><span class="mom-label">Email:</span> ${escapeHtml(app.email || "N/A")}</div>
+            <div class="mom-item"><span class="mom-label">Referred By:</span> ${escapeHtml(app.referredBy || "N/A")}</div>
+            <div class="mom-item" style="grid-column: span 2;"><span class="mom-label">Address:</span> ${escapeHtml(app.address || "N/A")}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Tag ID</th>
+              <th>Child Name</th>
+              <th class="center">Age</th>
+              <th class="center">Gender</th>
+              <th>Gift</th>
+              <th>Location</th>
+              <th class="center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </section>
+    `;
+  };
+
+  const renderFamilyPrintDocument = (
+    titleText: string,
+    buttonText: string,
+    sheetsHtml: string
+  ) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow popups to print family sheet(s).");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${escapeHtml(titleText)}</title>
+          <style>
+            @page {
+              size: 8.5in 11in;
+              margin: 0.5in;
+            }
+            * {
+              box-sizing: border-box;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 0;
+              color: #000;
+              background: #fff;
+              font-size: 12px;
+            }
+            .family-page {
+              width: 100%;
+              min-height: 9.8in;
+              display: block;
+              background: #fff;
+            }
+            .family-page.page-break {
+              break-after: page;
+              page-break-after: always;
+            }
+            .family-page.last-page {
+              break-after: auto;
+              page-break-after: auto;
+            }
+            .header-bar {
+              display: flex;
+              justify-content: space-between;
+              align-items: baseline;
+              padding-bottom: 4px;
+              margin-bottom: 10px;
+            }
+            .header-bar h1 {
+              margin: 0;
+              font-size: 16px;
+              font-weight: normal;
+              color: #000;
+            }
+            .header-bar .meta {
+              font-size: 11px;
+              color: #000;
+            }
+            .mom-box {
+              background: #fff;
+              padding: 0;
+              margin-bottom: 14px;
+            }
+            .mom-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 6px 18px;
+            }
+            .mom-item {
+              line-height: 1.4;
+              color: #000;
+            }
+            .mom-label {
+              font-weight: normal;
+              color: #000;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 4px;
+              background: #fff;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 6px 8px;
+              text-align: left;
+              vertical-align: top;
+              color: #000;
+              background: #fff;
+            }
+            th {
+              font-weight: normal;
+              font-size: 11px;
+              text-transform: uppercase;
+            }
+            tr {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            td.center, th.center {
+              text-align: center;
+            }
+            td.empty-row {
+              padding: 14px;
+              color: #000;
+            }
+            .no-print {
+              text-align: center;
+              margin-bottom: 16px;
+            }
+            .no-print button {
+              padding: 8px 16px;
+              background: #fff;
+              color: #000;
+              border: 1px solid #000;
+              cursor: pointer;
+            }
+            @media print {
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print">
+            <button onclick="window.print()">${escapeHtml(buttonText)}</button>
+          </div>
+          ${sheetsHtml}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handlePrintFamily = (app: any, familyNumber: number, tags: any[]) => {
+    const sheetHtml = buildFamilySheetHtml(app, familyNumber, tags, false);
+    renderFamilyPrintDocument(
+      `Family ${familyNumber} - ${app.momName || "Summary"}`,
+      "Print Family Sheet",
+      sheetHtml
+    );
+  };
+
+  const handlePrintAllFamilies = () => {
+    if (applications.length === 0) {
+      alert("No families available to print.");
+      return;
+    }
+
+    const sheetsHtml = applications
+      .map((app, appIndex) => {
+        const { familyNumber, tags } = getFamilyTags(app, appIndex);
+        const pageBreakAfter = appIndex < applications.length - 1;
+        return buildFamilySheetHtml(app, familyNumber, tags, pageBreakAfter);
+      })
+      .join("");
+
+    renderFamilyPrintDocument(
+      "All Families - Christmas Charity",
+      "Print All Family Sheets",
+      sheetsHtml
+    );
   };
 
   const handlePrintTags = () => {
@@ -355,11 +606,11 @@ export default function ChristmasAdminPage() {
         </div>
         <div class="tag-body">
           <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 12px;">
-            <span style="color: #dc2626;">Tag ID: ${tagIdCode}</span>
-            <span>Age: ${kid.age} (${kid.gender})</span>
+            <span style="color: #dc2626;">Tag ID: ${escapeHtml(tagIdCode)}</span>
+            <span>Age: ${escapeHtml(kid.age)} (${escapeHtml(kid.gender)})</span>
           </div>
-          <p style="margin: 0 0 10px 0;"><strong>Child Name:</strong> ${kid.name}</p>
-          <p style="margin: 0 0 14px 0;"><strong>Gift Desired:</strong> ${giftText}</p>
+          <p style="margin: 0 0 10px 0;"><strong>Child Name:</strong> ${escapeHtml(kid.name)}</p>
+          <p style="margin: 0 0 14px 0;"><strong>Gift Desired:</strong> ${escapeHtml(giftText)}</p>
           <div>
             <p class="tag-message" style="margin-bottom: 6px;">1. SIGN OUT TAG</p>
             <p class="tag-message" style="margin-bottom: 6px;">2. RETURN UNWRAPPED GIFT BY 12.15.26</p>
@@ -379,7 +630,7 @@ export default function ChristmasAdminPage() {
       const currentStatus = getKidGiftStatus(tag.kid, tag.giftNumber);
       const currentLocationId = getKidGiftLocationId(tag.kid, tag.giftNumber);
 
-      const matchesSearch = 
+      const matchesSearch =
         tag.tagId.toLowerCase().includes(searchQuery.toLowerCase()) ||
         tag.kid.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (app.momName && app.momName.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -404,7 +655,7 @@ export default function ChristmasAdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-6 sm:py-10 px-3 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-        
+
         {/* Header Bar */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-xl shadow-sm border gap-4">
           <div>
@@ -414,6 +665,9 @@ export default function ChristmasAdminPage() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <button onClick={handleCopyBccEmails} className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm text-center transition">
               ✉️ Copy Emails to BCC
+            </button>
+            <button onClick={handlePrintAllFamilies} className="flex-1 sm:flex-none px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm text-center transition">
+              🖨️ Print All Families
             </button>
             <button onClick={handlePrintTags} className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm text-center">
               🖨️ Print Tags
@@ -516,7 +770,7 @@ export default function ChristmasAdminPage() {
                   const currentStatus = getKidGiftStatus(tag.kid, tag.giftNumber);
                   const currentLocationId = getKidGiftLocationId(tag.kid, tag.giftNumber);
 
-                  const matchesSearch = 
+                  const matchesSearch =
                     tag.tagId.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     tag.kid.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (app.momName && app.momName.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -552,15 +806,23 @@ export default function ChristmasAdminPage() {
                           </p>
                         )}
                       </div>
-                      
+
                       <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintFamily(app, familyNumber, tags)}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-semibold border border-gray-300 transition text-center"
+                        >
+                          🖨️ Print Family
+                        </button>
+
                         <Link
                           href={`/christmas/apply?edit=${app.id}`}
                           className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-semibold border border-blue-200 transition text-center"
                         >
                           ✏️ Edit
                         </Link>
-                        
+
                         <button onClick={() => handleDeleteApp(app.id)} className="text-xs text-red-600 hover:text-red-800 font-semibold">
                           Delete
                         </button>
@@ -588,7 +850,7 @@ export default function ChristmasAdminPage() {
                             </div>
 
                             <div className="flex justify-between items-center pt-2">
-                              <button 
+                              <button
                                 onClick={() => openEditModal(tag.kid, tag.tagId)}
                                 className="text-xs bg-white/80 hover:bg-white text-gray-700 px-2.5 py-1.5 rounded font-semibold border transition shadow-xs"
                               >
@@ -642,7 +904,7 @@ export default function ChristmasAdminPage() {
                 <h3 className="text-lg font-bold text-gray-900">Edit Child Details</h3>
                 <p className="text-xs text-gray-500">Tag Number: <span className="font-semibold text-red-600">#{editingKid.tagNumber}</span></p>
               </div>
-              <button 
+              <button
                 onClick={() => setEditingKid(null)}
                 className="text-gray-400 hover:text-gray-600 font-bold text-base p-1"
               >
